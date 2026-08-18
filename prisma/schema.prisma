@@ -176,18 +176,20 @@ model TicketPanel {
 }
 
 model Ticket {
-  id           String    @id @default(uuid())
-  ticketNumber Int       @default(1)
-  guildId      String
-  channelId    String    @unique
-  openerId     String
-  claimerId    String?
-  category     String    @default("GENERAL")
-  subject      String
-  reason       String?
-  status       String    @default("OPEN") // "OPEN" | "CLAIMED" | "CLOSED"
-  closedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id            String    @id @default(uuid())
+  ticketNumber  Int       @default(1)
+  guildId       String
+  channelId     String    @unique
+  openerId      String
+  claimerId     String?
+  closedById    String?
+  transcriptUrl String?
+  category      String    @default("GENERAL")
+  subject       String
+  reason        String?
+  status        String    @default("OPEN") // "OPEN" | "CLAIMED" | "CLOSED"
+  closedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 

@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction, ChannelType, TextChannel, User } from 'discord.js';
+import { SlashCommandBuilder, ChatInputCommandInteraction, ChannelType, TextChannel, User, GuildMember } from 'discord.js';
 import { TicketService } from '../../services/ticket.service';
 import { PermissionsService } from '../../services/permissions.service';
 import { KraxxEmbedBuilder } from '../../embeds/kraxxEmbedBuilder';
@@ -91,21 +91,23 @@ export default {
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const group = interaction.options.getSubcommandGroup(false);
     const subcommand = interaction.options.getSubcommand();
+    const member = interaction.member as GuildMember;
+
+    // Enforce Ticket Manager authorization for all management commands
+    const auth = PermissionsService.requireTicketManager(member);
 
     // Group: /ticket panel ...
     if (group === 'panel') {
-      if (subcommand === 'list') {
-        await TicketService.listTicketPanels(interaction);
+      if (!auth.authorized) {
+        await interaction.reply({
+          embeds: [KraxxEmbedBuilder.error('Access Denied', auth.reason || 'You do not have permission to manage tickets.')],
+          ephemeral: true,
+        });
         return;
       }
 
-      const member = interaction.member as any;
-      const auth = PermissionsService.requireManagement(member);
-      if (!auth.authorized) {
-        await interaction.reply({
-          embeds: [KraxxEmbedBuilder.error('Access Denied', auth.reason || 'Management authority required.')],
-          ephemeral: true,
-        });
+      if (subcommand === 'list') {
+        await TicketService.listTicketPanels(interaction);
         return;
       }
 
@@ -133,7 +135,15 @@ export default {
       }
     }
 
-    // Direct Subcommands
+    // Direct Subcommands: Require Ticket Manager authorization
+    if (!auth.authorized) {
+      await interaction.reply({
+        embeds: [KraxxEmbedBuilder.error('Access Denied', auth.reason || 'You do not have permission to manage tickets.')],
+        ephemeral: true,
+      });
+      return;
+    }
+
     if (subcommand === 'claim') {
       await TicketService.claimTicket(interaction);
       return;
@@ -156,15 +166,6 @@ export default {
     }
 
     if (subcommand === 'delete') {
-      const member = interaction.member as any;
-      const auth = PermissionsService.requireTeamLead(member);
-      if (!auth.authorized) {
-        await interaction.reply({
-          embeds: [KraxxEmbedBuilder.error('Access Denied', auth.reason || 'Team Lead authority required to delete ticket channels.')],
-          ephemeral: true,
-        });
-        return;
-      }
       await TicketService.deleteTicketChannel(interaction);
       return;
     }

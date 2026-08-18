@@ -88,6 +88,8 @@ export class TicketRepository {
     data: {
       status?: string;
       claimerId?: string | null;
+      closedById?: string | null;
+      transcriptUrl?: string | null;
       reason?: string | null;
       closedAt?: Date | null;
     }

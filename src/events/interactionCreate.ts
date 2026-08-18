@@ -1,10 +1,11 @@
-import { Interaction, Collection } from 'discord.js';
+import { Interaction, Collection, GuildMember } from 'discord.js';
 import { logger } from '../utils/logger';
 import { VerificationService } from '../services/verification.service';
 import { AnnouncementService } from '../services/announcement.service';
 import { SelfRoleService } from '../services/selfrole.service';
 import { TicketService } from '../services/ticket.service';
 import { KraxxEmbedBuilder } from '../embeds/kraxxEmbedBuilder';
+import { isTicketManager } from '../config/roles';
 
 export async function onInteractionCreate(
   interaction: Interaction,
@@ -37,29 +38,48 @@ export async function onInteractionCreate(
         return;
       }
 
-      if (interaction.customId === 'kraxx_ticket_claim') {
-        await TicketService.claimTicket(interaction);
-        return;
-      }
+      const mgmtTicketButtons = [
+        'kraxx_ticket_claim',
+        'kraxx_ticket_close',
+        'kraxx_ticket_transcript',
+        'kraxx_ticket_reopen',
+        'kraxx_ticket_delete',
+      ];
 
-      if (interaction.customId === 'kraxx_ticket_close') {
-        await TicketService.closeTicket(interaction);
-        return;
-      }
+      if (mgmtTicketButtons.includes(interaction.customId)) {
+        const member = interaction.member as GuildMember;
+        if (!isTicketManager(member)) {
+          await interaction.reply({
+            content: 'You do not have permission to manage tickets.',
+            ephemeral: true,
+          });
+          return;
+        }
 
-      if (interaction.customId === 'kraxx_ticket_transcript') {
-        await TicketService.generateTranscript(interaction);
-        return;
-      }
+        if (interaction.customId === 'kraxx_ticket_claim') {
+          await TicketService.claimTicket(interaction);
+          return;
+        }
 
-      if (interaction.customId === 'kraxx_ticket_reopen') {
-        await TicketService.reopenTicket(interaction);
-        return;
-      }
+        if (interaction.customId === 'kraxx_ticket_close') {
+          await TicketService.closeTicket(interaction);
+          return;
+        }
 
-      if (interaction.customId === 'kraxx_ticket_delete') {
-        await TicketService.deleteTicketChannel(interaction);
-        return;
+        if (interaction.customId === 'kraxx_ticket_transcript') {
+          await TicketService.generateTranscript(interaction);
+          return;
+        }
+
+        if (interaction.customId === 'kraxx_ticket_reopen') {
+          await TicketService.reopenTicket(interaction);
+          return;
+        }
+
+        if (interaction.customId === 'kraxx_ticket_delete') {
+          await TicketService.deleteTicketChannel(interaction);
+          return;
+        }
       }
 
       return;

@@ -21,11 +21,18 @@ async function validate() {
     console.log(`  ${isConfigured ? '✅' : '⚠️'} ${role.name.padEnd(20)}: ${isConfigured ? `ID ${role.id}` : 'UNCONFIGURED PLACEHOLDER'}`);
   }
 
-  console.log('\n[3/3] Discord Channels Readiness:');
+  console.log('\n[3/4] Discord Channels Readiness:');
   const channelDiags = getChannelDiagnostics();
   for (const ch of channelDiags) {
     console.log(`  ${ch.configured ? '✅' : '⚠️'} ${ch.name.padEnd(25)}: ${ch.configured ? `ID ${ch.id}` : 'UNCONFIGURED PLACEHOLDER'}`);
   }
+
+  console.log('\n[4/4] Ticket System Readiness:');
+  console.log(`  • Founder Role (${ORGANIZATIONAL_ROLES.FOUNDER?.id ? `ID ${ORGANIZATIONAL_ROLES.FOUNDER.id}` : 'Fallback Tier 100'})`);
+  console.log(`  • Co-Founder Role (${ORGANIZATIONAL_ROLES.COFOUNDER?.id ? `ID ${ORGANIZATIONAL_ROLES.COFOUNDER.id}` : 'Fallback Tier 90'})`);
+  console.log(`  • Management Head Role (${ORGANIZATIONAL_ROLES.MANAGEMENT_HEAD?.id ? `ID ${ORGANIZATIONAL_ROLES.MANAGEMENT_HEAD.id}` : 'Fallback Tier 80'})`);
+  console.log(`  • Ticket Transcripts Channel (${env.TICKET_TRANSCRIPTS_CHANNEL_ID ? `ID ${env.TICKET_TRANSCRIPTS_CHANNEL_ID}` : 'Auto-create #ticket-transcripts in TICKET-TRANSCRIPTS category'})`);
+  console.log(`  • Ticket Logs Channel (${env.TICKET_LOGS_CHANNEL_ID ? `ID ${env.TICKET_LOGS_CHANNEL_ID}` : 'Auto-create #ticket-logs in TICKET-LOGS category'})`);
 
   console.log('\nTesting Database Connection...');
   try {

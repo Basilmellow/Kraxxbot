@@ -124,6 +124,31 @@ export function isManagement(member: GuildMember): boolean {
 }
 
 /**
+ * Checks if a member is authorized for ticket management.
+ * Strictly limited to: Founder, Co-Founder, and Management Head roles.
+ */
+export function isTicketManager(member: GuildMember): boolean {
+  if (!member || !member.roles) return false;
+
+  // Direct role ID checks from configured environment variables
+  if (
+    (env.FOUNDER_ROLE_ID && env.FOUNDER_ROLE_ID.trim() !== '' && member.roles.cache.has(env.FOUNDER_ROLE_ID)) ||
+    (env.COFOUNDER_ROLE_ID && env.COFOUNDER_ROLE_ID.trim() !== '' && member.roles.cache.has(env.COFOUNDER_ROLE_ID)) ||
+    (env.MANAGEMENT_ROLE_ID && env.MANAGEMENT_ROLE_ID.trim() !== '' && member.roles.cache.has(env.MANAGEMENT_ROLE_ID))
+  ) {
+    return true;
+  }
+
+  // Role tier check (FOUNDER = 100, COFOUNDER = 90, MANAGEMENT_HEAD = 80)
+  const highestTier = getMemberHighestTier(member);
+  if (highestTier >= RoleTier.MANAGEMENT_HEAD) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Checks if a member has Team Lead authority or higher.
  */
 export function isTeamLeadOrAbove(member: GuildMember): boolean {

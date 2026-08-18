@@ -38,6 +38,8 @@ export const CHANNEL_CONFIGS: Record<string, ChannelMapping> = {
   MODERATOR_ONLY: { key: 'MODERATOR_ONLY', name: '#moderator-only', id: env.MODERATOR_ONLY_CHANNEL_ID, category: 'Admin' },
   SAFETY_UPDATES: { key: 'SAFETY_UPDATES', name: '#safety-updates', id: env.SAFETY_UPDATES_CHANNEL_ID, category: 'Admin' },
   BOT_LOG: { key: 'BOT_LOG', name: '#bot-logs', id: env.BOT_LOG_CHANNEL_ID, category: 'Admin' },
+  TICKET_LOGS: { key: 'TICKET_LOGS', name: '#ticket-logs', id: env.TICKET_LOGS_CHANNEL_ID, category: 'Tickets' },
+  TICKET_TRANSCRIPTS: { key: 'TICKET_TRANSCRIPTS', name: '#ticket-transcripts', id: env.TICKET_TRANSCRIPTS_CHANNEL_ID, category: 'Tickets' },
 };
 
 /**

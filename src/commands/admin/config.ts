@@ -91,11 +91,27 @@ export default {
         c => `• **${safeString(c.name)}** (\`${safeString(c.key)}\`): ${c.configured ? `\`${safeString(c.id)}\`` : '❌ `NOT_SET`'}`
       );
 
-      // 5. Overall Status Determination
+      // 5. Ticket System Specific Readiness
+      const founderConfigured = Boolean(ORGANIZATIONAL_ROLES.FOUNDER?.id && ORGANIZATIONAL_ROLES.FOUNDER.id.trim().length > 0);
+      const cofounderConfigured = Boolean(ORGANIZATIONAL_ROLES.COFOUNDER?.id && ORGANIZATIONAL_ROLES.COFOUNDER.id.trim().length > 0);
+      const managementConfigured = Boolean(ORGANIZATIONAL_ROLES.MANAGEMENT_HEAD?.id && ORGANIZATIONAL_ROLES.MANAGEMENT_HEAD.id.trim().length > 0);
+
+      const logsDiag = channelDiag.find(c => c.key === 'TICKET_LOGS');
+      const transcriptsDiag = channelDiag.find(c => c.key === 'TICKET_TRANSCRIPTS');
+
+      const ticketDiagLines = [
+        `• Founder Role: ${founderConfigured ? `\`${ORGANIZATIONAL_ROLES.FOUNDER.id}\`` : '⚙️ `FALLBACK / TIER 100`'}`,
+        `• Co-Founder Role: ${cofounderConfigured ? `\`${ORGANIZATIONAL_ROLES.COFOUNDER.id}\`` : '⚙️ `FALLBACK / TIER 90`'}`,
+        `• Management Head Role: ${managementConfigured ? `\`${ORGANIZATIONAL_ROLES.MANAGEMENT_HEAD.id}\`` : '⚙️ `FALLBACK / TIER 80`'}`,
+        `• Ticket Logs Channel: ${logsDiag?.configured ? `\`${logsDiag.id}\`` : '⚙️ `AUTO-CREATE (#ticket-logs)`'}`,
+        `• Ticket Transcripts Channel: ${transcriptsDiag?.configured ? `\`${transcriptsDiag.id}\`` : '⚙️ `AUTO-CREATE (#ticket-transcripts)`'}`,
+      ];
+
+      // 6. Overall Status Determination
       const isFullyConfigured = missingRoles.length === 0 && missingChannels.length === 0;
       const overallStatus = isFullyConfigured ? 'READY' : 'INCOMPLETE / DEGRADED';
 
-      // 6. Build Embed
+      // 7. Build Embed
       const embed = KraxxEmbedBuilder.createHeader('KRAXX HQ DIAGNOSTIC OVERVIEW', 'CONFIGURATION');
 
       embed.addFields(
@@ -113,6 +129,11 @@ export default {
           name: 'CHANNELS',
           value: `Configured: \`${configuredChannelsCount}/${totalChannels}\`\nStatus: \`${missingChannels.length === 0 ? 'COMPLETE' : 'INCOMPLETE'}\``,
           inline: true,
+        },
+        {
+          name: 'TICKET SYSTEM READINESS',
+          value: ticketDiagLines.join('\n'),
+          inline: false,
         },
         {
           name: 'STATUS',

@@ -61,6 +61,8 @@ const environmentSchema = z.object({
   SAFETY_UPDATES_CHANNEL_ID: z.string().optional().default(''),
 
   BOT_LOG_CHANNEL_ID: z.string().optional().default(''),
+  TICKET_LOGS_CHANNEL_ID: z.string().optional().default(''),
+  TICKET_TRANSCRIPTS_CHANNEL_ID: z.string().optional().default(''),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

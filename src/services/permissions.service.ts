@@ -1,7 +1,17 @@
 import { GuildMember } from 'discord.js';
-import { isManagement, isTeamLeadOrAbove, getMemberHighestTier, RoleTier } from '../config/roles';
+import { isManagement, isTicketManager, isTeamLeadOrAbove, getMemberHighestTier, RoleTier } from '../config/roles';
 
 export class PermissionsService {
+  static requireTicketManager(member: GuildMember): { authorized: boolean; reason?: string } {
+    if (!isTicketManager(member)) {
+      return {
+        authorized: false,
+        reason: 'This action is restricted to KRAXX Management (Founder, Co-Founder, Management Head).',
+      };
+    }
+    return { authorized: true };
+  }
+
   static requireManagement(member: GuildMember): { authorized: boolean; reason?: string } {
     if (!isManagement(member)) {
       return {
