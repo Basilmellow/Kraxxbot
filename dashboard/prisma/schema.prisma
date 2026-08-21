@@ -1,0 +1,346 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Member {
+  id          String    @id @default(uuid())
+  discordId   String    @unique
+  username    String
+  displayName String
+  isVerified  Boolean   @default(false)
+  verifiedAt  DateTime?
+  joinedAt    DateTime  @default(now())
+  department  String?   // "KRAXXSEC" | "KRAXX_STUDIO" | null
+  roleTier    String    @default("USER") // "FOUNDER" | "COFOUNDER" | "MANAGEMENT" | "TEAM_LEAD" | "PARTNER" | "STAFF" | "CLIENT" | "USER"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model VerificationLog {
+  id         String   @id @default(uuid())
+  discordId  String
+  verifiedAt DateTime @default(now())
+  status     String   @default("SUCCESS") // "SUCCESS" | "FAILED" | "ALREADY_VERIFIED"
+  notes      String?
+}
+
+model Announcement {
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  department  String   @default("GENERAL") // "GENERAL" | "KRAXXSEC" | "KRAXX_STUDIO"
+  type        String   @default("GENERAL") // "GENERAL" | "IMPORTANT" | "EVENT" | "MAINTENANCE" | "RECRUITMENT" | "KRAXXSEC" | "KRAXX_STUDIO"
+  authorId    String
+  channelId   String
+  messageId   String?
+  mentionRole String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  taskNumber  Int       @default(1)
+  title       String
+  description String
+  department  String    @default("GENERAL") // "GENERAL" | "KRAXXSEC" | "KRAXX_STUDIO"
+  status      String    @default("PENDING") // "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
+  priority    String    @default("MEDIUM")  // "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+  assigneeId  String?
+  creatorId   String
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Reminder {
+  id          String    @id @default(uuid())
+  title       String
+  message     String
+  targetType  String    @default("USER") // "USER" | "CHANNEL"
+  targetId    String
+  cronPattern String?
+  triggerAt   DateTime?
+  isRecurring Boolean   @default(false)
+  status      String    @default("ACTIVE") // "ACTIVE" | "COMPLETED" | "CANCELLED"
+  createdBy   String
+  createdAt   DateTime  @default(now())
+}
+
+model Meeting {
+  id                String    @id @default(uuid())
+  title             String
+  agenda            String
+  department        String    @default("GENERAL")
+  startTime         DateTime
+  endTime           DateTime?
+  locationChannelId String?
+  organizerId       String
+  attendees         String?   // JSON array string of discord IDs
+  status            String    @default("SCHEDULED") // "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
+  createdAt         DateTime  @default(now())
+}
+
+model Event {
+  id          String    @id @default(uuid())
+  title       String
+  description String
+  type        String    @default("INTERNAL") // "INTERNAL" | "PUBLIC" | "WORKSHOP" | "SECURITY_CTF"
+  department  String    @default("GENERAL")
+  startTime   DateTime
+  endTime     DateTime?
+  location    String?
+  organizerId String
+  status      String    @default("UPCOMING") // "UPCOMING" | "LIVE" | "CONCLUDED" | "CANCELLED"
+  createdAt   DateTime  @default(now())
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String
+  clientName  String?
+  department  String   @default("KRAXXSEC") // "KRAXXSEC" | "KRAXX_STUDIO"
+  status      String   @default("PLANNING") // "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED"
+  leadId      String?
+  channelId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Client {
+  id           String   @id @default(uuid())
+  name         String
+  company      String
+  contactEmail String?
+  division     String   @default("KRAXXSEC") // "KRAXXSEC" | "KRAXX_STUDIO" | "BOTH"
+  status       String   @default("ACTIVE")    // "LEAD" | "ACTIVE" | "INACTIVE"
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Template {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  category  String   // "ANNOUNCEMENT" | "SECURITY_REPORT" | "STUDIO_BRIEF" | "MEETING_AGENDA"
+  title     String
+  content   String
+  variables String?  // JSON string of expected variable names
+  createdBy String
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  executorId String
+  targetId  String?
+  details   String?
+  timestamp DateTime @default(now())
+}
+
+model BotConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model SelfRole {
+  id          String   @id @default(uuid())
+  roleId      String   @unique
+  name        String
+  description String?
+  emoji       String?
+  category    String   @default("GENERAL")
+  createdAt   DateTime @default(now())
+}
+
+model TicketPanel {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  category    String   @default("GENERAL")
+  channelId   String
+  messageId   String?
+  createdAt   DateTime @default(now())
+}
+
+model Ticket {
+  id            String    @id @default(uuid())
+  ticketNumber  Int       @default(1)
+  guildId       String
+  channelId     String    @unique
+  openerId      String
+  claimerId     String?
+  closedById    String?
+  transcriptUrl String?
+  category      String    @default("GENERAL")
+  subject       String
+  reason        String?
+  status        String    @default("OPEN") // "OPEN" | "CLAIMED" | "CLOSED"
+  closedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Dashboard Models (Web Operations Platform)
+// ─────────────────────────────────────────────────────────────────
+
+model DashboardAuditLog {
+  id         String   @id @default(uuid())
+  action     String   // "LOGIN" | "LOGOUT" | "SEND_MESSAGE" | "CONFIG_CHANGED" | etc.
+  executorId String   // Discord user ID
+  targetId   String?
+  targetType String?  // "CHANNEL" | "USER" | "ROLE" | "TICKET" | etc.
+  details    String?  // JSON metadata
+  ipAddress  String?
+  source     String   @default("DASHBOARD") // "DASHBOARD" | "BOT"
+  timestamp  DateTime @default(now())
+
+  @@index([executorId])
+  @@index([action])
+  @@index([timestamp])
+}
+
+model ModuleConfig {
+  id        String   @id @default(uuid())
+  module    String   @unique // "tickets" | "welcome" | "selfroles" | "automod" | etc.
+  enabled   Boolean  @default(true)
+  config    String?  // JSON configuration
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+model WelcomeConfig {
+  id             String   @id @default(uuid())
+  guildId        String   @unique
+  enabled        Boolean  @default(false)
+  channelId      String?
+  message        String?
+  embedJson      String?  // JSON embed config
+  imageUrl       String?
+  roleId         String?  // Auto-assign role
+  dmEnabled      Boolean  @default(false)
+  dmMessage      String?
+  leaveChannelId String?
+  leaveMessage   String?
+  updatedAt      DateTime @updatedAt
+}
+
+model EmbedTemplate {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  category    String   @default("CUSTOM") // "ANNOUNCEMENT" | "RECRUITMENT" | "EVENT" | "MEETING" | "MAINTENANCE" | "WARNING" | "UPDATE" | "KRAXXSEC" | "KRAXX_STUDIO" | "CUSTOM"
+  description String?
+  title       String?
+  embedData   String   // JSON string containing full embed specification
+  createdBy   String   // Discord user ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+model ScheduledAnnouncement {
+  id            String    @id @default(uuid())
+  guildId       String
+  channelId     String
+  title         String?
+  content       String?
+  embedPayload  String?   // JSON string representation of embeds array
+  mentionType   String?   // "NONE" | "EVERYONE" | "HERE" | "ROLE"
+  mentionRoleId String?
+  department    String    @default("GENERAL") // "GENERAL" | "KRAXXSEC" | "KRAXX_STUDIO"
+  scheduledFor  DateTime
+  status        String    @default("PENDING") // "PENDING" | "SENT" | "CANCELLED" | "FAILED"
+  createdBy     String    // Discord user ID
+  sentAt        DateTime?
+  error         String?
+  messageId     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, scheduledFor])
+}
+
+model AutomationRule {
+  id        String   @id @default(uuid())
+  name      String
+  trigger   String   // MEMBER_JOIN | MEMBER_LEAVE | ROLE_ADDED | ROLE_REMOVED | TICKET_CREATED | TICKET_CLOSED | TASK_CREATED | TASK_COMPLETED | MEETING_STARTING | SCHEDULED_TIME
+  action    String   // SEND_MESSAGE | SEND_EMBED | ASSIGN_ROLE | REMOVE_ROLE | CREATE_TASK | CREATE_REMINDER | SEND_DM
+  config    String   // JSON string configuration
+  enabled   Boolean  @default(true)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([trigger, enabled])
+}
+
+model ModerationLog {
+  id           String    @id @default(uuid())
+  guildId      String
+  targetId     String
+  moderatorId  String
+  action       String    // WARN | TIMEOUT | KICK | BAN | UNBAN
+  reason       String?
+  duration     Int?      // in seconds
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  @@index([targetId])
+  @@index([moderatorId])
+  @@index([action])
+}
+
+model Poll {
+  id          String    @id @default(uuid())
+  question    String
+  options     String    // JSON string array of options: [{ text, votes }]
+  channelId   String
+  messageId   String?
+  isAnonymous Boolean   @default(false)
+  expiresAt   DateTime?
+  status      String    @default("ACTIVE") // ACTIVE | CLOSED
+  createdBy   String
+  createdAt   DateTime  @default(now())
+
+  @@index([status])
+}
+
+model Suggestion {
+  id            String   @id @default(uuid())
+  authorId      String
+  title         String
+  content       String
+  status        String   @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | IMPLEMENTED
+  reviewerNotes String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+}
+
+model DashboardNotification {
+  id        String   @id @default(uuid())
+  userId    String   // Discord user ID or "GLOBAL"
+  type      String   // TICKET | TASK | MEETING | REMINDER | MODERATION | SYSTEM | ANNOUNCEMENT
+  title     String
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}

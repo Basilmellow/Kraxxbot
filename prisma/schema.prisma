@@ -193,3 +193,155 @@ model Ticket {
   updatedAt     DateTime  @updatedAt
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Dashboard Models (Web Operations Platform)
+// ─────────────────────────────────────────────────────────────────
+
+model DashboardAuditLog {
+  id         String   @id @default(uuid())
+  action     String   // "LOGIN" | "LOGOUT" | "SEND_MESSAGE" | "CONFIG_CHANGED" | etc.
+  executorId String   // Discord user ID
+  targetId   String?
+  targetType String?  // "CHANNEL" | "USER" | "ROLE" | "TICKET" | etc.
+  details    String?  // JSON metadata
+  ipAddress  String?
+  source     String   @default("DASHBOARD") // "DASHBOARD" | "BOT"
+  timestamp  DateTime @default(now())
+
+  @@index([executorId])
+  @@index([action])
+  @@index([timestamp])
+}
+
+model ModuleConfig {
+  id        String   @id @default(uuid())
+  module    String   @unique // "tickets" | "welcome" | "selfroles" | "automod" | etc.
+  enabled   Boolean  @default(true)
+  config    String?  // JSON configuration
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+model WelcomeConfig {
+  id             String   @id @default(uuid())
+  guildId        String   @unique
+  enabled        Boolean  @default(false)
+  channelId      String?
+  message        String?
+  embedJson      String?  // JSON embed config
+  imageUrl       String?
+  roleId         String?  // Auto-assign role
+  dmEnabled      Boolean  @default(false)
+  dmMessage      String?
+  leaveChannelId String?
+  leaveMessage   String?
+  updatedAt      DateTime @updatedAt
+}
+
+model EmbedTemplate {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  category    String   @default("CUSTOM") // "ANNOUNCEMENT" | "RECRUITMENT" | "EVENT" | "MEETING" | "MAINTENANCE" | "WARNING" | "UPDATE" | "KRAXXSEC" | "KRAXX_STUDIO" | "CUSTOM"
+  description String?
+  title       String?
+  embedData   String   // JSON string containing full embed specification
+  createdBy   String   // Discord user ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+model ScheduledAnnouncement {
+  id            String    @id @default(uuid())
+  guildId       String
+  channelId     String
+  title         String?
+  content       String?
+  embedPayload  String?   // JSON string representation of embeds array
+  mentionType   String?   // "NONE" | "EVERYONE" | "HERE" | "ROLE"
+  mentionRoleId String?
+  department    String    @default("GENERAL") // "GENERAL" | "KRAXXSEC" | "KRAXX_STUDIO"
+  scheduledFor  DateTime
+  status        String    @default("PENDING") // "PENDING" | "SENT" | "CANCELLED" | "FAILED"
+  createdBy     String    // Discord user ID
+  sentAt        DateTime?
+  error         String?
+  messageId     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, scheduledFor])
+}
+
+model AutomationRule {
+  id        String   @id @default(uuid())
+  name      String
+  trigger   String   // MEMBER_JOIN | MEMBER_LEAVE | ROLE_ADDED | ROLE_REMOVED | TICKET_CREATED | TICKET_CLOSED | TASK_CREATED | TASK_COMPLETED | MEETING_STARTING | SCHEDULED_TIME
+  action    String   // SEND_MESSAGE | SEND_EMBED | ASSIGN_ROLE | REMOVE_ROLE | CREATE_TASK | CREATE_REMINDER | SEND_DM
+  config    String   // JSON string configuration
+  enabled   Boolean  @default(true)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([trigger, enabled])
+}
+
+model ModerationLog {
+  id           String    @id @default(uuid())
+  guildId      String
+  targetId     String
+  moderatorId  String
+  action       String    // WARN | TIMEOUT | KICK | BAN | UNBAN
+  reason       String?
+  duration     Int?      // in seconds
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  @@index([targetId])
+  @@index([moderatorId])
+  @@index([action])
+}
+
+model Poll {
+  id          String    @id @default(uuid())
+  question    String
+  options     String    // JSON string array of options: [{ text, votes }]
+  channelId   String
+  messageId   String?
+  isAnonymous Boolean   @default(false)
+  expiresAt   DateTime?
+  status      String    @default("ACTIVE") // ACTIVE | CLOSED
+  createdBy   String
+  createdAt   DateTime  @default(now())
+
+  @@index([status])
+}
+
+model Suggestion {
+  id            String   @id @default(uuid())
+  authorId      String
+  title         String
+  content       String
+  status        String   @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | IMPLEMENTED
+  reviewerNotes String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+}
+
+model DashboardNotification {
+  id        String   @id @default(uuid())
+  userId    String   // Discord user ID or "GLOBAL"
+  type      String   // TICKET | TASK | MEETING | REMINDER | MODERATION | SYSTEM | ANNOUNCEMENT
+  title     String
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+

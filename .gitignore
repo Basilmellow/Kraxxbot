@@ -15,3 +15,12 @@ prisma/*.db-journal
 # OS files
 .DS_Store
 Thumbs.db
+
+# Dashboard (Next.js)
+dashboard/.next/
+dashboard/node_modules/
+dashboard/.env
+dashboard/.env.local
+dashboard/.env.*.local
+dashboard/.env*
+dashboard/out/

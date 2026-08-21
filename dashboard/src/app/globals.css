@@ -1,0 +1,425 @@
+/* ═══════════════════════════════════════════════════════════════
+   KRAXX OPERATIONS PLATFORM — Design System
+   Premium dark-mode interface with KRAXX brand aesthetics
+   ═══════════════════════════════════════════════════════════════ */
+
+@import "tailwindcss";
+
+/* ── KRAXX Design Tokens ──────────────────────────────────────── */
+:root {
+  /* Brand Colors */
+  --kraxx-brand: #00f0ff;
+  --kraxx-brand-muted: #00c4cc;
+  --kraxx-brand-dim: #007a80;
+  --kraxx-brand-glow: rgba(0, 240, 255, 0.15);
+  --kraxx-brand-glow-strong: rgba(0, 240, 255, 0.3);
+
+  /* Division Colors */
+  --kraxx-security: #10b981;
+  --kraxx-studio: #6366f1;
+
+  /* Semantic Colors */
+  --kraxx-success: #10b981;
+  --kraxx-warning: #f59e0b;
+  --kraxx-danger: #ef4444;
+  --kraxx-info: #3b82f6;
+
+  /* Surface Colors */
+  --surface-base: #05080d;
+  --surface-0: #0a0e15;
+  --surface-1: #0f1318;
+  --surface-2: #141a22;
+  --surface-3: #1a2230;
+  --surface-4: #212b3a;
+
+  /* Border Colors */
+  --border-primary: #1e2a38;
+  --border-hover: #2a3a4e;
+  --border-accent: rgba(0, 240, 255, 0.2);
+
+  /* Text Colors */
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-inverse: #0a0e15;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Spacing */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 72px;
+  --topbar-height: 64px;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(0, 240, 255, 0.1);
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+/* ── Base Styles ──────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* ── Scrollbar Styling ────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-0);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-4);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--kraxx-brand-dim);
+}
+
+/* ── Focus Styles ─────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--kraxx-brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Selection ────────────────────────────────────────────────── */
+::selection {
+  background: var(--kraxx-brand-glow-strong);
+  color: var(--text-primary);
+}
+
+/* ── Card System ──────────────────────────────────────────────── */
+.kraxx-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.kraxx-card:hover {
+  border-color: var(--border-hover);
+}
+
+.kraxx-card-glow:hover {
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-glow);
+}
+
+/* ── Glass Effect ─────────────────────────────────────────────── */
+.kraxx-glass {
+  background: rgba(15, 19, 24, 0.8);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(30, 42, 56, 0.6);
+}
+
+/* ── Status Indicators ────────────────────────────────────────── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.status-dot-online {
+  background: var(--kraxx-success);
+  box-shadow: 0 0 6px var(--kraxx-success);
+}
+
+.status-dot-offline {
+  background: var(--kraxx-danger);
+  box-shadow: 0 0 6px var(--kraxx-danger);
+}
+
+.status-dot-degraded {
+  background: var(--kraxx-warning);
+  box-shadow: 0 0 6px var(--kraxx-warning);
+}
+
+/* ── Pulse Animation ──────────────────────────────────────────── */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ── Gradient Animations ──────────────────────────────────────── */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+/* ── Shimmer Loading ──────────────────────────────────────────── */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.04),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+/* ── Stat Number Animation ────────────────────────────────────── */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-count {
+  animation: count-up 0.6s ease-out forwards;
+}
+
+/* ── Fade In Animation ────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+.animate-fade-in-delay-1 { animation-delay: 0.1s; opacity: 0; }
+.animate-fade-in-delay-2 { animation-delay: 0.2s; opacity: 0; }
+.animate-fade-in-delay-3 { animation-delay: 0.3s; opacity: 0; }
+.animate-fade-in-delay-4 { animation-delay: 0.4s; opacity: 0; }
+
+/* ── Brand Accent Line ────────────────────────────────────────── */
+.kraxx-accent-line {
+  height: 2px;
+  background: linear-gradient(90deg, var(--kraxx-brand), var(--kraxx-studio), var(--kraxx-brand));
+  background-size: 200% 100%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+/* ── Sidebar Styles ───────────────────────────────────────────── */
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.sidebar-nav-item:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.sidebar-nav-item.active {
+  background: var(--kraxx-brand-glow);
+  color: var(--kraxx-brand);
+  border: 1px solid var(--border-accent);
+}
+
+.sidebar-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--kraxx-brand);
+  border-radius: 0 2px 2px 0;
+}
+
+/* ── Badge Styles ─────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.badge-brand {
+  background: var(--kraxx-brand-glow);
+  color: var(--kraxx-brand);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+}
+
+.badge-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--kraxx-success);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--kraxx-warning);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.badge-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--kraxx-danger);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.badge-neutral {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--text-secondary);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+}
+
+/* ── Button Styles ────────────────────────────────────────────── */
+.kraxx-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.kraxx-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kraxx-btn-primary {
+  background: var(--kraxx-brand);
+  color: var(--text-inverse);
+}
+
+.kraxx-btn-primary:hover:not(:disabled) {
+  background: var(--kraxx-brand-muted);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+}
+
+.kraxx-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+}
+
+.kraxx-btn-ghost:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.kraxx-btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--kraxx-danger);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.kraxx-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* ── Table Styles ─────────────────────────────────────────────── */
+.kraxx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.kraxx-table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--surface-1);
+}
+
+.kraxx-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+}
+
+.kraxx-table tr:hover td {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.kraxx-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Mono Text ────────────────────────────────────────────────── */
+.font-mono {
+  font-family: var(--font-mono);
+}
