@@ -58,7 +58,7 @@ npx prisma db push
 3. Navigate to **OAuth2** > **General**.
 4. Under **Redirects**, add your production dashboard redirect URL:
    ```
-   https://<YOUR-DASHBOARD-DOMAIN>/api/auth/callback/discord
+   https://kraxxbot.kraxxsec.com/api/auth/callback/discord
    ```
    *(For local testing: `http://localhost:3000/api/auth/callback/discord`)*
 5. Ensure the following OAuth2 Scopes are enabled:
@@ -71,24 +71,24 @@ npx prisma db push
 
 ---
 
-## 3. Vercel Deployment (Operations Dashboard)
+## 3. Vercel / Hosting Deployment (Operations Dashboard)
 
-### 3.1 Project Settings on Vercel
-1. Import your GitHub repository to Vercel.
+### 3.1 Project Settings
+1. Import your GitHub repository.
 2. Set **Root Directory** to `dashboard`.
 3. Framework Preset: **Next.js**.
 
-### 3.2 Environment Variables on Vercel
-Add the following in Vercel **Project Settings** > **Environment Variables**:
+### 3.2 Environment Variables
+Add the following in your hosting provider's **Environment Variables**:
 
-| Variable | Description | Example |
+| Variable | Description | Value |
 | :--- | :--- | :--- |
-| `DATABASE_URL` | Same Railway PostgreSQL URL | `postgresql://postgres:...@...railway.app:5432/railway` |
-| `DISCORD_CLIENT_ID` | Discord Application Client ID | `123456789012345678` |
-| `DISCORD_CLIENT_SECRET` | Discord OAuth2 Client Secret | `a1b2c3d4e5f6...` |
-| `DISCORD_BOT_TOKEN` | Discord Bot Token | `MTE...` |
-| `DISCORD_GUILD_ID` | Target Guild / Server ID | `123456789012345678` |
-| `NEXTAUTH_URL` | Production Dashboard URL | `https://kraxx-dashboard.vercel.app` |
+| `DATABASE_URL` | PostgreSQL Connection URL | `postgresql://postgres:...` |
+| `DISCORD_CLIENT_ID` | Discord Application Client ID | `1539277990855311370` |
+| `DISCORD_CLIENT_SECRET` | Discord OAuth2 Client Secret | `your_client_secret` |
+| `DISCORD_BOT_TOKEN` | Discord Bot Token | `your_bot_token` |
+| `DISCORD_GUILD_ID` | Target Guild / Server ID | `1539255587970486293` |
+| `NEXTAUTH_URL` | Production Dashboard URL | `https://kraxxbot.kraxxsec.com` |
 | `NEXTAUTH_SECRET` | 32+ char random string | Generated via `openssl rand -base64 32` |
 
 ---
