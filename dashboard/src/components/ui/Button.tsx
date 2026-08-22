@@ -17,16 +17,16 @@ export function Button({
   ...props
 }: ButtonProps) {
   const sizeClasses = {
-    sm: 'px-2.5 py-1.5 text-xs',
-    md: 'px-4 py-2 text-sm',
-    lg: 'px-6 py-3 text-base',
+    sm: 'px-2.5 py-1 text-xs',
+    md: 'px-3.5 py-1.5 text-xs',
+    lg: 'px-5 py-2.5 text-sm',
   };
 
   const variantClasses = {
     primary: 'kraxx-btn-primary',
     ghost: 'kraxx-btn-ghost',
     danger: 'kraxx-btn-danger',
-    outline: 'border border-[#1e2a38] hover:border-[#00f0ff] text-[#e2e8f0] bg-transparent hover:bg-[#0f1318]',
+    outline: 'border border-[#1E2C3F] hover:border-[#22D3EE]/50 text-[#F1F5F9] bg-[#0A0F16] hover:bg-[#0D131C]',
   };
 
   return (
@@ -36,12 +36,12 @@ export function Button({
       {...props}
     >
       {isLoading ? (
-        <span className="flex items-center gap-2">
-          <svg className="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
+        <span className="flex items-center gap-1.5 font-mono text-[11px]">
+          <svg className="animate-spin h-3.5 w-3.5 text-current" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
           </svg>
-          <span>Loading...</span>
+          <span>PROCESSING</span>
         </span>
       ) : (
         children

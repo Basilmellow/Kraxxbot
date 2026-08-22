@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Require at least Team Lead to view audit logs
-  const permCheck = requireTier(session.user.roleTier, RoleTier.TEAM_LEAD);
+  // Require at least Management Head to view audit logs
+  const permCheck = requireTier(session.user.roleTier, RoleTier.MANAGEMENT_HEAD);
   if (!permCheck.authorized) {
     return NextResponse.json({ error: permCheck.reason }, { status: 403 });
   }

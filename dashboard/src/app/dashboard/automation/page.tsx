@@ -5,6 +5,8 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
   Zap,
@@ -16,6 +18,8 @@ import {
   Shield,
   Layers,
   Sparkles,
+  X,
+  Radio,
 } from 'lucide-react';
 
 interface AutomationRuleItem {
@@ -99,64 +103,25 @@ export default function AutomationPage() {
           if (data.channels?.length > 0) setSelectedChannel(data.channels[0]);
         }
       } catch (err) {
-        console.error('Failed to load meta:', err);
+        console.error('Failed to load metadata:', err);
       }
     }
     loadMeta();
   }, []);
-
-  const handleToggle = async (ruleId: string, currentEnabled: boolean) => {
-    try {
-      const res = await fetch(`/api/automation/${ruleId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !currentEnabled }),
-      });
-
-      if (res.ok) {
-        setRules(rules.map((r) => (r.id === ruleId ? { ...r, enabled: !currentEnabled } : r)));
-        setFeedback({ type: 'success', message: `Rule ${!currentEnabled ? 'enabled' : 'disabled'}.` });
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update rule');
-      }
-    } catch (e: any) {
-      alert(e.message || 'Error updating rule');
-    }
-  };
-
-  const handleDelete = async (ruleId: string, ruleName: string) => {
-    if (!confirm(`Delete automation rule "${ruleName}"?`)) return;
-
-    try {
-      const res = await fetch(`/api/automation/${ruleId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setRules(rules.filter((r) => r.id !== ruleId));
-        setFeedback({ type: 'success', message: 'Automation rule deleted.' });
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete rule');
-      }
-    } catch (e: any) {
-      alert(e.message || 'Error deleting rule');
-    }
-  };
 
   const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
     setIsCreating(true);
+    setFeedback(null);
+
     try {
-      const configObj: any = {};
-      if (action === 'SEND_MESSAGE' || action === 'SEND_EMBED') {
-        configObj.channelId = selectedChannel?.id;
-        configObj.message = messageContent.trim();
-      } else if (action === 'ASSIGN_ROLE' || action === 'REMOVE_ROLE') {
-        configObj.roleId = selectedRole;
-      } else if (action === 'SEND_DM') {
-        configObj.message = messageContent.trim();
-      }
+      const configObj: any = {
+        channelId: selectedChannel?.id,
+        roleId: selectedRole || undefined,
+        message: messageContent.trim() || undefined,
+      };
 
       const res = await fetch('/api/automation', {
         method: 'POST',
@@ -165,280 +130,326 @@ export default function AutomationPage() {
           name: name.trim(),
           trigger,
           action,
-          config: configObj,
-          enabled: true,
+          config: JSON.stringify(configObj),
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setFeedback({ type: 'success', message: `Automation rule "${name}" created.` });
+        setFeedback({ type: 'success', message: 'Automation rule deployed to gateway.' });
         setShowCreateModal(false);
         setName('');
         setMessageContent('');
         fetchRules();
       } else {
-        alert(data.error || 'Failed to create automation rule');
+        setFeedback({ type: 'error', message: data.error || 'Failed to create automation rule' });
       }
-    } catch (e: any) {
-      alert(e.message || 'Error creating rule');
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Error deploying automation' });
     } finally {
       setIsCreating(false);
     }
   };
 
+  const handleToggleRule = async (ruleId: string, currentStatus: boolean) => {
+    try {
+      const res = await fetch(`/api/automation/${ruleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !currentStatus }),
+      });
+
+      if (res.ok) {
+        setRules(rules.map((r) => (r.id === ruleId ? { ...r, enabled: !currentStatus } : r)));
+      }
+    } catch (err) {
+      console.error('Failed to toggle rule:', err);
+    }
+  };
+
+  const handleDeleteRule = async (ruleId: string) => {
+    if (!confirm('Confirm deletion of automation rule?')) return;
+    try {
+      const res = await fetch(`/api/automation/${ruleId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setRules(rules.filter((r) => r.id !== ruleId));
+        setFeedback({ type: 'success', message: 'Automation rule removed.' });
+      }
+    } catch (err) {
+      console.error('Failed to delete rule:', err);
+    }
+  };
+
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Automation Engine"
-        subtitle="Event-Driven Rule Pipeline & Operational Automation Workflows"
-        onRefresh={fetchRules}
-        isRefreshing={isLoading}
+        title="EVENT AUTOMATION ENGINE"
+        subtitle="Gateway Triggers, Reactive Webhooks & Autonomous Ops Logic"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Top Control Bar */}
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-bold text-[#e2e8f0]">Active Automation Rules</h3>
-            <p className="text-xs text-[#64748b]">Configure triggers and automated responses across Discord & Database</p>
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+        {/* Header Action */}
+        <div className="flex items-center justify-between font-mono text-xs">
+          <div className="text-[11px] text-[#64748B] uppercase">
+            ACTIVE PIPELINES: {rules.filter((r) => r.enabled).length} / {rules.length}
           </div>
 
-          <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
-            <Plus className="w-4 h-4 mr-1" />
-            <span>New Rule</span>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setShowCreateModal(true)}
+            className="font-mono text-xs gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>CREATE AUTOMATION RULE</span>
           </Button>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
-        {/* Rules Table */}
-        <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-[#1e2a38] flex items-center justify-between">
-            <CardTitle>
-              <Zap className="w-4 h-4 text-[#00f0ff]" />
-              <span>Event Triggers & Action Pipeline ({rules.length})</span>
-            </CardTitle>
-            <span className="text-[11px] text-[#64748b] font-mono">
-              Audited Rule Engine
-            </span>
+        {/* Rules Grid */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="kraxx-table">
-              <thead>
-                <tr>
-                  <th>Rule Name</th>
-                  <th>Event Trigger</th>
-                  <th>Automated Action</th>
-                  <th>Active Status</th>
-                  <th>Created</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-xs text-[#64748b]">
-                      Loading automation rules...
-                    </td>
-                  </tr>
-                ) : rules.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-xs text-[#64748b]">
-                      No automation rules created yet.
-                    </td>
-                  </tr>
-                ) : (
-                  rules.map((r) => (
-                    <tr key={r.id}>
-                      <td className="font-bold text-xs text-[#e2e8f0]">
-                        {r.name}
-                      </td>
-
-                      <td>
-                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#00f0ff]/10 text-[#00f0ff] border border-[#00f0ff]/20">
-                          {r.trigger}
-                        </span>
-                      </td>
-
-                      <td>
-                        <div className="flex items-center gap-1 text-xs text-[#94a3b8]">
-                          <ArrowRight className="w-3 h-3 text-[#64748b]" />
-                          <span className="font-mono text-[#10b981] font-medium">{r.action}</span>
-                        </div>
-                      </td>
-
-                      <td>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={r.enabled}
-                            onChange={() => handleToggle(r.id, r.enabled)}
-                            className="sr-only peer"
-                          />
-                          <div className="w-9 h-5 bg-[#1e2a38] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00f0ff]"></div>
-                        </label>
-                      </td>
-
-                      <td className="whitespace-nowrap font-mono text-xs text-[#64748b]">
-                        {new Date(r.createdAt).toLocaleDateString()}
-                      </td>
-
-                      <td className="text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(r.id, r.name)}
-                          className="p-1.5 rounded hover:bg-[#141a22] text-[#64748b] hover:text-[#ef4444]"
-                          title="Delete Rule"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
-
-      {/* Create Automation Rule Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1318] border border-[#1e2a38] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#1e2a38] pb-3">
-              <h3 className="text-sm font-bold text-[#e2e8f0] flex items-center gap-2">
-                <Zap className="w-4 h-4 text-[#00f0ff]" />
-                <span>Create Automation Rule</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="text-[#64748b] hover:text-[#e2e8f0]"
+        ) : rules.length === 0 ? (
+          <EmptyState
+            icon={Zap}
+            title="NO AUTOMATION RULES ACTIVE"
+            description="Deploy event listeners to trigger automatic dispatches, tasks, and role allocations."
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCreateModal(true)}
+                className="font-mono text-xs"
               >
-                ×
-              </button>
-            </div>
+                CREATE FIRST RULE
+              </Button>
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {rules.map((rule) => {
+              let parsedConfig: any = {};
+              try {
+                parsedConfig = JSON.parse(rule.config);
+              } catch {}
 
-            <form onSubmit={handleCreateRule} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Rule Name / Identifier</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Onboarding Security Role Sync"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Event Trigger</label>
-                <select
-                  value={trigger}
-                  onChange={(e) => setTrigger(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50 font-mono"
+              return (
+                <Card
+                  key={rule.id}
+                  className={`bg-[#0A0F16] flex flex-col justify-between border transition-all p-4 space-y-3 font-mono text-xs ${
+                    rule.enabled ? 'border-[#16202E] hover:border-[#22D3EE]/30' : 'border-[#16202E]/60 opacity-60'
+                  }`}
                 >
-                  {TRIGGERS.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label} ({t.id})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Zap className={`w-3.5 h-3.5 ${rule.enabled ? 'text-[#22D3EE]' : 'text-[#64748B]'}`} />
+                        <h3 className="font-bold text-[#F1F5F9] text-sm">{rule.name}</h3>
+                      </div>
+                      <Badge variant={rule.enabled ? 'brand' : 'neutral'}>
+                        {rule.enabled ? 'ACTIVE' : 'DISABLED'}
+                      </Badge>
+                    </div>
 
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Automated Action</label>
-                <select
-                  value={action}
-                  onChange={(e) => setAction(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50 font-mono"
+                    {/* Trigger -> Action Flow Visual */}
+                    <div className="p-2.5 rounded bg-[#070B10] border border-[#16202E] space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-[#64748B] uppercase">IF TRIGGER:</span>
+                        <Badge variant="warning">{rule.trigger}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-[#64748B] uppercase">THEN ACTION:</span>
+                        <Badge variant="brand">{rule.action}</Badge>
+                      </div>
+
+                      {parsedConfig.channelId && (
+                        <div className="text-[10px] text-[#64748B] pt-1 border-t border-[#16202E]">
+                          Target Channel: #{parsedConfig.channelId}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-[#16202E] flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteRule(rule.id)}
+                      className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
+                      title="Purge Rule"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+
+                    <Button
+                      variant={rule.enabled ? 'outline' : 'primary'}
+                      size="sm"
+                      onClick={() => handleToggleRule(rule.id, rule.enabled)}
+                      className="font-mono text-xs py-1"
+                    >
+                      {rule.enabled ? 'DEACTIVATE' : 'ACTIVATE'}
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Create Rule Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
+                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#22D3EE]" />
+                  <span>DEPLOY AUTOMATION PIPELINE</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="text-[#64748B] hover:text-[#F1F5F9]"
                 >
-                  {ACTIONS.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label} ({a.id})
-                    </option>
-                  ))}
-                </select>
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              {(action === 'SEND_MESSAGE' || action === 'SEND_EMBED') && (
-                <div className="space-y-2 pt-2 border-t border-[#1e2a38]">
-                  <div>
-                    <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Target Channel</label>
-                    <ChannelSelector
-                      channels={channels}
-                      selectedChannelId={selectedChannel?.id || ''}
-                      onSelectChannel={(ch) => setSelectedChannel(ch)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Message Content</label>
-                    <textarea
-                      rows={2}
-                      placeholder="Message dispatched when trigger executes..."
-                      value={messageContent}
-                      onChange={(e) => setMessageContent(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                    />
-                  </div>
+              <form onSubmit={handleCreateRule} className="space-y-3 font-mono text-xs">
+                <div>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    RULE NAME
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Auto-Notify On Ticket Creation"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                  />
                 </div>
-              )}
 
-              {(action === 'ASSIGN_ROLE' || action === 'REMOVE_ROLE') && (
-                <div className="pt-2 border-t border-[#1e2a38]">
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Target Role</label>
+                <div>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    GATEWAY EVENT TRIGGER (IF)
+                  </label>
                   <select
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                    value={trigger}
+                    onChange={(e) => setTrigger(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
                   >
-                    <option value="">Select target role...</option>
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        @{r.name}
+                    {TRIGGERS.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
                       </option>
                     ))}
                   </select>
                 </div>
-              )}
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1e2a38]">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateModal(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" size="sm" isLoading={isCreating}>
-                  Create Automation Rule
-                </Button>
-              </div>
-            </form>
+                <div>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    OPERATIONAL ACTION (THEN)
+                  </label>
+                  <select
+                    value={action}
+                    onChange={(e) => setAction(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                  >
+                    {ACTIONS.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {(action === 'SEND_MESSAGE' || action === 'SEND_EMBED') && (
+                  <>
+                    <ChannelSelector
+                      channels={channels}
+                      selectedChannelId={selectedChannel?.id || ''}
+                      onSelectChannel={setSelectedChannel}
+                    />
+
+                    <div>
+                      <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                        MESSAGE TEMPLATE
+                      </label>
+                      <textarea
+                        rows={3}
+                        required
+                        placeholder="Message payload dispatched on trigger event..."
+                        value={messageContent}
+                        onChange={(e) => setMessageContent(e.target.value)}
+                        className="w-full p-2.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {(action === 'ASSIGN_ROLE' || action === 'REMOVE_ROLE') && (
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      TARGET GUILD ROLE
+                    </label>
+                    <select
+                      value={selectedRole}
+                      onChange={(e) => setSelectedRole(e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    >
+                      <option value="">Select Discord role...</option>
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          @{r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#16202E]">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCreateModal(false)}
+                  >
+                    CANCEL
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    isLoading={isCreating}
+                  >
+                    DEPLOY RULE
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

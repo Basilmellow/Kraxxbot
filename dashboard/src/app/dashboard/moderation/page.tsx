@@ -5,8 +5,10 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import {
-  Shield,
+  ShieldAlert,
   AlertTriangle,
   Clock,
   UserX,
@@ -15,7 +17,7 @@ import {
   Lock,
   Search,
   Filter,
-  Hash,
+  Shield,
 } from 'lucide-react';
 
 interface ModLogItem {
@@ -29,6 +31,8 @@ interface ModLogItem {
   active: boolean;
   createdAt: string;
 }
+
+const ACTION_FILTERS = ['ALL', 'WARN', 'TIMEOUT', 'KICK', 'BAN', 'UNBAN'];
 
 export default function ModerationPage() {
   const [logs, setLogs] = useState<ModLogItem[]>([]);
@@ -74,7 +78,7 @@ export default function ModerationPage() {
 
     if (selectedAction === 'BAN' || selectedAction === 'KICK') {
       const confirmed = confirm(
-        `CAUTION: Are you sure you want to execute [${selectedAction}] on Discord user ID: ${targetId}?`
+        `CONFIRM CRITICAL ACTION: Execute [${selectedAction}] on Discord user ID: ${targetId}?`
       );
       if (!confirmed) return;
     }
@@ -98,7 +102,7 @@ export default function ModerationPage() {
       if (res.ok) {
         setFeedback({
           type: 'success',
-          message: `Moderation action [${selectedAction}] executed on user ${targetId}.`,
+          message: `Disciplinary action [${selectedAction}] executed on ${targetId}.`,
         });
         setTargetId('');
         setReason('');
@@ -106,243 +110,233 @@ export default function ModerationPage() {
       } else {
         setFeedback({ type: 'error', message: data.error || 'Failed to execute moderation action' });
       }
-    } catch (e: any) {
-      setFeedback({ type: 'error', message: e.message || 'Error executing action' });
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Execution error' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getActionBadge = (act: string) => {
-    switch (act) {
-      case 'BAN':
-        return <Badge variant="danger">BAN</Badge>;
+  const getActionBadge = (action: string) => {
+    switch (action) {
+      case 'WARN':
+        return <Badge variant="warning">WARN</Badge>;
+      case 'TIMEOUT':
+        return <Badge variant="neutral">TIMEOUT</Badge>;
       case 'KICK':
         return <Badge variant="danger">KICK</Badge>;
-      case 'TIMEOUT':
-        return <Badge variant="warning">TIMEOUT</Badge>;
-      case 'WARN':
-        return <Badge variant="neutral">WARN</Badge>;
+      case 'BAN':
+        return <Badge variant="danger">BAN</Badge>;
       case 'UNBAN':
         return <Badge variant="success">UNBAN</Badge>;
       default:
-        return <Badge variant="neutral">{act}</Badge>;
+        return <Badge variant="neutral">{action}</Badge>;
     }
   };
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Moderation Console"
-        subtitle="Security Enforcement, Sanctions & Audit History"
-        onRefresh={fetchLogs}
-        isRefreshing={isLoading}
+        title="SECURITY & DISCIPLINARY CONTROL"
+        subtitle="KRAXXSEC Protocol Enforcement, Gateway Sanctions & Audit Log"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
+        {/* Action Dispatch Console & Log Matrix */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Moderation Action Console */}
-          <div className="lg:col-span-5 space-y-5">
-            <Card>
+          {/* Left Column: Action Console (5 cols) */}
+          <div className="lg:col-span-5 space-y-4">
+            <Card className="bg-[#0A0F16]">
               <CardHeader>
-                <CardTitle>
-                  <Shield className="w-4 h-4 text-[#00f0ff]" />
-                  <span>Execute Moderation Sanction</span>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldAlert className="w-3.5 h-3.5 text-[#22D3EE]" />
+                  <span>DISCIPLINARY ACTION CONSOLE</span>
                 </CardTitle>
               </CardHeader>
 
-              <form onSubmit={handleSubmitModAction} className="space-y-4 text-xs">
+              <form onSubmit={handleSubmitModAction} className="space-y-4 font-mono text-xs">
                 {/* Target User ID */}
                 <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Target Discord User ID</label>
+                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                    TARGET DISCORD USER ID
+                  </label>
                   <input
                     type="text"
-                    placeholder="e.g. 849204829103948201"
+                    required
+                    placeholder="e.g. 842109876543210987"
                     value={targetId}
                     onChange={(e) => setTargetId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] font-mono focus:outline-none focus:border-[#00f0ff]/50"
-                    required
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50"
                   />
                 </div>
 
-                {/* Action Selector Pills */}
+                {/* Action Selector */}
                 <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1.5 uppercase">Sanction Action</label>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-                    {(['WARN', 'TIMEOUT', 'KICK', 'BAN', 'UNBAN'] as const).map((act) => (
+                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1.5">
+                    SANCTION TYPE
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    {[
+                      { id: 'WARN', label: 'WARN', color: 'border-[#F59E0B]/40 text-[#F59E0B]' },
+                      { id: 'TIMEOUT', label: 'TIMEOUT', color: 'border-[#94A3B8]/40 text-[#94A3B8]' },
+                      { id: 'KICK', label: 'KICK', color: 'border-[#EF4444]/40 text-[#EF4444]' },
+                      { id: 'BAN', label: 'BAN', color: 'border-[#EF4444]/60 text-[#EF4444]' },
+                      { id: 'UNBAN', label: 'UNBAN', color: 'border-[#10B981]/40 text-[#10B981]' },
+                    ].map((a) => (
                       <button
-                        key={act}
+                        key={a.id}
                         type="button"
-                        onClick={() => setSelectedAction(act)}
-                        className={`py-1.5 px-2 rounded-lg font-bold text-xs border transition-all ${
-                          selectedAction === act
-                            ? act === 'BAN' || act === 'KICK'
-                              ? 'bg-[#ef4444]/20 border-[#ef4444] text-[#ef4444]'
-                              : act === 'TIMEOUT'
-                              ? 'bg-[#f59e0b]/20 border-[#f59e0b] text-[#f59e0b]'
-                              : act === 'UNBAN'
-                              ? 'bg-[#10b981]/20 border-[#10b981] text-[#10b981]'
-                              : 'bg-[#00f0ff]/20 border-[#00f0ff] text-[#00f0ff]'
-                            : 'bg-[#0a0e15] border-[#1e2a38] text-[#64748b] hover:text-[#e2e8f0]'
+                        onClick={() => setSelectedAction(a.id as any)}
+                        className={`p-2 rounded border text-center font-bold transition-all ${
+                          selectedAction === a.id
+                            ? 'bg-[#111823] border-[#22D3EE] text-[#22D3EE]'
+                            : `bg-[#070B10] border-[#16202E] ${a.color} hover:border-[#1E2C3F]`
                         }`}
                       >
-                        {act}
+                        {a.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Timeout duration selector */}
+                {/* Timeout Duration */}
                 {selectedAction === 'TIMEOUT' && (
                   <div>
-                    <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Timeout Duration</label>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      TIMEOUT DURATION
+                    </label>
                     <select
                       value={timeoutDuration}
                       onChange={(e) => setTimeoutDuration(parseInt(e.target.value, 10))}
-                      className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
                     >
                       <option value={300}>5 Minutes</option>
                       <option value={900}>15 Minutes</option>
                       <option value={3600}>1 Hour</option>
-                      <option value={86400}>24 Hours (1 Day)</option>
-                      <option value={604800}>7 Days (1 Week)</option>
+                      <option value={86400}>24 Hours</option>
+                      <option value={604800}>7 Days</option>
                     </select>
                   </div>
                 )}
 
-                {/* Reason Field */}
+                {/* Reason */}
                 <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Audit Log Reason</label>
+                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                    FORMAL INCIDENT REASON
+                  </label>
                   <textarea
                     rows={3}
-                    placeholder="Enter reason for this disciplinary sanction..."
+                    placeholder="Enter formal justification for audit logs..."
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                    className="w-full p-3 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
                   />
                 </div>
 
-                <div className="pt-2">
-                  <Button
-                    type="submit"
-                    variant={selectedAction === 'BAN' || selectedAction === 'KICK' ? 'danger' : 'primary'}
-                    className="w-full"
-                    isLoading={isSubmitting}
-                  >
-                    <span>Execute {selectedAction}</span>
-                  </Button>
-                </div>
+                {/* Execute Button */}
+                <Button
+                  type="submit"
+                  variant={selectedAction === 'BAN' || selectedAction === 'KICK' ? 'danger' : 'primary'}
+                  isLoading={isSubmitting}
+                  disabled={!targetId.trim()}
+                  className="w-full font-mono font-bold tracking-wider uppercase text-xs py-2.5"
+                >
+                  EXECUTE [{selectedAction}] SANCTION
+                </Button>
               </form>
             </Card>
           </div>
 
-          {/* Right Column: Moderation History Logs */}
+          {/* Right Column: Moderation Log Stream (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-1 overflow-x-auto">
-                {['ALL', 'WARN', 'TIMEOUT', 'KICK', 'BAN', 'UNBAN'].map((st) => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => setActionFilter(st)}
-                    className={`px-2.5 py-1 rounded text-xs font-semibold border ${
-                      actionFilter === st
-                        ? 'bg-[#00f0ff] text-[#0a0e15] border-[#00f0ff]'
-                        : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
-                    }`}
-                  >
-                    {st}
-                  </button>
-                ))}
-              </div>
+            <Card className="bg-[#0A0F16] overflow-hidden">
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 w-full">
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="w-3.5 h-3.5 text-[#22D3EE]" />
+                    <span>SANCTION AUDIT LOGS ({logs.length})</span>
+                  </CardTitle>
 
-              <div className="relative w-48">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#64748b]" />
-                <input
-                  type="text"
-                  placeholder="Target user ID..."
-                  value={searchTarget}
-                  onChange={(e) => setSearchTarget(e.target.value)}
-                  className="w-full pl-8 pr-2 py-1 rounded bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50 font-mono"
-                />
-              </div>
-            </div>
+                  {/* Filter Tabs */}
+                  <div className="flex flex-wrap items-center gap-1 p-0.5 rounded bg-[#070B10] border border-[#16202E] font-mono text-[10px]">
+                    {ACTION_FILTERS.map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setActionFilter(f)}
+                        className={`px-2 py-0.5 rounded transition-colors ${
+                          actionFilter === f
+                            ? 'bg-[#111823] text-[#22D3EE] font-bold border border-[#1E2C3F]'
+                            : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CardHeader>
 
-            {/* Moderation Logs Table Card */}
-            <Card className="overflow-hidden p-0">
-              <div className="overflow-x-auto">
-                <table className="kraxx-table">
-                  <thead>
-                    <tr>
-                      <th>Action</th>
-                      <th>Target ID</th>
-                      <th>Reason / Note</th>
-                      <th>Moderator</th>
-                      <th>Timestamp</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLoading ? (
-                      <tr>
-                        <td colSpan={5} className="text-center py-12 text-xs text-[#64748b]">
-                          Loading moderation logs...
-                        </td>
+              {isLoading ? (
+                <div className="p-4">
+                  <SkeletonTable rows={6} />
+                </div>
+              ) : logs.length === 0 ? (
+                <div className="p-8">
+                  <EmptyState
+                    icon={Shield}
+                    title="NO MODERATION LOGS RECORDED"
+                    description="No disciplinary actions match your current filter parameters."
+                  />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left font-mono text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
+                        <th className="py-2.5 px-3 font-semibold">ACTION</th>
+                        <th className="py-2.5 px-3 font-semibold">TARGET USER ID</th>
+                        <th className="py-2.5 px-3 font-semibold">JUSTIFICATION</th>
+                        <th className="py-2.5 px-3 font-semibold">MODERATOR</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">DATE</th>
                       </tr>
-                    ) : logs.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="text-center py-12 text-xs text-[#64748b]">
-                          No moderation history records found.
-                        </td>
-                      </tr>
-                    ) : (
-                      logs.map((log) => (
-                        <tr key={log.id}>
-                          <td>{getActionBadge(log.action)}</td>
-
-                          <td className="font-mono text-xs text-[#00f0ff]">
-                            {log.targetId}
+                    </thead>
+                    <tbody className="divide-y divide-[#16202E]">
+                      {logs.map((log) => (
+                        <tr key={log.id} className="hover:bg-[#0D131C] transition-colors">
+                          <td className="py-2.5 px-3">{getActionBadge(log.action)}</td>
+                          <td className="py-2.5 px-3 font-bold text-[#F1F5F9]">{log.targetId}</td>
+                          <td className="py-2.5 px-3 text-[#94A3B8] max-w-xs truncate">
+                            {log.reason || 'No justification provided'}
                           </td>
-
-                          <td className="max-w-xs text-xs text-[#e2e8f0] truncate">
-                            {log.reason || <span className="text-[#64748b] italic">No reason logged</span>}
-                          </td>
-
-                          <td className="font-mono text-xs text-[#94a3b8]">
-                            {log.moderatorId}
-                          </td>
-
-                          <td className="whitespace-nowrap font-mono text-xs text-[#64748b]">
-                            {new Date(log.createdAt).toLocaleString()}
+                          <td className="py-2.5 px-3 text-[#64748B]">{log.moderatorId}</td>
+                          <td className="py-2.5 px-3 text-right text-[#64748B]">
+                            {new Date(log.createdAt).toLocaleDateString()}
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Card>
           </div>
         </div>

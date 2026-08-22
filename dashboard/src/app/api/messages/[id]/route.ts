@@ -12,8 +12,8 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session?.user?.isMember || !canEditMessages(session.user.roleTier)) {
+    return NextResponse.json({ error: 'Unauthorized: Management Head clearance required' }, { status: 403 });
   }
 
   const { id: messageId } = await params;

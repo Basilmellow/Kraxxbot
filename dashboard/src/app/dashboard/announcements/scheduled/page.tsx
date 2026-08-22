@@ -5,6 +5,8 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import { DiscordEmbedPreview } from '@/components/discord/DiscordEmbedPreview';
 import {
   Clock,
@@ -14,11 +16,12 @@ import {
   XCircle,
   Eye,
   Trash2,
-  Edit3,
   Hash,
   User,
   ArrowLeft,
   Filter,
+  X,
+  Radio,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -39,6 +42,8 @@ interface ScheduledItem {
   messageId: string | null;
   createdAt: string;
 }
+
+const STATUS_FILTERS = ['ALL', 'PENDING', 'SENT', 'CANCELLED', 'FAILED'];
 
 export default function ScheduledAnnouncementsPage() {
   const [items, setItems] = useState<ScheduledItem[]>([]);
@@ -70,271 +75,263 @@ export default function ScheduledAnnouncementsPage() {
   }, [selectedStatus]);
 
   const handleCancel = async (id: string, title?: string | null) => {
-    if (!confirm(`Are you sure you want to cancel the scheduled announcement "${title || 'Untitled'}"?`)) return;
+    if (!confirm(`Cancel scheduled broadcast "${title || 'Untitled'}"?`)) return;
 
     try {
       const res = await fetch(`/api/announcements/scheduled/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setItems(items.map((i) => (i.id === id ? { ...i, status: 'CANCELLED' } : i)));
-        setFeedback({ type: 'success', message: 'Scheduled announcement cancelled successfully.' });
+        setFeedback({ type: 'success', message: 'Broadcast cancelled.' });
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to cancel announcement');
+        setFeedback({ type: 'error', message: data.error || 'Failed to cancel broadcast' });
       }
     } catch (e: any) {
-      alert(e.message || 'Error cancelling');
+      setFeedback({ type: 'error', message: e.message || 'Cancellation error' });
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING':
-        return <Badge variant="warning">Pending Dispatch</Badge>;
+        return <Badge variant="warning">PENDING</Badge>;
       case 'SENT':
-        return <Badge variant="success">Dispatched</Badge>;
+        return <Badge variant="success">DISPATCHED</Badge>;
       case 'CANCELLED':
-        return <Badge variant="neutral">Cancelled</Badge>;
+        return <Badge variant="neutral">CANCELLED</Badge>;
       case 'FAILED':
-        return <Badge variant="danger">Failed</Badge>;
+        return <Badge variant="danger">FAILED</Badge>;
       default:
         return <Badge variant="neutral">{status}</Badge>;
     }
   };
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Scheduled Announcements Queue"
-        subtitle="Automated Dispatch Pipeline Powered by Bot Scheduler"
-        onRefresh={fetchScheduled}
-        isRefreshing={isLoading}
+        title="SCHEDULED BROADCAST QUEUE"
+        subtitle="Automated Announcement Dispatch Schedule & Execution Telemetry"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Navigation & Status Filter Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+        {/* Header Controls */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
             <Link href="/dashboard/announcements">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-1.5" />
-                <span>Back to Composer</span>
+              <Button variant="ghost" size="sm" className="font-mono text-xs gap-1">
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>COMPOSER</span>
               </Button>
             </Link>
-          </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
-            {['ALL', 'PENDING', 'SENT', 'FAILED', 'CANCELLED'].map((st) => (
-              <button
-                key={st}
-                type="button"
-                onClick={() => setSelectedStatus(st)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap border transition-all ${
-                  selectedStatus === st
-                    ? 'bg-[#00f0ff] text-[#0a0e15] border-[#00f0ff]'
-                    : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
-                }`}
-              >
-                {st === 'ALL' ? 'All Records' : st}
-              </button>
-            ))}
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-1 p-1 rounded bg-[#0A0F16] border border-[#16202E] font-mono text-xs">
+              {STATUS_FILTERS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSelectedStatus(s)}
+                  className={`px-2.5 py-1 rounded transition-colors ${
+                    selectedStatus === s
+                      ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                      : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
-        {/* Scheduled Queue Table */}
-        <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-[#1e2a38] flex items-center justify-between">
-            <CardTitle>
-              <Clock className="w-4 h-4 text-[#00f0ff]" />
-              <span>Broadcast Pipeline ({items.length})</span>
+        {/* Scheduled List Table */}
+        <Card className="bg-[#0A0F16] overflow-hidden">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-[#22D3EE]" />
+              <span>SCHEDULED TELEMETRY QUEUE ({items.length})</span>
             </CardTitle>
-            <span className="text-[11px] text-[#64748b] font-mono">
-              Polled by Railway Bot Engine every 60s
-            </span>
-          </div>
+          </CardHeader>
 
-          <div className="overflow-x-auto">
-            <table className="kraxx-table">
-              <thead>
-                <tr>
-                  <th>Scheduled Target</th>
-                  <th>Broadcast Title</th>
-                  <th>Division</th>
-                  <th>Target Channel</th>
-                  <th>Status</th>
-                  <th>Created By</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-12 text-xs text-[#64748b]">
-                      Loading scheduled queue...
-                    </td>
+          {isLoading ? (
+            <div className="p-4">
+              <SkeletonTable rows={5} />
+            </div>
+          ) : items.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                icon={Clock}
+                title="NO SCHEDULED BROADCASTS"
+                description="There are currently no announcements queued for automated dispatch."
+                action={
+                  <Link href="/dashboard/announcements">
+                    <Button variant="outline" size="sm" className="font-mono text-xs">
+                      SCHEDULE AN ANNOUNCEMENT
+                    </Button>
+                  </Link>
+                }
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-mono text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
+                    <th className="py-2.5 px-4 font-semibold">STATUS</th>
+                    <th className="py-2.5 px-4 font-semibold">SCHEDULED DISPATCH</th>
+                    <th className="py-2.5 px-4 font-semibold">DIVISION</th>
+                    <th className="py-2.5 px-4 font-semibold">HEADLINE</th>
+                    <th className="py-2.5 px-4 font-semibold">TARGET CHANNEL</th>
+                    <th className="py-2.5 px-4 font-semibold text-right">ACTIONS</th>
                   </tr>
-                ) : items.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-12 text-xs text-[#64748b]">
-                      No scheduled announcements found in &quot;{selectedStatus}&quot;.
-                    </td>
-                  </tr>
-                ) : (
-                  items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="whitespace-nowrap font-mono text-xs text-[#e2e8f0]">
+                </thead>
+                <tbody className="divide-y divide-[#16202E]">
+                  {items.map((item) => (
+                    <tr key={item.id} className="hover:bg-[#0D131C] transition-colors">
+                      <td className="py-3 px-4">{getStatusBadge(item.status)}</td>
+                      <td className="py-3 px-4 text-[#F1F5F9]">
                         <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-[#00f0ff]" />
+                          <Calendar className="w-3 h-3 text-[#22D3EE]" />
                           <span>{new Date(item.scheduledFor).toLocaleString()}</span>
                         </div>
                       </td>
-
-                      <td className="font-semibold text-xs text-[#e2e8f0] max-w-xs truncate">
+                      <td className="py-3 px-4">
+                        <Badge
+                          variant={
+                            item.department === 'KRAXXSEC'
+                              ? 'success'
+                              : item.department === 'KRAXX_STUDIO'
+                              ? 'studio'
+                              : 'brand'
+                          }
+                        >
+                          {item.department}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-[#F1F5F9] font-bold max-w-xs truncate">
                         {item.title || 'Untitled Broadcast'}
                       </td>
-
-                      <td>
-                        <span className="text-[11px] font-mono text-[#94a3b8]">{item.department}</span>
+                      <td className="py-3 px-4 text-[#94A3B8]">
+                        <span className="bg-[#070B10] px-2 py-0.5 rounded border border-[#16202E]">
+                          #{item.channelId}
+                        </span>
                       </td>
-
-                      <td className="font-mono text-xs text-[#94a3b8]">
-                        <div className="flex items-center gap-1">
-                          <Hash className="w-3 h-3 text-[#64748b]" />
-                          <span>{item.channelId}</span>
-                        </div>
-                      </td>
-
-                      <td>{getStatusBadge(item.status)}</td>
-
-                      <td className="font-mono text-xs text-[#64748b]">
-                        <div className="flex items-center gap-1">
-                          <User className="w-3 h-3" />
-                          <span>{item.createdBy}</span>
-                        </div>
-                      </td>
-
-                      <td className="text-right">
+                      <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => setDetailItem(item)}
-                            className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#00f0ff]"
-                            title="Inspect Payload"
+                            className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#94A3B8] hover:text-[#22D3EE] hover:border-[#22D3EE]/30 transition-colors"
+                            title="Inspect Details"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" />
                           </button>
-
                           {item.status === 'PENDING' && (
                             <button
                               type="button"
                               onClick={() => handleCancel(item.id, item.title)}
-                              className="p-1.5 rounded hover:bg-[#141a22] text-[#64748b] hover:text-[#ef4444]"
-                              title="Cancel Scheduled Broadcast"
+                              className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
+                              title="Cancel Broadcast"
                             >
-                              <XCircle className="w-4 h-4" />
+                              <XCircle className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
-      </div>
 
-      {/* Detail & Preview Modal */}
-      {detailItem && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1318] border border-[#1e2a38] rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-[#1e2a38] pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-[#e2e8f0]">Scheduled Announcement Detail</h3>
-                <span className="text-[11px] font-mono text-[#64748b]">ID: {detailItem.id}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetailItem(null)}
-                className="text-[#64748b] hover:text-[#e2e8f0]"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-[#0a0e15] border border-[#1e2a38]">
-                <div>
-                  <span className="text-[#64748b]">Target Channel ID:</span>
-                  <p className="font-mono text-[#e2e8f0] font-semibold">{detailItem.channelId}</p>
+        {/* Detail Inspector Modal */}
+        {detailItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)] max-h-[85vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider">
+                    {detailItem.title || 'SCHEDULED BROADCAST INSPECTOR'}
+                  </h3>
+                  {getStatusBadge(detailItem.status)}
                 </div>
-                <div>
-                  <span className="text-[#64748b]">Scheduled Dispatch Time:</span>
-                  <p className="font-mono text-[#00f0ff] font-semibold">{new Date(detailItem.scheduledFor).toLocaleString()}</p>
-                </div>
-                <div>
-                  <span className="text-[#64748b]">Status:</span>
-                  <div className="mt-0.5">{getStatusBadge(detailItem.status)}</div>
-                </div>
-                <div>
-                  <span className="text-[#64748b]">Mention Level:</span>
-                  <p className="font-mono text-[#e2e8f0]">{detailItem.mentionType || 'NONE'}</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailItem(null)}
+                  className="text-[#64748B] hover:text-[#F1F5F9]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              {detailItem.error && (
-                <div className="p-3 rounded-lg bg-[#ef4444]/10 border border-[#ef4444]/30 text-[#ef4444]">
-                  <strong>Execution Failure Log:</strong> {detailItem.error}
-                </div>
-              )}
-
-              {/* Render Embed Payload if available */}
-              {detailItem.embedPayload && detailItem.embedPayload.length > 0 ? (
-                <div className="space-y-1.5 pt-2">
-                  <span className="font-semibold text-[#94a3b8] uppercase">Dispatched Embed Preview:</span>
-                  <DiscordEmbedPreview embed={detailItem.embedPayload[0]} />
-                </div>
-              ) : (
-                detailItem.content && (
-                  <div className="p-3 rounded-lg bg-[#0a0e15] border border-[#1e2a38]">
-                    <span className="font-semibold text-[#94a3b8]">Text Content:</span>
-                    <p className="whitespace-pre-wrap text-[#e2e8f0] mt-1">{detailItem.content}</p>
+              <div className="space-y-4 font-mono text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded bg-[#070B10] border border-[#16202E]">
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block">SCHEDULED FOR</span>
+                    <span className="text-[#F1F5F9]">{new Date(detailItem.scheduledFor).toLocaleString()}</span>
                   </div>
-                )
-              )}
-            </div>
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block">TARGET CHANNEL</span>
+                    <span className="text-[#F1F5F9]">#{detailItem.channelId}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block">OPERATOR ID</span>
+                    <span className="text-[#F1F5F9]">{detailItem.createdBy}</span>
+                  </div>
+                </div>
 
-            <div className="pt-3 border-t border-[#1e2a38] flex justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setDetailItem(null)}
-              >
-                Close
-              </Button>
+                {detailItem.content && (
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block mb-1">CONTENT BODY</span>
+                    <div className="p-3 rounded bg-[#070B10] border border-[#16202E] text-[#F1F5F9] whitespace-pre-wrap">
+                      {detailItem.content}
+                    </div>
+                  </div>
+                )}
+
+                {detailItem.embedPayload && detailItem.embedPayload.length > 0 && (
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block mb-1">EMBED PREVIEW</span>
+                    <DiscordEmbedPreview embed={detailItem.embedPayload[0]} />
+                  </div>
+                )}
+
+                {detailItem.error && (
+                  <div className="p-3 rounded bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444]">
+                    <span className="font-bold">EXECUTION ERROR:</span> {detailItem.error}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-[#16202E]">
+                <Button variant="ghost" size="sm" onClick={() => setDetailItem(null)}>
+                  CLOSE
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

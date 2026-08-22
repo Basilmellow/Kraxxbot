@@ -5,6 +5,8 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
   Vote,
@@ -16,6 +18,8 @@ import {
   Trash2,
   Hash,
   Sparkles,
+  X,
+  MessageSquare,
 } from 'lucide-react';
 
 interface PollItem {
@@ -94,12 +98,11 @@ export default function SocialPage() {
     e.preventDefault();
     if (!pollQuestion.trim() || !selectedChannel) return;
     const validOpts = pollOptions.filter((o) => o.trim().length > 0);
-    if (validOpts.length < 2) {
-      alert('Please provide at least 2 non-empty poll options.');
-      return;
-    }
+    if (validOpts.length < 2) return;
 
     setIsCreatingPoll(true);
+    setFeedback(null);
+
     try {
       const res = await fetch('/api/social/polls', {
         method: 'POST',
@@ -115,22 +118,22 @@ export default function SocialPage() {
 
       const data = await res.json();
       if (res.ok) {
-        setFeedback({ type: 'success', message: 'Poll published to Discord channel.' });
+        setFeedback({ type: 'success', message: 'Poll deployed to Discord channel.' });
         setShowPollModal(false);
         setPollQuestion('');
         setPollOptions(['Option 1', 'Option 2']);
         fetchData();
       } else {
-        alert(data.error || 'Failed to create poll');
+        setFeedback({ type: 'error', message: data.error || 'Failed to dispatch poll' });
       }
-    } catch (e: any) {
-      alert(e.message || 'Error creating poll');
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Poll creation error' });
     } finally {
       setIsCreatingPoll(false);
     }
   };
 
-  const handleSuggestionStatus = async (id: string, newStatus: string) => {
+  const handleUpdateSuggestion = async (id: string, newStatus: string) => {
     try {
       const res = await fetch(`/api/social/suggestions/${id}`, {
         method: 'PATCH',
@@ -139,60 +142,62 @@ export default function SocialPage() {
       });
 
       if (res.ok) {
-        setSuggestions(suggestions.map((s) => (s.id === id ? { ...s, status: newStatus as any } : s)));
-        setFeedback({ type: 'success', message: 'Suggestion status updated.' });
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update suggestion');
+        setSuggestions(
+          suggestions.map((s) => (s.id === id ? { ...s, status: newStatus as any } : s))
+        );
       }
-    } catch (e: any) {
-      alert(e.message || 'Error updating suggestion');
+    } catch (err) {
+      console.error('Update suggestion failed:', err);
     }
   };
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Social & Community"
-        subtitle="Live Community Polls, Suggestion Box & Feedback Channels"
-        onRefresh={fetchData}
-        isRefreshing={isLoading}
+        title="COMMUNITY OPS & SUGGESTIONS"
+        subtitle="Interactive Discord Polls, Member Feedback Stream & Governance"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Navigation & Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[#0f1318] border border-[#1e2a38]">
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+        {/* Navigation Tabs */}
+        <div className="flex items-center justify-between font-mono text-xs">
+          <div className="flex items-center gap-1.5 p-1 rounded bg-[#0A0F16] border border-[#16202E]">
             <button
               type="button"
               onClick={() => setActiveTab('POLLS')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-all ${
                 activeTab === 'POLLS'
-                  ? 'bg-[#00f0ff] text-[#0a0e15]'
-                  : 'text-[#94a3b8] hover:text-[#e2e8f0]'
+                  ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                  : 'text-[#94A3B8] hover:text-[#F1F5F9]'
               }`}
             >
               <Vote className="w-3.5 h-3.5" />
-              <span>Polls ({polls.length})</span>
+              <span>DISCORD POLLS ({polls.length})</span>
             </button>
+
             <button
               type="button"
               onClick={() => setActiveTab('SUGGESTIONS')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-all ${
                 activeTab === 'SUGGESTIONS'
-                  ? 'bg-[#00f0ff] text-[#0a0e15]'
-                  : 'text-[#94a3b8] hover:text-[#e2e8f0]'
+                  ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                  : 'text-[#94A3B8] hover:text-[#F1F5F9]'
               }`}
             >
               <Lightbulb className="w-3.5 h-3.5" />
-              <span>Suggestions ({suggestions.length})</span>
+              <span>SUGGESTIONS DESK ({suggestions.length})</span>
             </button>
           </div>
 
           {activeTab === 'POLLS' && (
-            <Button variant="primary" size="sm" onClick={() => setShowPollModal(true)}>
-              <Plus className="w-4 h-4 mr-1" />
-              <span>Create Discord Poll</span>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowPollModal(true)}
+              className="font-mono text-xs gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>DEPLOY NEW POLL</span>
             </Button>
           )}
         </div>
@@ -200,260 +205,251 @@ export default function SocialPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
-        {/* Polls Tab */}
-        {activeTab === 'POLLS' && (
-          <Card className="overflow-hidden p-0">
-            <div className="p-4 border-b border-[#1e2a38]">
-              <CardTitle>
-                <Vote className="w-4 h-4 text-[#00f0ff]" />
-                <span>Live Discord Community Polls</span>
-              </CardTitle>
-            </div>
+        {/* Content Tabs */}
+        {activeTab === 'POLLS' ? (
+          <div>
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
+            ) : polls.length === 0 ? (
+              <EmptyState
+                icon={Vote}
+                title="NO ACTIVE POLLS RECORDED"
+                description="There are currently no active community polls deployed in Discord."
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPollModal(true)}
+                    className="font-mono text-xs"
+                  >
+                    DEPLOY FIRST POLL
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {polls.map((p) => {
+                  let optArr: string[] = [];
+                  try {
+                    optArr = JSON.parse(p.options);
+                  } catch {}
 
-            <div className="overflow-x-auto">
-              <table className="kraxx-table">
-                <thead>
-                  <tr>
-                    <th>Poll Question</th>
-                    <th>Channel Target</th>
-                    <th>Expires At</th>
-                    <th>Mode</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-12 text-xs text-[#64748b]">
-                        Loading polls...
-                      </td>
-                    </tr>
-                  ) : polls.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-12 text-xs text-[#64748b]">
-                        No active polls found. Create a poll to broadcast to Discord.
-                      </td>
-                    </tr>
-                  ) : (
-                    polls.map((p) => (
-                      <tr key={p.id}>
-                        <td className="font-bold text-xs text-[#e2e8f0] max-w-sm">
-                          {p.question}
-                        </td>
-
-                        <td className="font-mono text-xs text-[#94a3b8]">
-                          <div className="flex items-center gap-1">
-                            <Hash className="w-3.5 h-3.5 text-[#64748b]" />
-                            <span>{p.channelId}</span>
-                          </div>
-                        </td>
-
-                        <td className="whitespace-nowrap font-mono text-xs text-[#94a3b8]">
-                          {p.expiresAt ? new Date(p.expiresAt).toLocaleString() : '—'}
-                        </td>
-
-                        <td>
-                          <Badge variant={p.isAnonymous ? 'brand' : 'neutral'}>
-                            {p.isAnonymous ? 'Anonymous' : 'Public'}
-                          </Badge>
-                        </td>
-
-                        <td>
-                          <Badge variant={p.status === 'ACTIVE' ? 'success' : 'neutral'}>
+                  return (
+                    <Card
+                      key={p.id}
+                      className="bg-[#0A0F16] p-4 space-y-3 font-mono text-xs flex flex-col justify-between"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Badge variant={p.status === 'ACTIVE' ? 'brand' : 'neutral'}>
                             {p.status}
                           </Badge>
-                        </td>
+                          <span className="text-[10px] text-[#64748B]">
+                            {new Date(p.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
 
-                        <td className="whitespace-nowrap font-mono text-xs text-[#64748b]">
-                          {new Date(p.createdAt).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        )}
+                        <h3 className="font-bold text-[#F1F5F9] text-sm">{p.question}</h3>
 
-        {/* Suggestions Tab */}
-        {activeTab === 'SUGGESTIONS' && (
-          <Card className="overflow-hidden p-0">
-            <div className="p-4 border-b border-[#1e2a38]">
-              <CardTitle>
-                <Lightbulb className="w-4 h-4 text-[#00f0ff]" />
-                <span>Community Feedback & Proposals</span>
-              </CardTitle>
-            </div>
-
-            <div className="divide-y divide-[#1e2a38]">
-              {isLoading ? (
-                <div className="p-12 text-center text-xs text-[#64748b]">Loading suggestions...</div>
-              ) : suggestions.length === 0 ? (
-                <div className="p-12 text-center text-xs text-[#64748b]">No community suggestions submitted yet.</div>
-              ) : (
-                suggestions.map((s) => (
-                  <div key={s.id} className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-bold text-[#e2e8f0]">{s.title}</h4>
-                        <span className="text-[11px] font-mono text-[#64748b]">
-                          Author ID: {s.authorId} • {new Date(s.createdAt).toLocaleDateString()}
-                        </span>
+                        <div className="space-y-1 pt-1">
+                          {optArr.map((opt, i) => (
+                            <div
+                              key={i}
+                              className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[11px] text-[#94A3B8]"
+                            >
+                              {i + 1}. {opt}
+                            </div>
+                          ))}
+                        </div>
                       </div>
+
+                      <div className="pt-2 border-t border-[#16202E] text-[10px] text-[#64748B]">
+                        Target: #{p.channelId}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
+            ) : suggestions.length === 0 ? (
+              <EmptyState
+                icon={Lightbulb}
+                title="NO COMMUNITY SUGGESTIONS"
+                description="No incoming community suggestions are currently in the review pipeline."
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {suggestions.map((s) => (
+                  <Card
+                    key={s.id}
+                    className="bg-[#0A0F16] p-4 space-y-3 font-mono text-xs flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Badge
+                          variant={
+                            s.status === 'APPROVED' || s.status === 'IMPLEMENTED'
+                              ? 'success'
+                              : s.status === 'REJECTED'
+                              ? 'danger'
+                              : 'warning'
+                          }
+                        >
+                          {s.status}
+                        </Badge>
+                        <span className="text-[10px] text-[#64748B]">Author: {s.authorId}</span>
+                      </div>
+
+                      <h3 className="font-bold text-[#F1F5F9] text-sm">{s.title}</h3>
+                      <p className="text-[11px] text-[#94A3B8] font-sans leading-relaxed">
+                        {s.content}
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-[#16202E] flex items-center justify-between">
+                      <span className="text-[10px] text-[#64748B]">
+                        {new Date(s.createdAt).toLocaleDateString()}
+                      </span>
 
                       <select
                         value={s.status}
-                        onChange={(e) => handleSuggestionStatus(s.id, e.target.value)}
-                        className="px-2.5 py-1 rounded bg-[#0f1318] border border-[#1e2a38] text-xs font-semibold focus:outline-none focus:border-[#00f0ff]/50"
+                        onChange={(e) => handleUpdateSuggestion(s.id, e.target.value)}
+                        className="bg-[#070B10] border border-[#16202E] rounded px-2 py-1 text-[11px] text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
                       >
-                        <option value="SUBMITTED">Submitted</option>
-                        <option value="UNDER_REVIEW">Under Review</option>
-                        <option value="APPROVED">Approved</option>
-                        <option value="REJECTED">Rejected</option>
-                        <option value="IMPLEMENTED">Implemented</option>
+                        <option value="SUBMITTED">SUBMITTED</option>
+                        <option value="UNDER_REVIEW">UNDER REVIEW</option>
+                        <option value="APPROVED">APPROVED</option>
+                        <option value="REJECTED">REJECTED</option>
+                        <option value="IMPLEMENTED">IMPLEMENTED</option>
                       </select>
                     </div>
-
-                    <p className="text-xs text-[#94a3b8] leading-relaxed">{s.content}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         )}
-      </div>
 
-      {/* Create Poll Modal */}
-      {showPollModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1318] border border-[#1e2a38] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#1e2a38] pb-3">
-              <h3 className="text-sm font-bold text-[#e2e8f0] flex items-center gap-2">
-                <Vote className="w-4 h-4 text-[#00f0ff]" />
-                <span>Create Community Poll</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPollModal(false)}
-                className="text-[#64748b] hover:text-[#e2e8f0]"
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={handleCreatePoll} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Poll Question</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Which CTF workshop topic should we host next?"
-                  value={pollQuestion}
-                  onChange={(e) => setPollQuestion(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  required
-                />
+        {/* Create Poll Modal */}
+        {showPollModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
+                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
+                  <Vote className="w-4 h-4 text-[#22D3EE]" />
+                  <span>DEPLOY INTERACTIVE POLL</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowPollModal(false)}
+                  className="text-[#64748B] hover:text-[#F1F5F9]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Target Channel</label>
+              <form onSubmit={handleCreatePoll} className="space-y-3 font-mono text-xs">
+                <div>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    POLL QUESTION
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Which operational sprint objective should be prioritized?"
+                    value={pollQuestion}
+                    onChange={(e) => setPollQuestion(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                  />
+                </div>
+
                 <ChannelSelector
                   channels={channels}
                   selectedChannelId={selectedChannel?.id || ''}
-                  onSelectChannel={(ch) => setSelectedChannel(ch)}
+                  onSelectChannel={setSelectedChannel}
                 />
-              </div>
 
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Poll Options</label>
-                <div className="space-y-1.5">
-                  {pollOptions.map((opt, idx) => (
+                <div className="space-y-2">
+                  <label className="block text-[10px] text-[#94A3B8] uppercase">
+                    POLL OPTIONS
+                  </label>
+                  {pollOptions.map((opt, i) => (
                     <input
-                      key={idx}
+                      key={i}
                       type="text"
-                      placeholder={`Option ${idx + 1}`}
+                      required
                       value={opt}
                       onChange={(e) => {
                         const updated = [...pollOptions];
-                        updated[idx] = e.target.value;
+                        updated[i] = e.target.value;
                         setPollOptions(updated);
                       }}
-                      className="w-full px-3 py-1.5 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                      className="w-full px-3 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
                     />
                   ))}
+                  {pollOptions.length < 5 && (
+                    <button
+                      type="button"
+                      onClick={() => setPollOptions([...pollOptions, `Option ${pollOptions.length + 1}`])}
+                      className="text-[10px] text-[#22D3EE] hover:underline"
+                    >
+                      + Add Option
+                    </button>
+                  )}
                 </div>
-                {pollOptions.length < 5 && (
-                  <button
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#16202E]">
+                  <Button
                     type="button"
-                    onClick={() => setPollOptions([...pollOptions, `Option ${pollOptions.length + 1}`])}
-                    className="mt-1.5 text-[11px] text-[#00f0ff] font-semibold hover:underline"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPollModal(false)}
                   >
-                    + Add another option
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Duration (Hours)</label>
-                  <select
-                    value={durationHours}
-                    onChange={(e) => setDurationHours(parseInt(e.target.value, 10))}
-                    className="w-full px-3 py-1.5 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                    CANCEL
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    isLoading={isCreatingPoll}
+                    disabled={!selectedChannel}
                   >
-                    <option value={12}>12 Hours</option>
-                    <option value={24}>24 Hours (1 Day)</option>
-                    <option value={48}>48 Hours (2 Days)</option>
-                    <option value={168}>7 Days (1 Week)</option>
-                  </select>
+                    DEPLOY POLL
+                  </Button>
                 </div>
-
-                <div className="flex items-center pt-5">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-[#94a3b8]">
-                    <input
-                      type="checkbox"
-                      checked={isAnonymous}
-                      onChange={(e) => setIsAnonymous(e.target.checked)}
-                      className="rounded border-[#1e2a38] text-[#00f0ff]"
-                    />
-                    <span>Anonymous Voting</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1e2a38]">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowPollModal(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" size="sm" isLoading={isCreatingPoll}>
-                  Broadcast Poll
-                </Button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

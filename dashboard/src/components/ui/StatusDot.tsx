@@ -4,20 +4,29 @@ interface StatusDotProps {
   status: 'online' | 'offline' | 'degraded' | 'unknown';
   label?: string;
   showPulse?: boolean;
+  className?: string;
 }
 
-export function StatusDot({ status, label, showPulse = false }: StatusDotProps) {
+export function StatusDot({ status, label, showPulse = false, className = '' }: StatusDotProps) {
   const dotClass = {
     online: 'status-dot-online',
     offline: 'status-dot-offline',
     degraded: 'status-dot-degraded',
-    unknown: 'bg-[#64748b]',
-  }[status] || 'bg-[#64748b]';
+    unknown: 'status-dot-neutral',
+  }[status] || 'status-dot-neutral';
 
   return (
-    <div className="flex items-center gap-2">
-      <span className={`status-dot ${dotClass} ${showPulse && status === 'online' ? 'animate-pulse-glow' : ''}`} />
-      {label && <span className="text-xs capitalize font-medium text-[#94a3b8]">{label}</span>}
+    <div className={`inline-flex items-center gap-1.5 ${className}`}>
+      <span
+        className={`status-dot ${dotClass} ${
+          showPulse && status === 'online' ? 'animate-pulse-subtle' : ''
+        }`}
+      />
+      {label && (
+        <span className="text-[11px] font-mono uppercase tracking-wider text-[#94A3B8]">
+          {label}
+        </span>
+      )}
     </div>
   );
 }

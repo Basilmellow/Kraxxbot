@@ -6,7 +6,7 @@ import { requireTier, RoleTier } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.STAFF);
+  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.STAFF);
+  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

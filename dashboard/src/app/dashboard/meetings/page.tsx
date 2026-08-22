@@ -5,6 +5,8 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
   CalendarClock,
@@ -19,6 +21,8 @@ import {
   Check,
   XCircle,
   Hash,
+  X,
+  Trash2,
 } from 'lucide-react';
 
 interface MeetingItem {
@@ -34,6 +38,8 @@ interface MeetingItem {
   status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   createdAt: string;
 }
+
+const STATUSES = ['ALL', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
 export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
@@ -101,16 +107,13 @@ export default function MeetingsPage() {
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !agenda.trim() || !startDate || !startTimeStr) return;
-
-    const start = new Date(`${startDate}T${startTimeStr}`);
-    if (isNaN(start.getTime())) {
-      alert('Invalid date or time.');
-      return;
-    }
+    if (!title.trim() || !startDate || !startTimeStr) return;
 
     setIsCreating(true);
+    setFeedback(null);
+
     try {
+      const combinedDate = new Date(`${startDate}T${startTimeStr}`);
       const res = await fetch('/api/meetings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,7 +121,7 @@ export default function MeetingsPage() {
           title: title.trim(),
           agenda: agenda.trim(),
           department,
-          startTime: start.toISOString(),
+          startTime: combinedDate.toISOString(),
           durationMinutes: duration,
           locationChannelId: selectedChannel?.id || undefined,
         }),
@@ -126,346 +129,333 @@ export default function MeetingsPage() {
 
       const data = await res.json();
       if (res.ok) {
-        setFeedback({ type: 'success', message: `Meeting "${title}" scheduled successfully.` });
+        setFeedback({ type: 'success', message: 'Operations meeting scheduled.' });
         setShowCreateModal(false);
         setTitle('');
         setAgenda('');
-        setStartDate('');
-        setStartTimeStr('');
         fetchMeetings();
       } else {
-        alert(data.error || 'Failed to create meeting');
+        setFeedback({ type: 'error', message: data.error || 'Failed to schedule meeting' });
       }
-    } catch (e: any) {
-      alert(e.message || 'Error creating meeting');
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Error scheduling meeting' });
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleStatusUpdate = async (id: string, newStatus: string) => {
+  const handleUpdateStatus = async (meetingId: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/meetings/${id}`, {
+      const res = await fetch(`/api/meetings/${meetingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
 
       if (res.ok) {
-        setMeetings(meetings.map((m) => (m.id === id ? { ...m, status: newStatus as any } : m)));
-        setFeedback({ type: 'success', message: `Meeting status updated to ${newStatus}.` });
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update status');
+        setMeetings(meetings.map((m) => (m.id === meetingId ? { ...m, status: newStatus as any } : m)));
       }
-    } catch (e: any) {
-      alert(e.message || 'Error updating meeting');
+    } catch (err) {
+      console.error('Status update failed:', err);
     }
   };
 
-  // Find next upcoming scheduled meeting
-  const upcomingMeeting = meetings.find(
-    (m) => m.status === 'SCHEDULED' && new Date(m.startTime).getTime() > now.getTime()
-  );
+  const handleDeleteMeeting = async (meetingId: string) => {
+    if (!confirm('Confirm deletion of meeting schedule?')) return;
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setMeetings(meetings.filter((m) => m.id !== meetingId));
+        setFeedback({ type: 'success', message: 'Meeting purged.' });
+      }
+    } catch (err) {
+      console.error('Delete meeting failed:', err);
+    }
+  };
 
-  const getCountdownString = (targetDate: Date) => {
-    const diff = targetDate.getTime() - now.getTime();
-    if (diff <= 0) return 'MEETING LIVE NOW';
-
+  const getCountdown = (startStr: string) => {
+    const start = new Date(startStr).getTime();
+    const diff = start - now.getTime();
+    if (diff <= 0) return 'CONVENING NOW';
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const secs = Math.floor((diff % (1000 * 60)) / 1000);
+    return `T-${hours}H ${mins}M ${secs}S`;
+  };
 
-    if (hours > 0) {
-      return `STARTS IN ${hours}H ${mins}M ${secs}S`;
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'IN_PROGRESS':
+        return <Badge variant="warning">IN PROGRESS</Badge>;
+      case 'SCHEDULED':
+        return <Badge variant="brand">SCHEDULED</Badge>;
+      case 'COMPLETED':
+        return <Badge variant="success">COMPLETED</Badge>;
+      case 'CANCELLED':
+        return <Badge variant="neutral">CANCELLED</Badge>;
+      default:
+        return <Badge variant="neutral">{status}</Badge>;
     }
-    if (mins > 0) {
-      return `STARTS IN ${mins} MINUTES ${secs} SECONDS`;
-    }
-    return `STARTS IN ${secs} SECONDS`;
   };
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Meeting Operations"
-        subtitle="Operational Standups, Briefings & Live Countdown Cadence"
-        onRefresh={fetchMeetings}
-        isRefreshing={isLoading}
+        title="MEETINGS & OPERATIONS CADENCE"
+        subtitle="Staff Briefings, Executive Cadences & Voice Channel Assemblies"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Next Meeting Live Countdown Banner */}
-        {upcomingMeeting && (
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-[#00f0ff]/15 via-[#6366f1]/10 to-[#0f1318] border border-[#00f0ff]/40 shadow-[0_0_24px_rgba(0,240,255,0.15)] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#00f0ff] animate-pulse" />
-                <span className="text-[11px] font-bold text-[#00f0ff] uppercase tracking-wider font-mono">
-                  Next Scheduled Operational Briefing
-                </span>
-              </div>
-              <h3 className="text-base font-bold text-[#e2e8f0]">{upcomingMeeting.title}</h3>
-              <p className="text-xs text-[#94a3b8] line-clamp-1">{upcomingMeeting.agenda}</p>
-            </div>
-
-            <div className="text-right flex-shrink-0">
-              <div className="text-sm font-extrabold text-[#00f0ff] font-mono tracking-wide px-3 py-1.5 rounded-lg bg-[#0a0e15] border border-[#00f0ff]/30">
-                {getCountdownString(new Date(upcomingMeeting.startTime))}
-              </div>
-              <span className="text-[10px] text-[#64748b] font-mono block mt-1">
-                {new Date(upcomingMeeting.startTime).toLocaleString()}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Navigation & Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
-            {['ALL', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map((st) => (
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+        {/* Filter Bar & Schedule Action */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs">
+          <div className="flex flex-wrap items-center gap-1 p-1 rounded bg-[#0A0F16] border border-[#16202E]">
+            {STATUSES.map((s) => (
               <button
-                key={st}
+                key={s}
                 type="button"
-                onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap border transition-all ${
-                  statusFilter === st
-                    ? 'bg-[#00f0ff] text-[#0a0e15] border-[#00f0ff]'
-                    : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
+                onClick={() => setStatusFilter(s)}
+                className={`px-2.5 py-1 rounded transition-colors ${
+                  statusFilter === s
+                    ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
                 }`}
               >
-                {st === 'ALL' ? 'All Meetings' : st.replace('_', ' ')}
+                {s}
               </button>
             ))}
           </div>
 
-          <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
-            <Plus className="w-4 h-4 mr-1" />
-            <span>Schedule Meeting</span>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setShowCreateModal(true)}
+            className="font-mono text-xs gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>SCHEDULE MEETING</span>
           </Button>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
-        {/* Meetings Grid / Cards */}
+        {/* Meetings Grid */}
         {isLoading ? (
-          <div className="text-center py-12 text-xs text-[#64748b]">Loading meetings...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
         ) : meetings.length === 0 ? (
-          <Card className="text-center py-12 text-xs text-[#64748b]">
-            No meetings found in &quot;{statusFilter}&quot;.
-          </Card>
+          <EmptyState
+            icon={CalendarClock}
+            title="NO MEETINGS SCHEDULED"
+            description="No operations assemblies or briefings currently match your query."
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCreateModal(true)}
+                className="font-mono text-xs"
+              >
+                SCHEDULE BRIEFING
+              </Button>
+            }
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {meetings.map((m) => (
-              <Card key={m.id} className="space-y-4 hover:border-[#00f0ff]/30 transition-all flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="text-sm font-bold text-[#e2e8f0]">{m.title}</h4>
-                      <span className="text-[10px] font-mono text-[#00f0ff] uppercase">{m.department}</span>
-                    </div>
-                    <Badge variant={m.status === 'IN_PROGRESS' ? 'danger' : m.status === 'SCHEDULED' ? 'brand' : m.status === 'COMPLETED' ? 'success' : 'neutral'}>
-                      {m.status.replace('_', ' ')}
-                    </Badge>
+              <Card
+                key={m.id}
+                className="bg-[#0A0F16] flex flex-col justify-between hover:border-[#22D3EE]/30 transition-all p-4 space-y-3"
+              >
+                <div className="space-y-2 font-mono text-xs">
+                  <div className="flex items-center justify-between">
+                    {getStatusBadge(m.status)}
+                    <span className="text-[11px] text-[#22D3EE] font-bold">
+                      {m.status === 'SCHEDULED' ? getCountdown(m.startTime) : m.status}
+                    </span>
                   </div>
 
-                  <p className="text-xs text-[#94a3b8] leading-relaxed line-clamp-3">{m.agenda}</p>
+                  <div>
+                    <h3 className="font-bold text-[#F1F5F9] text-sm truncate">{m.title}</h3>
+                    {m.agenda && (
+                      <p className="text-[11px] text-[#94A3B8] font-sans line-clamp-2 mt-0.5">
+                        {m.agenda}
+                      </p>
+                    )}
+                  </div>
 
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#1e2a38] text-[11px] text-[#64748b]">
-                    <div className="flex items-center gap-1.5 font-mono">
-                      <Calendar className="w-3.5 h-3.5 text-[#00f0ff]" />
-                      <span>{new Date(m.startTime).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-mono">
-                      <Clock className="w-3.5 h-3.5 text-[#00f0ff]" />
-                      <span>{new Date(m.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <div className="space-y-1 pt-2 border-t border-[#16202E] text-[11px] text-[#64748B]">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3 text-[#22D3EE]" />
+                      <span>{new Date(m.startTime).toLocaleString()}</span>
                     </div>
                     {m.locationChannelId && (
-                      <div className="flex items-center gap-1.5 font-mono col-span-2 text-[#94a3b8]">
-                        <Hash className="w-3.5 h-3.5 text-[#64748b]" />
-                        <span>Channel: {m.locationChannelId}</span>
+                      <div className="flex items-center gap-1.5">
+                        <Hash className="w-3 h-3 text-[#94A3B8]" />
+                        <span>#{m.locationChannelId}</span>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Status Action Buttons */}
-                <div className="pt-3 border-t border-[#1e2a38] flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
+                <div className="pt-3 border-t border-[#16202E] flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteMeeting(m.id)}
+                    className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
+                    title="Purge Meeting"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="flex gap-1.5">
                     {m.status === 'SCHEDULED' && (
                       <Button
-                        variant="primary"
+                        variant="outline"
                         size="sm"
-                        onClick={() => handleStatusUpdate(m.id, 'IN_PROGRESS')}
+                        onClick={() => handleUpdateStatus(m.id, 'IN_PROGRESS')}
+                        className="font-mono text-[10px] py-1 text-[#22D3EE]"
                       >
-                        <Play className="w-3.5 h-3.5 mr-1" />
-                        <span>Start Meeting</span>
+                        CONVENE
                       </Button>
                     )}
                     {m.status === 'IN_PROGRESS' && (
                       <Button
                         variant="primary"
                         size="sm"
-                        onClick={() => handleStatusUpdate(m.id, 'COMPLETED')}
+                        onClick={() => handleUpdateStatus(m.id, 'COMPLETED')}
+                        className="font-mono text-[10px] py-1"
                       >
-                        <Check className="w-3.5 h-3.5 mr-1" />
-                        <span>Conclude</span>
+                        CONCLUDE
                       </Button>
                     )}
                   </div>
-
-                  {m.status !== 'CANCELLED' && m.status !== 'COMPLETED' && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatusUpdate(m.id, 'CANCELLED')}
-                      className="text-xs text-[#64748b] hover:text-[#ef4444] font-medium"
-                    >
-                      Cancel Meeting
-                    </button>
-                  )}
                 </div>
               </Card>
             ))}
           </div>
         )}
-      </div>
 
-      {/* Create Meeting Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1318] border border-[#1e2a38] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#1e2a38] pb-3">
-              <h3 className="text-sm font-bold text-[#e2e8f0] flex items-center gap-2">
-                <CalendarClock className="w-4 h-4 text-[#00f0ff]" />
-                <span>Schedule Operations Meeting</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="text-[#64748b] hover:text-[#e2e8f0]"
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateMeeting} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Meeting Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Weekly Security Operations Standup"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  required
-                />
+        {/* Schedule Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
+                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
+                  <CalendarClock className="w-4 h-4 text-[#22D3EE]" />
+                  <span>SCHEDULE OPERATIONS CADENCE</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="text-[#64748B] hover:text-[#F1F5F9]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Agenda & Discussion Points</label>
-                <textarea
-                  rows={3}
-                  placeholder="Key topics, review items, and briefing scope..."
-                  value={agenda}
-                  onChange={(e) => setAgenda(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleCreateMeeting} className="space-y-3 font-mono text-xs">
                 <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Division</label>
-                  <select
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  >
-                    <option value="GENERAL">General HQ</option>
-                    <option value="KRAXXSEC">KRAXXSEC</option>
-                    <option value="KRAXX_STUDIO">KRAXX STUDIO</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Duration (Minutes)</label>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    MEETING TITLE
+                  </label>
                   <input
-                    type="number"
-                    value={duration}
-                    onChange={(e) => setDuration(parseInt(e.target.value, 10))}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                    min={15}
-                    max={360}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                    type="text"
                     required
+                    placeholder="e.g. KRAXX Weekly Operational Sync"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Start Time</label>
-                  <input
-                    type="time"
-                    value={startTimeStr}
-                    onChange={(e) => setStartTimeStr(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                    required
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    AGENDA / BRIEFING OUTLINE
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Meeting agenda items, deliverables, updates..."
+                    value={agenda}
+                    onChange={(e) => setAgenda(e.target.value)}
+                    className="w-full p-2.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Voice / Meeting Channel</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      DATE
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      TIME
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={startTimeStr}
+                      onChange={(e) => setStartTimeStr(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
+                  </div>
+                </div>
+
                 <ChannelSelector
                   channels={channels}
                   selectedChannelId={selectedChannel?.id || ''}
-                  onSelectChannel={(ch) => setSelectedChannel(ch)}
+                  onSelectChannel={setSelectedChannel}
                 />
-              </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1e2a38]">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateModal(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" size="sm" isLoading={isCreating}>
-                  Schedule Meeting
-                </Button>
-              </div>
-            </form>
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#16202E]">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCreateModal(false)}
+                  >
+                    CANCEL
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    isLoading={isCreating}
+                  >
+                    SCHEDULE MEETING
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

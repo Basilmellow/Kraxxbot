@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import {
   Search,
   ArrowRight,
@@ -13,6 +15,7 @@ import {
   Clock,
   Activity,
   User,
+  ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -53,88 +56,99 @@ export default function SearchPage() {
   const getIcon = (type: string) => {
     switch (type) {
       case 'TICKET':
-        return <Ticket className="w-4 h-4 text-[#00f0ff]" />;
+        return <Ticket className="w-3.5 h-3.5 text-[#22D3EE]" />;
       case 'TASK':
-        return <CheckSquare className="w-4 h-4 text-[#10b981]" />;
+        return <CheckSquare className="w-3.5 h-3.5 text-[#10B981]" />;
       case 'MEETING':
-        return <Calendar className="w-4 h-4 text-[#6366f1]" />;
+        return <Calendar className="w-3.5 h-3.5 text-[#818CF8]" />;
       case 'REMINDER':
-        return <Clock className="w-4 h-4 text-[#f59e0b]" />;
+        return <Clock className="w-3.5 h-3.5 text-[#F59E0B]" />;
       case 'AUDIT':
-        return <Activity className="w-4 h-4 text-[#ef4444]" />;
+        return <Activity className="w-3.5 h-3.5 text-[#EF4444]" />;
       default:
-        return <User className="w-4 h-4 text-[#64748b]" />;
+        return <User className="w-3.5 h-3.5 text-[#64748B]" />;
     }
   };
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Global Operations Search"
-        subtitle="Omni-Query Across All Platform Tickets, Tasks, Meetings, Reminders & Logs"
+        title="OMNI-TELEMETRY SEARCH"
+        subtitle="Global Query Across Platform Records, Tickets, Tasks, Logs & Schedules"
       />
 
-      <div className="p-6 space-y-6 max-w-4xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-4xl w-full mx-auto space-y-5">
         {/* Search Input Bar */}
         <form onSubmit={handleSearch} className="relative">
-          <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#00f0ff]" />
+          <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-[#22D3EE]" />
           <input
             type="text"
-            placeholder="Search anything (e.g. ticket code, task name, meeting title, user ID, audit event)..."
+            placeholder="Search ticket #, task name, meeting title, user ID, audit event..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-12 pr-28 py-3.5 rounded-2xl bg-[#0f1318] border border-[#1e2a38] text-sm text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff] focus:shadow-[0_0_20px_rgba(0,240,255,0.15)] transition-all font-sans"
+            className="w-full pl-11 pr-28 py-3 rounded-md bg-[#0A0F16] border border-[#16202E] text-xs font-mono text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50 shadow-inner"
             autoFocus
           />
           <button
             type="submit"
             disabled={isSearching}
-            className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-xl bg-[#00f0ff] text-[#0a0e15] font-bold text-xs hover:bg-[#00d0df] transition-all"
+            className="absolute right-2 top-1/2 -translate-y-1/2 px-3.5 py-1.5 rounded bg-[#22D3EE] text-[#05070B] font-mono font-bold text-xs hover:bg-[#22D3EE]/90 transition-all uppercase tracking-wider"
           >
-            {isSearching ? 'Searching...' : 'Search'}
+            {isSearching ? 'SEARCHING' : 'EXECUTE'}
           </button>
         </form>
 
         {/* Results Container */}
         {hasSearched && (
-          <Card className="overflow-hidden p-0">
-            <div className="p-4 border-b border-[#1e2a38] flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-                Matching Results ({results.length})
-              </span>
-              <span className="text-[11px] text-[#64748b] font-mono">
-                Realtime Indexed Query
-              </span>
-            </div>
+          <Card className="bg-[#0A0F16]">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between w-full">
+                <span className="flex items-center gap-2">
+                  <Search className="w-3.5 h-3.5 text-[#22D3EE]" />
+                  <span>SEARCH RESULTS ({results.length})</span>
+                </span>
+                <span className="text-[10px] font-mono text-[#64748B]">QUERY: &quot;{query}&quot;</span>
+              </CardTitle>
+            </CardHeader>
 
-            {results.length === 0 ? (
-              <div className="p-12 text-center text-xs text-[#64748b]">
-                No records matched your search query &quot;{query}&quot;.
+            {isSearching ? (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
+            ) : results.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={Search}
+                  title="NO MATCHING RECORDS FOUND"
+                  description="Your query did not match any active platform records."
+                />
               </div>
             ) : (
-              <div className="divide-y divide-[#1e2a38]">
-                {results.map((r, i) => (
+              <div className="divide-y divide-[#16202E] font-mono text-xs">
+                {results.map((r, idx) => (
                   <Link
-                    key={`${r.type}-${r.id}-${i}`}
+                    key={`${r.id}-${idx}`}
                     href={r.url}
-                    className="p-4 flex items-center justify-between gap-4 hover:bg-[#141a22] transition-all group"
+                    className="p-3.5 flex items-center justify-between hover:bg-[#0D131C] transition-colors group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38]">
+                      <div className="p-2 rounded bg-[#070B10] border border-[#16202E]">
                         {getIcon(r.type)}
                       </div>
                       <div>
-                        <div className="text-sm font-bold text-[#e2e8f0] group-hover:text-[#00f0ff] transition-colors">
-                          {r.title}
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#F1F5F9] group-hover:text-[#22D3EE] transition-colors">
+                            {r.title}
+                          </span>
+                          <Badge variant="neutral">{r.type}</Badge>
                         </div>
-                        <div className="text-xs text-[#64748b] font-mono">{r.subtitle}</div>
+                        <div className="text-[11px] text-[#64748B] mt-0.5">{r.subtitle}</div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Badge variant="neutral">{r.type}</Badge>
-                      <ArrowRight className="w-4 h-4 text-[#64748b] group-hover:text-[#00f0ff] group-hover:translate-x-1 transition-all" />
-                    </div>
+                    <ArrowRight className="w-4 h-4 text-[#64748B] group-hover:text-[#22D3EE] group-hover:translate-x-1 transition-all" />
                   </Link>
                 ))}
               </div>

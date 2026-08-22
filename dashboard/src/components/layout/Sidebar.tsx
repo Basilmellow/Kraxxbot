@@ -1,166 +1,285 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import {
   LayoutDashboard,
-  ScrollText,
-  MessageSquare,
-  Megaphone,
-  CheckSquare,
-  CalendarClock,
-  Ticket,
-  Shield,
-  BarChart3,
-  LogOut,
-  ShieldCheck,
-  Sparkles,
-  Layers,
-  Clock,
   Search,
   Bell,
+  BarChart3,
+  ScrollText,
+  MessageSquare,
+  Sparkles,
+  Layers,
+  Megaphone,
+  Clock,
+  DoorOpen,
   Users,
   ShieldAlert,
+  Ticket,
+  Shield,
+  CheckSquare,
   AlarmClock,
+  CalendarClock,
   Zap,
-  Wrench,
   Vote,
   Gamepad2,
+  Wrench,
   Boxes,
   Settings,
-  DoorOpen,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  X,
+  Lock,
+  Cpu,
+  Terminal,
 } from 'lucide-react';
 import { DASHBOARD_MODULES, RoleTier, ROLE_TIER_LABELS } from '@/lib/constants';
 
-const ICON_MAP: Record<string, React.ReactNode> = {
-  LayoutDashboard: <LayoutDashboard className="w-4 h-4" />,
-  Search: <Search className="w-4 h-4" />,
-  Bell: <Bell className="w-4 h-4" />,
-  ScrollText: <ScrollText className="w-4 h-4" />,
-  MessageSquare: <MessageSquare className="w-4 h-4" />,
-  Sparkles: <Sparkles className="w-4 h-4" />,
-  Layers: <Layers className="w-4 h-4" />,
-  Megaphone: <Megaphone className="w-4 h-4" />,
-  Clock: <Clock className="w-4 h-4" />,
-  DoorOpen: <DoorOpen className="w-4 h-4" />,
-  Users: <Users className="w-4 h-4" />,
-  ShieldAlert: <ShieldAlert className="w-4 h-4" />,
-  Ticket: <Ticket className="w-4 h-4" />,
-  Shield: <Shield className="w-4 h-4" />,
-  CheckSquare: <CheckSquare className="w-4 h-4" />,
-  AlarmClock: <AlarmClock className="w-4 h-4" />,
-  CalendarClock: <CalendarClock className="w-4 h-4" />,
-  Zap: <Zap className="w-4 h-4" />,
-  Wrench: <Wrench className="w-4 h-4" />,
-  Vote: <Vote className="w-4 h-4" />,
-  Gamepad2: <Gamepad2 className="w-4 h-4" />,
-  Boxes: <Boxes className="w-4 h-4" />,
-  Settings: <Settings className="w-4 h-4" />,
-  BarChart3: <BarChart3 className="w-4 h-4" />,
+const ICON_MAP: Record<string, any> = {
+  LayoutDashboard,
+  Search,
+  Bell,
+  BarChart3,
+  ScrollText,
+  MessageSquare,
+  Sparkles,
+  Layers,
+  Megaphone,
+  Clock,
+  DoorOpen,
+  Users,
+  ShieldAlert,
+  Ticket,
+  Shield,
+  CheckSquare,
+  AlarmClock,
+  CalendarClock,
+  Zap,
+  Vote,
+  Gamepad2,
+  Wrench,
+  Boxes,
+  Settings,
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  CORE: 'Core Operations',
-  COMMUNICATION: 'Communications',
-  MANAGEMENT: 'Access & Management',
-  PRODUCTIVITY: 'Productivity & Flow',
-  COMMUNITY: 'Utilities & Community',
-  SYSTEM: 'System & Control',
+const CATEGORY_HEADERS: Record<string, { label: string; tag: string }> = {
+  COMMAND: { label: 'COMMAND', tag: 'OPS' },
+  COMMUNICATION: { label: 'COMMUNICATION', tag: 'COMMS' },
+  PEOPLE: { label: 'PEOPLE & ACCESS', tag: 'AUTH' },
+  OPERATIONS: { label: 'OPERATIONS', tag: 'FLOW' },
+  COMMUNITY: { label: 'COMMUNITY', tag: 'HUB' },
+  SYSTEM: { label: 'SYSTEM', tag: 'CORE' },
 };
 
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const userTier = session?.user?.roleTier ?? RoleTier.USER;
-  const roleName = session?.user?.roleTierName ? ROLE_TIER_LABELS[session.user.roleTierName] || session.user.roleTierName : 'User';
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const categories = ['CORE', 'COMMUNICATION', 'MANAGEMENT', 'PRODUCTIVITY', 'COMMUNITY', 'SYSTEM'] as const;
+  const userTier = session?.user?.roleTier ?? RoleTier.USER;
+  const roleName = session?.user?.roleTierName
+    ? ROLE_TIER_LABELS[session.user.roleTierName] || session.user.roleTierName
+    : 'User';
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname]);
+
+  const categories = ['COMMAND', 'COMMUNICATION', 'PEOPLE', 'OPERATIONS', 'COMMUNITY', 'SYSTEM'] as const;
 
   return (
-    <aside className="w-64 bg-[#0a0e15] border-r border-[#1e2a38] flex flex-col h-screen fixed left-0 top-0 z-30">
-      {/* Brand Header */}
-      <div className="h-16 flex items-center justify-between px-5 border-b border-[#1e2a38] bg-[#0f1318]/50 flex-shrink-0">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#00f0ff] to-[#6366f1] p-0.5 flex items-center justify-center shadow-[0_0_12px_rgba(0,240,255,0.3)]">
-            <div className="w-full h-full bg-[#0a0e15] rounded-[6px] flex items-center justify-center font-bold text-[#00f0ff] text-sm">
-              K
-            </div>
+    <>
+      {/* Mobile Drawer Trigger Bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[#0A0F16] border-b border-[#16202E] z-40 px-4 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded bg-[#111823] border border-[#1E2C3F] flex items-center justify-center font-bold text-[#22D3EE] text-xs font-mono">
+            K
           </div>
-          <div>
-            <div className="text-sm font-bold text-[#e2e8f0] tracking-wide flex items-center gap-1.5">
-              KRAXX <span className="text-[#00f0ff] text-xs font-semibold px-1.5 py-0.5 rounded bg-[#00f0ff]/10 border border-[#00f0ff]/20">HQ</span>
-            </div>
-            <div className="text-[10px] text-[#64748b] tracking-wider uppercase font-medium">Operations Platform</div>
-          </div>
-        </Link>
-      </div>
-
-      {/* Navigation Modules (Categorized) */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-        {categories.map((cat) => {
-          const items = DASHBOARD_MODULES.filter((m) => m.category === cat && userTier >= m.tier);
-          if (items.length === 0) return null;
-
-          return (
-            <div key={cat} className="space-y-1">
-              <div className="px-3 text-[10px] font-bold text-[#64748b] uppercase tracking-wider">
-                {CATEGORY_LABELS[cat]}
-              </div>
-              {items.map((mod) => {
-                const isActive = pathname === mod.href || (mod.href !== '/dashboard' && pathname.startsWith(mod.href));
-                return (
-                  <Link
-                    key={mod.id}
-                    href={mod.href}
-                    className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
-                  >
-                    <span className={isActive ? 'text-[#00f0ff]' : 'text-[#64748b]'}>
-                      {ICON_MAP[mod.icon] || <LayoutDashboard className="w-4 h-4" />}
-                    </span>
-                    <span className="flex-1 text-xs font-medium">{mod.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* User Session Footer */}
-      <div className="p-3 border-t border-[#1e2a38] bg-[#0f1318]/60 flex-shrink-0">
-        <div className="flex items-center gap-3 p-2 rounded-lg bg-[#141a22] border border-[#1e2a38]/80 mb-2">
-          {session?.user?.avatar ? (
-            <img
-              src={`https://cdn.discordapp.com/avatars/${session.user.discordId}/${session.user.avatar}.png?size=64`}
-              alt={session.user.name || 'User'}
-              className="w-8 h-8 rounded-full border border-[#00f0ff]/30"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-[#1e2a38] flex items-center justify-center text-xs font-bold text-[#e2e8f0]">
-              {(session?.user?.name || 'U')[0].toUpperCase()}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-[#e2e8f0] truncate">
-              {session?.user?.displayName || session?.user?.name || 'Operator'}
-            </div>
-            <div className="text-[10px] text-[#00f0ff] flex items-center gap-1 truncate font-medium">
-              <ShieldCheck className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">{roleName}</span>
-            </div>
+          <div className="flex items-center gap-1.5 font-mono text-xs text-[#F1F5F9] font-semibold">
+            <span>KRAXX</span>
+            <span className="text-[#22D3EE] text-[10px] px-1 py-0.2 rounded bg-[#22D3EE]/10 border border-[#22D3EE]/20">
+              HQ
+            </span>
           </div>
         </div>
 
         <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded text-xs font-medium text-[#94a3b8] hover:text-[#ef4444] hover:bg-[#ef4444]/10 transition-colors border border-transparent hover:border-[#ef4444]/20"
+          onClick={() => setIsMobileOpen((prev) => !prev)}
+          className="p-1.5 rounded bg-[#111823] border border-[#16202E] text-[#94A3B8] hover:text-[#F1F5F9]"
         >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Disconnect Session</span>
+          {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       </div>
-    </aside>
+
+      {/* Mobile Drawer Overlay */}
+      {isMobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-[#05070B]/80 backdrop-blur-sm z-40"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      {/* Main Sidebar Element */}
+      <aside
+        className={`fixed top-0 bottom-0 left-0 z-40 bg-[#070B10] border-r border-[#16202E] flex flex-col transition-all duration-200 ${
+          isCollapsed ? 'w-[68px]' : 'w-[256px]'
+        } ${
+          isMobileOpen
+            ? 'translate-x-0'
+            : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="h-14 flex items-center justify-between px-4 border-b border-[#16202E] bg-[#0A0F16] flex-shrink-0">
+          <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded bg-[#111823] border border-[#1E2C3F] flex items-center justify-center font-bold text-[#22D3EE] text-xs font-mono flex-shrink-0 shadow-[0_0_10px_rgba(34,211,238,0.15)]">
+              K
+            </div>
+            {!isCollapsed && (
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-[#F1F5F9] tracking-wider flex items-center gap-1.5 font-mono">
+                  <span>KRAXX</span>
+                  <span className="text-[#22D3EE] text-[9px] px-1 py-0.2 rounded bg-[#22D3EE]/10 border border-[#22D3EE]/20">
+                    HQ
+                  </span>
+                </div>
+                <div className="text-[9px] text-[#64748B] tracking-wider uppercase font-mono truncate">
+                  OPERATIONS CONTROL
+                </div>
+              </div>
+            )}
+          </Link>
+
+          {/* Desktop Collapse Toggle */}
+          <button
+            onClick={() => setIsCollapsed((prev) => !prev)}
+            className="hidden lg:flex p-1 rounded bg-[#111823] border border-[#16202E] text-[#64748B] hover:text-[#22D3EE] transition-colors"
+            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          >
+            {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+
+        {/* Navigation Sections */}
+        <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-3.5">
+          {categories.map((cat) => {
+            const items = DASHBOARD_MODULES.filter((m) => m.category === cat && userTier >= m.tier);
+            if (items.length === 0) return null;
+
+            return (
+              <div key={cat} className="space-y-0.5">
+                {!isCollapsed && (
+                  <div className="px-2 pb-1 pt-0.5 flex items-center justify-between text-[9px] font-mono text-[#64748B] uppercase tracking-wider">
+                    <span>{CATEGORY_HEADERS[cat].label}</span>
+                    <span className="text-[8px] text-[#475569] bg-[#0A0F16] px-1 rounded border border-[#121A24]">
+                      {CATEGORY_HEADERS[cat].tag}
+                    </span>
+                  </div>
+                )}
+
+                {items.map((mod) => {
+                  const isActive =
+                    pathname === mod.href ||
+                    (mod.href !== '/dashboard' && pathname.startsWith(mod.href));
+                  const Icon = ICON_MAP[mod.icon] || LayoutDashboard;
+
+                  return (
+                    <Link
+                      key={mod.id}
+                      href={mod.href}
+                      title={isCollapsed ? mod.label : undefined}
+                      className={`sidebar-nav-item ${isActive ? 'active' : ''} ${
+                        isCollapsed ? 'justify-center px-0' : ''
+                      }`}
+                    >
+                      <Icon
+                        className={`w-4 h-4 flex-shrink-0 ${
+                          isActive ? 'text-[#22D3EE]' : 'text-[#64748B]'
+                        }`}
+                      />
+                      {!isCollapsed && (
+                        <span className="truncate text-xs font-medium">{mod.label}</span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* User Session & Telemetry Footer */}
+        <div className="p-2.5 border-t border-[#16202E] bg-[#0A0F16] flex-shrink-0 space-y-2">
+          {!isCollapsed ? (
+            <>
+              <div className="flex items-center gap-2.5 p-2 rounded bg-[#0D131C] border border-[#16202E]">
+                {session?.user?.avatar ? (
+                  <img
+                    src={`https://cdn.discordapp.com/avatars/${session.user.discordId}/${session.user.avatar}.png?size=64`}
+                    alt={session.user.name || 'User'}
+                    className="w-7 h-7 rounded border border-[#22D3EE]/30 flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded bg-[#16202E] flex items-center justify-center text-xs font-bold text-[#F1F5F9] font-mono flex-shrink-0">
+                    {(session?.user?.name || 'O')[0].toUpperCase()}
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold text-[#F1F5F9] truncate font-mono">
+                    {session?.user?.displayName || session?.user?.name || 'Operator'}
+                  </div>
+                  <div className="text-[10px] text-[#22D3EE] flex items-center gap-1 font-mono uppercase tracking-wider truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                    <span className="truncate">{roleName}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded text-[11px] font-mono text-[#64748B] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors border border-transparent hover:border-[#EF4444]/20"
+              >
+                <LogOut className="w-3 h-3" />
+                <span>DISCONNECT</span>
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              {session?.user?.avatar ? (
+                <img
+                  src={`https://cdn.discordapp.com/avatars/${session.user.discordId}/${session.user.avatar}.png?size=64`}
+                  alt={session.user.name || 'User'}
+                  className="w-7 h-7 rounded border border-[#22D3EE]/30"
+                  title={`${session.user.displayName || session.user.name} (${roleName})`}
+                />
+              ) : (
+                <div
+                  className="w-7 h-7 rounded bg-[#16202E] flex items-center justify-center text-xs font-bold text-[#F1F5F9] font-mono"
+                  title={`${session?.user?.displayName || 'Operator'} (${roleName})`}
+                >
+                  {(session?.user?.name || 'O')[0].toUpperCase()}
+                </div>
+              )}
+
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="p-1.5 rounded text-[#64748B] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
+                title="Disconnect Session"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }

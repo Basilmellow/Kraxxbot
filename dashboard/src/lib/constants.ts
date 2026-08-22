@@ -1,22 +1,23 @@
-// KRAXX Operations Platform — Shared Constants
-// Mirrors the bot's design system and role hierarchy
+// KRAXX HQ Operations Platform — Shared Constants
 
 export const KRAXX_COLORS = {
-  BRAND: '#00f0ff',       // Cyber Aqua / Primary Brand
-  BRAND_MUTED: '#00c4cc',
-  SECURITY: '#10b981',    // Emerald Green / KRAXXSEC
-  STUDIO: '#6366f1',      // Indigo / KRAXX STUDIO
-  NEUTRAL: '#3b82f6',     // Corporate Blue
-  WARNING: '#f59e0b',     // Amber Warning
-  DANGER: '#ef4444',      // Crimson Error
-  DARK: '#0b0e14',        // Dark Minimal
-  DARK_SURFACE: '#0f1318',
-  DARK_CARD: '#141a22',
-  DARK_BORDER: '#1e2a38',
-  DARK_HOVER: '#1a2332',
-  TEXT_PRIMARY: '#e2e8f0',
-  TEXT_SECONDARY: '#94a3b8',
-  TEXT_MUTED: '#64748b',
+  BRAND: '#22D3EE',         // Electric Cyan / Primary Brand Accent
+  BRAND_MUTED: '#0891B2',
+  BRAND_GLOW: 'rgba(34, 211, 238, 0.15)',
+  SECURITY: '#10B981',      // Emerald Green / KRAXXSEC
+  STUDIO: '#818CF8',        // Indigo Lavender / KRAXX STUDIO
+  NEUTRAL: '#38BDF8',       // Blue / Operations
+  WARNING: '#F59E0B',       // Amber
+  DANGER: '#EF4444',        // Red
+  DARK: '#05070B',          // Background
+  DARK_SURFACE: '#0A0F16',  // Surface 1
+  DARK_SURFACE_2: '#0D131C',// Surface 2
+  DARK_CARD: '#111823',     // Card Surface
+  DARK_BORDER: '#16202E',   // Subtle Border
+  DARK_BORDER_HOVER: '#1E2C3F',
+  TEXT_PRIMARY: '#F1F5F9',
+  TEXT_SECONDARY: '#94A3B8',
+  TEXT_MUTED: '#64748B',
 } as const;
 
 // Must exactly mirror src/config/roles.ts RoleTier
@@ -27,8 +28,8 @@ export enum RoleTier {
   TEAM_LEAD = 70,
   PARTNER = 60,
   DIVISION_MEMBER = 40,
-  CLIENT = 20,
   STAFF = 30,
+  CLIENT = 20,
   USER = 10,
 }
 
@@ -40,8 +41,8 @@ export const ROLE_TIER_LABELS: Record<string, string> = {
   TEAM_LEAD: 'Team Lead',
   PARTNER: 'Partner',
   DIVISION_MEMBER: 'Division Member',
-  CLIENT: 'Client',
   STAFF: 'Staff',
+  CLIENT: 'Client',
   USER: 'User',
 };
 
@@ -51,57 +52,57 @@ export interface DashboardModuleItem {
   icon: string;
   href: string;
   tier: RoleTier;
-  category: 'CORE' | 'COMMUNICATION' | 'MANAGEMENT' | 'PRODUCTIVITY' | 'COMMUNITY' | 'SYSTEM';
+  category: 'COMMAND' | 'COMMUNICATION' | 'PEOPLE' | 'OPERATIONS' | 'COMMUNITY' | 'SYSTEM';
 }
 
-// Full Platform Navigation Structure
+// Full Platform Navigation Structure — KRAXX HQ Command Categories
 export const DASHBOARD_MODULES: DashboardModuleItem[] = [
-  // CORE
-  { id: 'overview', label: 'Command Center', icon: 'LayoutDashboard', href: '/dashboard', tier: RoleTier.USER, category: 'CORE' },
-  { id: 'search', label: 'Global Search', icon: 'Search', href: '/dashboard/search', tier: RoleTier.USER, category: 'CORE' },
-  { id: 'notifications', label: 'Notifications', icon: 'Bell', href: '/dashboard/notifications', tier: RoleTier.USER, category: 'CORE' },
-  { id: 'analytics', label: 'Analytics', icon: 'BarChart3', href: '/dashboard/analytics', tier: RoleTier.TEAM_LEAD, category: 'CORE' },
-  { id: 'audit', label: 'Audit Logs', icon: 'ScrollText', href: '/dashboard/audit', tier: RoleTier.TEAM_LEAD, category: 'CORE' },
+  // COMMAND
+  { id: 'overview', label: 'Command Center', icon: 'LayoutDashboard', href: '/dashboard', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMAND' },
+  { id: 'search', label: 'Global Search', icon: 'Search', href: '/dashboard/search', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMAND' },
+  { id: 'notifications', label: 'Notifications', icon: 'Bell', href: '/dashboard/notifications', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMAND' },
+  { id: 'analytics', label: 'Analytics', icon: 'BarChart3', href: '/dashboard/analytics', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMAND' },
+  { id: 'audit', label: 'Audit Logs', icon: 'ScrollText', href: '/dashboard/audit', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMAND' },
 
   // COMMUNICATION
-  { id: 'messages', label: 'Message Center', icon: 'MessageSquare', href: '/dashboard/messages', tier: RoleTier.TEAM_LEAD, category: 'COMMUNICATION' },
-  { id: 'embed', label: 'Embed Builder', icon: 'Sparkles', href: '/dashboard/messages/embed', tier: RoleTier.TEAM_LEAD, category: 'COMMUNICATION' },
-  { id: 'templates', label: 'Embed Templates', icon: 'Layers', href: '/dashboard/messages/templates', tier: RoleTier.TEAM_LEAD, category: 'COMMUNICATION' },
-  { id: 'announcements', label: 'Announcements', icon: 'Megaphone', href: '/dashboard/announcements', tier: RoleTier.TEAM_LEAD, category: 'COMMUNICATION' },
-  { id: 'scheduled', label: 'Scheduled Queue', icon: 'Clock', href: '/dashboard/announcements/scheduled', tier: RoleTier.TEAM_LEAD, category: 'COMMUNICATION' },
-  { id: 'welcome', label: 'Welcome System', icon: 'DoorOpen', href: '/dashboard/welcome', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMUNICATION' },
+  { id: 'messages', label: 'Message Center', icon: 'MessageSquare', href: '/dashboard/messages', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMUNICATION' },
+  { id: 'embed', label: 'Embed Builder', icon: 'Sparkles', href: '/dashboard/messages/embed', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMUNICATION' },
+  { id: 'templates', label: 'Templates', icon: 'Layers', href: '/dashboard/messages/templates', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMUNICATION' },
+  { id: 'announcements', label: 'Announcements', icon: 'Megaphone', href: '/dashboard/announcements', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMUNICATION' },
+  { id: 'scheduled', label: 'Scheduled Queue', icon: 'Clock', href: '/dashboard/announcements/scheduled', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMUNICATION' },
 
-  // MANAGEMENT
-  { id: 'members', label: 'Members', icon: 'Users', href: '/dashboard/members', tier: RoleTier.TEAM_LEAD, category: 'MANAGEMENT' },
-  { id: 'roles', label: 'Role Hierarchy', icon: 'ShieldAlert', href: '/dashboard/roles', tier: RoleTier.MANAGEMENT_HEAD, category: 'MANAGEMENT' },
-  { id: 'tickets', label: 'Tickets', icon: 'Ticket', href: '/dashboard/tickets', tier: RoleTier.TEAM_LEAD, category: 'MANAGEMENT' },
-  { id: 'moderation', label: 'Moderation', icon: 'Shield', href: '/dashboard/moderation', tier: RoleTier.MANAGEMENT_HEAD, category: 'MANAGEMENT' },
+  // PEOPLE & ACCESS
+  { id: 'members', label: 'Members', icon: 'Users', href: '/dashboard/members', tier: RoleTier.MANAGEMENT_HEAD, category: 'PEOPLE' },
+  { id: 'roles', label: 'Role Hierarchy', icon: 'ShieldAlert', href: '/dashboard/roles', tier: RoleTier.MANAGEMENT_HEAD, category: 'PEOPLE' },
+  { id: 'tickets', label: 'Tickets', icon: 'Ticket', href: '/dashboard/tickets', tier: RoleTier.MANAGEMENT_HEAD, category: 'PEOPLE' },
+  { id: 'moderation', label: 'Moderation', icon: 'Shield', href: '/dashboard/moderation', tier: RoleTier.MANAGEMENT_HEAD, category: 'PEOPLE' },
 
-  // PRODUCTIVITY
-  { id: 'tasks', label: 'Tasks', icon: 'CheckSquare', href: '/dashboard/tasks', tier: RoleTier.STAFF, category: 'PRODUCTIVITY' },
-  { id: 'reminders', label: 'Reminders', icon: 'AlarmClock', href: '/dashboard/reminders', tier: RoleTier.STAFF, category: 'PRODUCTIVITY' },
-  { id: 'meetings', label: 'Meetings', icon: 'CalendarClock', href: '/dashboard/meetings', tier: RoleTier.STAFF, category: 'PRODUCTIVITY' },
-  { id: 'automation', label: 'Automation Engine', icon: 'Zap', href: '/dashboard/automation', tier: RoleTier.MANAGEMENT_HEAD, category: 'PRODUCTIVITY' },
+  // OPERATIONS
+  { id: 'tasks', label: 'Tasks', icon: 'CheckSquare', href: '/dashboard/tasks', tier: RoleTier.MANAGEMENT_HEAD, category: 'OPERATIONS' },
+  { id: 'reminders', label: 'Reminders', icon: 'AlarmClock', href: '/dashboard/reminders', tier: RoleTier.MANAGEMENT_HEAD, category: 'OPERATIONS' },
+  { id: 'meetings', label: 'Meetings', icon: 'CalendarClock', href: '/dashboard/meetings', tier: RoleTier.MANAGEMENT_HEAD, category: 'OPERATIONS' },
+  { id: 'automation', label: 'Automation Engine', icon: 'Zap', href: '/dashboard/automation', tier: RoleTier.MANAGEMENT_HEAD, category: 'OPERATIONS' },
 
-  // COMMUNITY & UTILITIES
-  { id: 'tools', label: 'Server Utilities', icon: 'Wrench', href: '/dashboard/tools', tier: RoleTier.USER, category: 'COMMUNITY' },
-  { id: 'social', label: 'Social & Polls', icon: 'Vote', href: '/dashboard/social', tier: RoleTier.TEAM_LEAD, category: 'COMMUNITY' },
-  { id: 'fun', label: 'Entertainment', icon: 'Gamepad2', href: '/dashboard/fun', tier: RoleTier.USER, category: 'COMMUNITY' },
+  // COMMUNITY
+  { id: 'welcome', label: 'Welcome System', icon: 'DoorOpen', href: '/dashboard/welcome', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMUNITY' },
+  { id: 'social', label: 'Social & Polls', icon: 'Vote', href: '/dashboard/social', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMUNITY' },
+  { id: 'fun', label: 'Entertainment', icon: 'Gamepad2', href: '/dashboard/fun', tier: RoleTier.MANAGEMENT_HEAD, category: 'COMMUNITY' },
 
   // SYSTEM
+  { id: 'tools', label: 'Server Utilities', icon: 'Wrench', href: '/dashboard/tools', tier: RoleTier.MANAGEMENT_HEAD, category: 'SYSTEM' },
   { id: 'modules', label: 'Module Control', icon: 'Boxes', href: '/dashboard/modules', tier: RoleTier.MANAGEMENT_HEAD, category: 'SYSTEM' },
   { id: 'settings', label: 'Settings', icon: 'Settings', href: '/dashboard/settings', tier: RoleTier.FOUNDER, category: 'SYSTEM' },
 ];
 
 // Status indicators
 export const STATUS_COLORS = {
-  ONLINE: '#10b981',
-  OFFLINE: '#ef4444',
-  DEGRADED: '#f59e0b',
-  UNKNOWN: '#64748b',
+  ONLINE: '#10B981',
+  OFFLINE: '#EF4444',
+  DEGRADED: '#F59E0B',
+  UNKNOWN: '#64748B',
 } as const;
 
-// Departments
+// Departments / Divisions
 export const DEPARTMENTS = ['GENERAL', 'KRAXXSEC', 'KRAXX_STUDIO'] as const;
 export type Department = (typeof DEPARTMENTS)[number];
 

@@ -5,6 +5,8 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { DiscordEmbedPreview, DiscordEmbedData } from '@/components/discord/DiscordEmbedPreview';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
@@ -12,13 +14,13 @@ import {
   Plus,
   Send,
   Eye,
-  Copy,
   Trash2,
-  Filter,
   CheckCircle2,
   AlertTriangle,
   FolderOpen,
   Calendar,
+  X,
+  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -37,14 +39,10 @@ interface TemplateItem {
 const CATEGORIES = [
   'ALL',
   'ANNOUNCEMENT',
-  'KRAXXSEC',
-  'KRAXX_STUDIO',
-  'RECRUITMENT',
-  'EVENT',
-  'MEETING',
-  'MAINTENANCE',
-  'WARNING',
-  'UPDATE',
+  'SECURITY',
+  'STUDIO',
+  'OPERATIONS',
+  'EMERGENCY',
   'CUSTOM',
 ];
 
@@ -100,53 +98,24 @@ export default function EmbedTemplatesPage() {
   }, []);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete template "${name}"?`)) return;
+    if (!confirm(`Confirm deletion of template "${name}"?`)) return;
+
     try {
       const res = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setTemplates(templates.filter((t) => t.id !== id));
-        setFeedback({ type: 'success', message: `Template "${name}" deleted.` });
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete template');
-      }
-    } catch (e: any) {
-      alert(e.message || 'Error deleting template');
+      if (!res.ok) throw new Error('Failed to delete template');
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      setFeedback({ type: 'success', message: `Template "${name}" deleted.` });
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Delete error' });
     }
   };
 
-  const handleDuplicate = async (template: TemplateItem) => {
-    const newName = prompt('Enter name for duplicate template:', `${template.name}_copy`);
-    if (!newName || !newName.trim()) return;
-
-    try {
-      const res = await fetch('/api/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newName.trim(),
-          category: template.category,
-          description: template.description,
-          title: template.title,
-          embedData: template.embedData,
-        }),
-      });
-
-      if (res.ok) {
-        fetchTemplates();
-        setFeedback({ type: 'success', message: `Template duplicated as "${newName}".` });
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to duplicate template');
-      }
-    } catch (e: any) {
-      alert(e.message || 'Error duplicating');
-    }
-  };
-
-  const handleSendFromModal = async () => {
+  const handleQuickDispatch = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!sendModalTemplate || !selectedChannel) return;
+
     setIsSending(true);
+    setFeedback(null);
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -158,50 +127,40 @@ export default function EmbedTemplatesPage() {
       });
 
       const data = await res.json();
-      if (res.ok) {
-        setFeedback({
-          type: 'success',
-          message: `Template "${sendModalTemplate.name}" dispatched to #${selectedChannel.name}! (ID: ${data.messageId})`,
-        });
-        setSendModalTemplate(null);
-      } else {
-        alert(data.error || 'Failed to send template');
-      }
-    } catch (e: any) {
-      alert(e.message || 'Error sending template');
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch embed');
+
+      setSendModalTemplate(null);
+      setFeedback({
+        type: 'success',
+        message: `Template "${sendModalTemplate.name}" dispatched to #${selectedChannel.name}.`,
+      });
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Failed to dispatch' });
     } finally {
       setIsSending(false);
     }
   };
 
-  const getCategoryBadgeVariant = (cat: string) => {
-    if (cat === 'KRAXXSEC') return 'success';
-    if (cat === 'KRAXX_STUDIO') return 'brand';
-    if (cat === 'WARNING' || cat === 'MAINTENANCE') return 'warning';
-    return 'neutral';
-  };
-
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Embed Templates"
-        subtitle="Reusable Rich Embed Library & Quick Dispatch"
+        title="EMBED TEMPLATE LIBRARY"
+        subtitle="Standardized Operational Dispatches & Discord Broadcast Presets"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Header Actions & Category Tabs */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          {/* Categories Pill Filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+        {/* Header Actions & Categories */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded bg-[#0A0F16] border border-[#16202E] font-mono text-xs">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border ${
+                className={`px-2.5 py-1 rounded transition-colors ${
                   selectedCategory === cat
-                    ? 'bg-[#00f0ff] text-[#0a0e15] border-[#00f0ff]'
-                    : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
+                    ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
                 }`}
               >
                 {cat}
@@ -210,9 +169,9 @@ export default function EmbedTemplatesPage() {
           </div>
 
           <Link href="/dashboard/messages/embed">
-            <Button variant="primary" size="sm">
-              <Plus className="w-4 h-4 mr-1.5" />
-              <span>Create New Template</span>
+            <Button variant="primary" size="sm" className="font-mono text-xs gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              <span>NEW EMBED BUILDER</span>
             </Button>
           </Link>
         </div>
@@ -220,206 +179,212 @@ export default function EmbedTemplatesPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
         {/* Templates Grid */}
         {isLoading ? (
-          <div className="text-center py-16 text-xs text-[#64748b]">Loading templates...</div>
-        ) : templates.length === 0 ? (
-          <Card className="text-center py-16">
-            <FolderOpen className="w-10 h-10 text-[#64748b] mx-auto mb-3 opacity-50" />
-            <h3 className="text-sm font-semibold text-[#e2e8f0]">No Embed Templates Found</h3>
-            <p className="text-xs text-[#64748b] mt-1 max-w-sm mx-auto">
-              No templates saved in &quot;{selectedCategory}&quot;. Create a rich embed in Embed Builder and click &quot;Save as Template&quot;.
-            </p>
-            <Link href="/dashboard/messages/embed" className="mt-4 inline-block">
-              <Button variant="primary" size="sm">Create First Template</Button>
-            </Link>
-          </Card>
-        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {templates.map((tpl) => (
-              <Card key={tpl.id} className="flex flex-col justify-between hover:border-[#00f0ff]/30 transition-all">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="text-sm font-bold text-[#e2e8f0] font-mono truncate">{tpl.name}</h4>
-                      {tpl.title && <p className="text-xs text-[#00f0ff] truncate font-medium">{tpl.title}</p>}
-                    </div>
-                    <Badge variant={getCategoryBadgeVariant(tpl.category)}>{tpl.category}</Badge>
-                  </div>
-
-                  {tpl.description && (
-                    <p className="text-xs text-[#94a3b8] line-clamp-2 leading-relaxed">{tpl.description}</p>
-                  )}
-
-                  {/* Mini Preview Box */}
-                  <div
-                    className="p-2.5 rounded bg-[#0a0e15] border-l-2 text-[11px] space-y-1 text-[#94a3b8]"
-                    style={{
-                      borderLeftColor:
-                        typeof tpl.embedData.color === 'number'
-                          ? `#${tpl.embedData.color.toString(16).padStart(6, '0')}`
-                          : (tpl.embedData.color as string) || '#00f0ff',
-                    }}
-                  >
-                    <div className="font-semibold text-white text-xs truncate">
-                      {tpl.embedData.title || tpl.name}
-                    </div>
-                    {tpl.embedData.description && (
-                      <p className="truncate text-[#64748b]">{tpl.embedData.description}</p>
-                    )}
-                    {tpl.embedData.fields && (
-                      <span className="text-[10px] text-[#00f0ff]">
-                        {tpl.embedData.fields.length} dynamic field(s)
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Footer Controls */}
-                <div className="pt-3 mt-4 border-t border-[#1e2a38] flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setPreviewTemplate(tpl)}
-                      className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#00f0ff]"
-                      title="Preview Full Embed"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDuplicate(tpl)}
-                      className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#e2e8f0]"
-                      title="Duplicate Template"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(tpl.id, tpl.name)}
-                      className="p-1.5 rounded hover:bg-[#141a22] text-[#64748b] hover:text-[#ef4444]"
-                      title="Delete Template"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSendModalTemplate(tpl)}
-                  >
-                    <Send className="w-3.5 h-3.5 mr-1" />
-                    <span>Send</span>
-                  </Button>
-                </div>
-              </Card>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
             ))}
           </div>
-        )}
-      </div>
-
-      {/* Preview Modal */}
-      {previewTemplate && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1318] border border-[#1e2a38] rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#1e2a38] pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-[#e2e8f0] font-mono">{previewTemplate.name}</h3>
-                <span className="text-[11px] text-[#64748b]">{previewTemplate.category} Template</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewTemplate(null)}
-                className="text-[#64748b] hover:text-[#e2e8f0]"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="py-2">
-              <DiscordEmbedPreview embed={previewTemplate.embedData} />
-            </div>
-
-            <div className="pt-3 border-t border-[#1e2a38] flex justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setPreviewTemplate(null)}
-              >
-                Close Preview
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Send Template Modal */}
-      {sendModalTemplate && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1318] border border-[#1e2a38] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#1e2a38] pb-3">
-              <h3 className="text-sm font-bold text-[#e2e8f0] flex items-center gap-2">
-                <Send className="w-4 h-4 text-[#00f0ff]" />
-                <span>Dispatch Template: {sendModalTemplate.name}</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setSendModalTemplate(null)}
-                className="text-[#64748b] hover:text-[#e2e8f0]"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <ChannelSelector
-                channels={channels}
-                selectedChannelId={selectedChannel?.id || ''}
-                onSelectChannel={(ch) => setSelectedChannel(ch)}
-              />
-
-              <div className="p-3 rounded bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#94a3b8]">
-                Dispatches rich embed specification configured in template <strong className="text-[#e2e8f0] font-mono">{sendModalTemplate.name}</strong>.
-              </div>
-
-              <div className="pt-3 border-t border-[#1e2a38] flex items-center justify-end gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSendModalTemplate(null)}
+        ) : templates.length === 0 ? (
+          <EmptyState
+            icon={FolderOpen}
+            title="NO TEMPLATES FOUND IN CATEGORY"
+            description="No saved operational embed templates match your current filter criteria."
+            action={
+              <Link href="/dashboard/messages/embed">
+                <Button variant="outline" size="sm" className="font-mono text-xs">
+                  CREATE NEW TEMPLATE
+                </Button>
+              </Link>
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {templates.map((tpl) => {
+              const embed = tpl.embedData || {};
+              return (
+                <Card
+                  key={tpl.id}
+                  className="bg-[#0A0F16] flex flex-col justify-between hover:border-[#22D3EE]/30 transition-all p-4 space-y-3"
                 >
-                  Cancel
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="brand">{tpl.category}</Badge>
+                      <span className="text-[10px] font-mono text-[#64748B]">
+                        {new Date(tpl.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-xs font-mono font-bold text-[#F1F5F9] truncate">
+                        {tpl.name}
+                      </h3>
+                      {tpl.description && (
+                        <p className="text-[11px] text-[#94A3B8] font-sans line-clamp-2 mt-0.5">
+                          {tpl.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {embed.title && (
+                      <div className="p-2 rounded bg-[#070B10] border border-[#16202E] text-[11px] font-mono text-[#22D3EE] truncate">
+                        {embed.title}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-3 border-t border-[#16202E] flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTemplate(tpl)}
+                        className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#94A3B8] hover:text-[#22D3EE] hover:border-[#22D3EE]/30 transition-colors"
+                        title="Live Preview"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(tpl.id, tpl.name)}
+                        className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
+                        title="Delete Template"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSendModalTemplate(tpl)}
+                      className="font-mono text-xs gap-1 py-1"
+                    >
+                      <Send className="w-3 h-3 text-[#22D3EE]" />
+                      <span>DISPATCH</span>
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Live Preview Modal */}
+        {previewTemplate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)] max-h-[85vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
+                <div>
+                  <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider">
+                    {previewTemplate.name}
+                  </h3>
+                  <p className="text-[10px] font-mono text-[#64748B]">CATEGORY: {previewTemplate.category}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewTemplate(null)}
+                  className="text-[#64748B] hover:text-[#F1F5F9]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-2">
+                <DiscordEmbedPreview embed={previewTemplate.embedData} />
+              </div>
+
+              <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-[#16202E]">
+                <Button variant="ghost" size="sm" onClick={() => setPreviewTemplate(null)}>
+                  CLOSE
                 </Button>
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={handleSendFromModal}
-                  isLoading={isSending}
+                  onClick={() => {
+                    setSendModalTemplate(previewTemplate);
+                    setPreviewTemplate(null);
+                  }}
+                  className="font-mono text-xs gap-1.5"
                 >
-                  Confirm & Dispatch
+                  <Send className="w-3.5 h-3.5" />
+                  <span>DISPATCH THIS TEMPLATE</span>
                 </Button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Dispatch Modal */}
+        {sendModalTemplate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
+                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
+                  <Send className="w-4 h-4 text-[#22D3EE]" />
+                  <span>DISPATCH TEMPLATE</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setSendModalTemplate(null)}
+                  className="text-[#64748B] hover:text-[#F1F5F9]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleQuickDispatch} className="space-y-4 font-mono text-xs">
+                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
+                  <span className="text-[10px] text-[#64748B] uppercase">SELECTED TEMPLATE:</span>
+                  <div className="font-bold text-[#F1F5F9]">{sendModalTemplate.name}</div>
+                </div>
+
+                <ChannelSelector
+                  channels={channels}
+                  selectedChannelId={selectedChannel?.id || ''}
+                  onSelectChannel={setSelectedChannel}
+                />
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSendModalTemplate(null)}
+                  >
+                    CANCEL
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    isLoading={isSending}
+                    disabled={!selectedChannel}
+                    className="font-mono font-bold"
+                  >
+                    DISPATCH NOW
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

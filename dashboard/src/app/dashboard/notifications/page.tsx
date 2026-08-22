@@ -5,6 +5,8 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import {
   Bell,
   CheckCheck,
@@ -13,6 +15,7 @@ import {
   Info,
   Clock,
   ExternalLink,
+  Shield,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -82,81 +85,120 @@ export default function NotificationsPage() {
     }
   };
 
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'SECURITY':
+      case 'WARNING':
+        return <AlertTriangle className="w-3.5 h-3.5 text-[#F59E0B]" />;
+      case 'SUCCESS':
+        return <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" />;
+      default:
+        return <Info className="w-3.5 h-3.5 text-[#22D3EE]" />;
+    }
+  };
+
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Notifications & Alerts"
-        subtitle="Operations Alerts, Automated Triggers & Direct Action Notifications"
-        onRefresh={fetchNotifications}
-        isRefreshing={isLoading}
+        title="OPERATIONAL NOTIFICATIONS & ALERTS"
+        subtitle="Gateway Event Notifications, Critical Alerts & Subsystem Telemetry"
       />
 
-      <div className="p-6 space-y-6 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-6 max-w-4xl w-full mx-auto space-y-5">
+        {/* Header Action Bar */}
+        <div className="flex items-center justify-between font-mono text-xs">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-[#e2e8f0]">Notification Stream</h3>
-            {unreadCount > 0 && (
-              <Badge variant="brand">{unreadCount} Unread</Badge>
-            )}
+            <span className="text-[11px] text-[#64748B] uppercase">NOTIFICATION STREAM</span>
+            {unreadCount > 0 && <Badge variant="brand">{unreadCount} UNREAD</Badge>}
           </div>
 
           {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={handleMarkAllRead}>
-              <CheckCheck className="w-4 h-4 mr-1 text-[#10b981]" />
-              <span>Mark All as Read</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleMarkAllRead}
+              className="font-mono text-xs gap-1.5"
+            >
+              <CheckCheck className="w-3.5 h-3.5 text-[#22D3EE]" />
+              <span>MARK ALL AS READ</span>
             </Button>
           )}
         </div>
 
-        <Card className="overflow-hidden p-0">
-          <div className="divide-y divide-[#1e2a38]">
-            {isLoading ? (
-              <div className="p-12 text-center text-xs text-[#64748b]">Loading notification feed...</div>
-            ) : notifications.length === 0 ? (
-              <div className="p-12 text-center text-xs text-[#64748b]">
-                No notifications logged. Your operations stream is clear.
-              </div>
-            ) : (
-              notifications.map((n) => (
+        {/* Notification Stream Card */}
+        <Card className="bg-[#0A0F16]">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="w-3.5 h-3.5 text-[#22D3EE]" />
+              <span>INCOMING DISPATCHES ({notifications.length})</span>
+            </CardTitle>
+          </CardHeader>
+
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                icon={Bell}
+                title="ALL CLEAR // NO ACTIVE NOTIFICATIONS"
+                description="There are no active alerts or operational notices in your queue."
+              />
+            </div>
+          ) : (
+            <div className="divide-y divide-[#16202E] font-mono text-xs">
+              {notifications.map((n) => (
                 <div
                   key={n.id}
-                  className={`p-4 flex items-start justify-between gap-4 transition-all ${
-                    !n.read ? 'bg-[#00f0ff]/5 border-l-2 border-[#00f0ff]' : 'hover:bg-[#141a22]'
+                  className={`p-3.5 flex items-start gap-3 transition-colors ${
+                    !n.read ? 'bg-[#0D131C] border-l-2 border-[#22D3EE]' : 'hover:bg-[#070B10]'
                   }`}
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#e2e8f0]">{n.title}</span>
-                      {!n.read && <span className="w-2 h-2 rounded-full bg-[#00f0ff]" />}
-                    </div>
-                    <p className="text-xs text-[#94a3b8] leading-relaxed">{n.message}</p>
-                    <div className="flex items-center gap-3 pt-1 text-[11px] font-mono text-[#64748b]">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(n.createdAt).toLocaleString()}
+                  <div className="p-1 rounded bg-[#070B10] border border-[#16202E] mt-0.5">
+                    {getTypeIcon(n.type)}
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-[#F1F5F9] truncate">{n.title}</div>
+                      <span className="text-[10px] text-[#64748B]">
+                        {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
+                    </div>
+
+                    <p className="text-[11px] text-[#94A3B8] font-sans leading-relaxed">
+                      {n.message}
+                    </p>
+
+                    <div className="flex items-center gap-3 pt-1 text-[10px]">
                       {n.link && (
-                        <Link href={n.link} className="text-[#00f0ff] hover:underline flex items-center gap-1">
-                          <span>View target</span>
+                        <Link
+                          href={n.link}
+                          className="text-[#22D3EE] hover:underline flex items-center gap-1"
+                        >
+                          <span>VIEW CONTEXT</span>
                           <ExternalLink className="w-3 h-3" />
                         </Link>
                       )}
+
+                      {!n.read && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkRead(n.id)}
+                          className="text-[#64748B] hover:text-[#F1F5F9] transition-colors"
+                        >
+                          Mark as read
+                        </button>
+                      )}
                     </div>
                   </div>
-
-                  {!n.read && (
-                    <button
-                      type="button"
-                      onClick={() => handleMarkRead(n.id)}
-                      className="text-[11px] text-[#64748b] hover:text-[#00f0ff] font-semibold whitespace-nowrap"
-                    >
-                      Mark read
-                    </button>
-                  )}
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
     </div>

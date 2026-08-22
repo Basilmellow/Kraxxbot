@@ -5,19 +5,20 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import {
   CheckSquare,
   Plus,
   Search,
-  Filter,
   Calendar,
   User,
   CheckCircle2,
   AlertTriangle,
   Clock,
   Trash2,
+  X,
   Layers,
-  ArrowRight,
 } from 'lucide-react';
 
 interface TaskItem {
@@ -89,7 +90,7 @@ export default function TasksPage() {
           setMembers(data.members || []);
         }
       } catch (err) {
-        console.error('Failed to load members for assignment:', err);
+        console.error('Failed to load members:', err);
       }
     }
     loadMembers();
@@ -104,9 +105,11 @@ export default function TasksPage() {
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newDesc.trim()) return;
+    if (!newTitle.trim()) return;
 
     setIsCreating(true);
+    setFeedback(null);
+
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST',
@@ -117,30 +120,29 @@ export default function TasksPage() {
           department: newDept,
           priority: newPriority,
           assigneeId: newAssignee || undefined,
-          dueDate: newDueDate ? new Date(newDueDate).toISOString() : undefined,
+          dueDate: newDueDate || undefined,
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setFeedback({ type: 'success', message: `Task #${data.task.taskNumber} created successfully.` });
+        setFeedback({ type: 'success', message: `Task #${data.task.taskNumber} initialized successfully.` });
         setShowCreateModal(false);
         setNewTitle('');
         setNewDesc('');
-        setNewAssignee('');
         setNewDueDate('');
         fetchTasks();
       } else {
-        alert(data.error || 'Failed to create task');
+        setFeedback({ type: 'error', message: data.error || 'Failed to create task' });
       }
-    } catch (e: any) {
-      alert(e.message || 'Error creating task');
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Task creation error' });
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleStatusChange = async (taskId: string, newStatus: string) => {
+  const handleUpdateStatus = async (taskId: string, newStatus: string) => {
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
@@ -150,91 +152,86 @@ export default function TasksPage() {
 
       if (res.ok) {
         setTasks(tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus as any } : t)));
-        setFeedback({ type: 'success', message: 'Task status updated.' });
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update task');
       }
-    } catch (e: any) {
-      alert(e.message || 'Error updating task');
+    } catch (err) {
+      console.error('Status update failed:', err);
     }
   };
 
-  const handleDeleteTask = async (taskId: string, title: string) => {
-    if (!confirm(`Delete task "${title}"?`)) return;
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Confirm deletion of this task item?')) return;
+
     try {
       const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
       if (res.ok) {
         setTasks(tasks.filter((t) => t.id !== taskId));
-        setFeedback({ type: 'success', message: 'Task deleted.' });
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete task');
+        setFeedback({ type: 'success', message: 'Task purged.' });
       }
-    } catch (e: any) {
-      alert(e.message || 'Error deleting task');
+    } catch (err) {
+      console.error('Delete task failed:', err);
     }
   };
 
-  const getPriorityBadge = (pri: string) => {
-    switch (pri) {
+  const getPriorityBadge = (priority: string) => {
+    switch (priority) {
       case 'URGENT':
         return <Badge variant="danger">URGENT</Badge>;
       case 'HIGH':
         return <Badge variant="warning">HIGH</Badge>;
       case 'MEDIUM':
         return <Badge variant="brand">MEDIUM</Badge>;
-      case 'LOW':
-        return <Badge variant="neutral">LOW</Badge>;
       default:
-        return <Badge variant="neutral">{pri}</Badge>;
+        return <Badge variant="neutral">LOW</Badge>;
     }
   };
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Task Management"
-        subtitle="Operational Task Dispatch, Assignee Tracking & Due Dates"
-        onRefresh={fetchTasks}
-        isRefreshing={isLoading}
+        title="OPERATIONAL TASK TRACKER"
+        subtitle="Cross-Department Task Assignments, Milestone Deadlines & Execution"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Navigation, Filter Bar & Create Button */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
-            {STATUSES.map((st) => (
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+        {/* Filter Bar & Create Action */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs">
+          <div className="flex flex-wrap items-center gap-1 p-1 rounded bg-[#0A0F16] border border-[#16202E]">
+            {STATUSES.map((s) => (
               <button
-                key={st}
+                key={s}
                 type="button"
-                onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap border transition-all ${
-                  statusFilter === st
-                    ? 'bg-[#00f0ff] text-[#0a0e15] border-[#00f0ff]'
-                    : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
+                onClick={() => setStatusFilter(s)}
+                className={`px-2.5 py-1 rounded transition-colors ${
+                  statusFilter === s
+                    ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
                 }`}
               >
-                {st === 'ALL' ? 'All Statuses' : st.replace('_', ' ')}
+                {s}
               </button>
             ))}
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="relative flex-1 sm:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#64748b]" />
+            <div className="relative">
+              <Search className="w-3 h-3 text-[#64748B] absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search tasks..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                className="pl-7 pr-3 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50"
               />
             </div>
 
-            <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-1" />
-              <span>New Task</span>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowCreateModal(true)}
+              className="font-mono text-xs gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>NEW TASK</span>
             </Button>
           </div>
         </div>
@@ -242,218 +239,206 @@ export default function TasksPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
-        {/* Task Table Card */}
-        <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-[#1e2a38] flex items-center justify-between">
-            <CardTitle>
-              <CheckSquare className="w-4 h-4 text-[#00f0ff]" />
-              <span>Tasks Pipeline ({tasks.length})</span>
+        {/* Task Table */}
+        <Card className="bg-[#0A0F16] overflow-hidden">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckSquare className="w-3.5 h-3.5 text-[#22D3EE]" />
+              <span>ACTIVE TASK INVENTORY ({tasks.length})</span>
             </CardTitle>
-            <span className="text-[11px] text-[#64748b] font-mono">
-              Status Filter: {statusFilter}
-            </span>
-          </div>
+          </CardHeader>
 
-          <div className="overflow-x-auto">
-            <table className="kraxx-table">
-              <thead>
-                <tr>
-                  <th>Task #</th>
-                  <th>Title & Description</th>
-                  <th>Division</th>
-                  <th>Priority</th>
-                  <th>Assignee</th>
-                  <th>Due Date</th>
-                  <th>Status State</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-12 text-xs text-[#64748b]">
-                      Loading tasks pipeline...
-                    </td>
+          {isLoading ? (
+            <div className="p-4">
+              <SkeletonTable rows={6} />
+            </div>
+          ) : tasks.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                icon={CheckSquare}
+                title="NO TASKS MATCHING PARAMETERS"
+                description="There are currently no tasks matching your query."
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCreateModal(true)}
+                    className="font-mono text-xs"
+                  >
+                    CREATE FIRST TASK
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-mono text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
+                    <th className="py-2.5 px-4 font-semibold">TASK ID</th>
+                    <th className="py-2.5 px-4 font-semibold">PRIORITY</th>
+                    <th className="py-2.5 px-4 font-semibold">TITLE / OBJECTIVE</th>
+                    <th className="py-2.5 px-4 font-semibold">DIVISION</th>
+                    <th className="py-2.5 px-4 font-semibold">ASSIGNEE</th>
+                    <th className="py-2.5 px-4 font-semibold">STATUS</th>
+                    <th className="py-2.5 px-4 font-semibold text-right">ACTIONS</th>
                   </tr>
-                ) : tasks.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-12 text-xs text-[#64748b]">
-                      No tasks found in this view.
-                    </td>
-                  </tr>
-                ) : (
-                  tasks.map((t) => (
-                    <tr key={t.id}>
-                      <td className="font-mono text-xs font-bold text-[#00f0ff]">
-                        #{t.taskNumber}
+                </thead>
+                <tbody className="divide-y divide-[#16202E]">
+                  {tasks.map((t) => (
+                    <tr key={t.id} className="hover:bg-[#0D131C] transition-colors">
+                      <td className="py-3 px-4 font-bold text-[#22D3EE]">#{t.taskNumber}</td>
+                      <td className="py-3 px-4">{getPriorityBadge(t.priority)}</td>
+                      <td className="py-3 px-4 text-[#F1F5F9] font-medium max-w-sm">
+                        <div>{t.title}</div>
+                        {t.dueDate && (
+                          <div className="text-[10px] text-[#64748B] flex items-center gap-1 mt-0.5">
+                            <Clock className="w-3 h-3 text-[#F59E0B]" />
+                            <span>Due: {new Date(t.dueDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
                       </td>
-
-                      <td className="max-w-sm">
-                        <div className="font-semibold text-xs text-[#e2e8f0] truncate">{t.title}</div>
-                        <div className="text-[11px] text-[#64748b] line-clamp-1 mt-0.5">{t.description}</div>
-                      </td>
-
-                      <td>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0f1318] border border-[#1e2a38] text-[#94a3b8]">
+                      <td className="py-3 px-4">
+                        <span className="text-[10px] text-[#64748B] bg-[#070B10] px-2 py-0.5 rounded border border-[#16202E]">
                           {t.department}
                         </span>
                       </td>
-
-                      <td>{getPriorityBadge(t.priority)}</td>
-
-                      <td className="text-xs text-[#94a3b8] font-mono">
-                        {t.assigneeName ? (
-                          <span className="text-[#10b981] flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            <span>{t.assigneeName}</span>
-                          </span>
-                        ) : (
-                          <span className="text-[#64748b] italic">Unassigned</span>
-                        )}
+                      <td className="py-3 px-4 text-[#94A3B8]">
+                        {t.assigneeName ? `@${t.assigneeName}` : 'UNASSIGNED'}
                       </td>
-
-                      <td className="whitespace-nowrap font-mono text-xs text-[#94a3b8]">
-                        {t.dueDate ? (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-[#64748b]" />
-                            <span>{new Date(t.dueDate).toLocaleDateString()}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[#64748b]">—</span>
-                        )}
-                      </td>
-
-                      <td>
+                      <td className="py-3 px-4">
                         <select
                           value={t.status}
-                          onChange={(e) => handleStatusChange(t.id, e.target.value)}
-                          className="px-2 py-1 rounded bg-[#0f1318] border border-[#1e2a38] text-xs font-semibold focus:outline-none focus:border-[#00f0ff]/50"
+                          onChange={(e) => handleUpdateStatus(t.id, e.target.value)}
+                          className="bg-[#070B10] border border-[#16202E] rounded px-2 py-1 text-[11px] font-mono text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
                         >
-                          <option value="PENDING">Pending</option>
-                          <option value="IN_PROGRESS">In Progress</option>
-                          <option value="COMPLETED">Completed</option>
-                          <option value="CANCELLED">Cancelled</option>
+                          <option value="PENDING">PENDING</option>
+                          <option value="IN_PROGRESS">IN PROGRESS</option>
+                          <option value="COMPLETED">COMPLETED</option>
+                          <option value="CANCELLED">CANCELLED</option>
                         </select>
                       </td>
-
-                      <td className="text-right">
+                      <td className="py-3 px-4 text-right">
                         <button
                           type="button"
-                          onClick={() => handleDeleteTask(t.id, t.title)}
-                          className="p-1.5 rounded hover:bg-[#141a22] text-[#64748b] hover:text-[#ef4444]"
-                          title="Delete Task"
+                          onClick={() => handleDeleteTask(t.id)}
+                          className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
+                          title="Purge Task"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
-
-      {/* Create Task Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1318] border border-[#1e2a38] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#1e2a38] pb-3">
-              <h3 className="text-sm font-bold text-[#e2e8f0] flex items-center gap-2">
-                <CheckSquare className="w-4 h-4 text-[#00f0ff]" />
-                <span>Create New Operational Task</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="text-[#64748b] hover:text-[#e2e8f0]"
-              >
-                ×
-              </button>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          )}
+        </Card>
 
-            <form onSubmit={handleCreateTask} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Task Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Audit API authentication headers"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  required
-                />
+        {/* Create Task Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
+                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-[#22D3EE]" />
+                  <span>INITIALIZE OPERATIONAL TASK</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="text-[#64748B] hover:text-[#F1F5F9]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Description / Scope</label>
-                <textarea
-                  rows={3}
-                  placeholder="Task details and expected deliverables..."
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleCreateTask} className="space-y-3 font-mono text-xs">
                 <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Department</label>
-                  <select
-                    value={newDept}
-                    onChange={(e) => setNewDept(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  >
-                    <option value="GENERAL">General HQ</option>
-                    <option value="KRAXXSEC">KRAXXSEC</option>
-                    <option value="KRAXX_STUDIO">KRAXX STUDIO</option>
-                  </select>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    TASK TITLE / OBJECTIVE
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Audit KRAXXSEC firewall policies"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                  />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Priority</label>
-                  <select
-                    value={newPriority}
-                    onChange={(e) => setNewPriority(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  >
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    DESCRIPTION / SCOPE
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Provide detailed instructions or acceptance criteria..."
+                    value={newDesc}
+                    onChange={(e) => setNewDesc(e.target.value)}
+                    className="w-full p-2.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
+                  />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      DIVISION
+                    </label>
+                    <select
+                      value={newDept}
+                      onChange={(e) => setNewDept(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    >
+                      <option value="GENERAL">General</option>
+                      <option value="KRAXXSEC">KRAXXSEC</option>
+                      <option value="KRAXX_STUDIO">KRAXX Studio</option>
+                      <option value="MANAGEMENT">Management</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      PRIORITY
+                    </label>
+                    <select
+                      value={newPriority}
+                      onChange={(e) => setNewPriority(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="URGENT">Urgent</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Assignee</label>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    ASSIGNEE
+                  </label>
                   <select
                     value={newAssignee}
                     onChange={(e) => setNewAssignee(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                    className="w-full px-3 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
                   >
                     <option value="">Unassigned</option>
                     {members.map((m) => (
@@ -465,28 +450,40 @@ export default function TasksPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Due Date</label>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    DUE DATE
+                  </label>
                   <input
                     type="date"
                     value={newDueDate}
                     onChange={(e) => setNewDueDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                    className="w-full px-3 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
                   />
                 </div>
-              </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1e2a38]">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateModal(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" size="sm" isLoading={isCreating}>
-                  Create Task
-                </Button>
-              </div>
-            </form>
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#16202E]">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCreateModal(false)}
+                  >
+                    CANCEL
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    isLoading={isCreating}
+                  >
+                    CREATE TASK
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

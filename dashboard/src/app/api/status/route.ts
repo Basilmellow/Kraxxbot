@@ -6,11 +6,13 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { fetchBotUser } from '@/lib/discord';
+import { requireTier, RoleTier } from '@/lib/permissions';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error, code: 'TIER_UNAUTHORIZED' }, { status: auth.status });
   }
 
   const status: Record<string, string> = {

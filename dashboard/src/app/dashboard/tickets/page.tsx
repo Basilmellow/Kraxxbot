@@ -5,10 +5,11 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import {
   Ticket as TicketIcon,
   Search,
-  Filter,
   CheckCircle2,
   AlertTriangle,
   UserCheck,
@@ -16,9 +17,9 @@ import {
   RotateCcw,
   Eye,
   Trash2,
-  Hash,
-  Clock,
   ExternalLink,
+  X,
+  Lock,
 } from 'lucide-react';
 
 interface TicketItem {
@@ -42,12 +43,12 @@ interface TicketItem {
 }
 
 const VIEWS = [
-  { id: 'ALL', label: 'All Tickets' },
-  { id: 'OPEN', label: 'Open' },
-  { id: 'CLAIMED', label: 'Claimed' },
-  { id: 'CLOSED', label: 'Closed' },
-  { id: 'MY_TICKETS', label: 'My Tickets' },
-  { id: 'UNASSIGNED', label: 'Unassigned' },
+  { id: 'ALL', label: 'ALL TICKETS' },
+  { id: 'OPEN', label: 'OPEN' },
+  { id: 'CLAIMED', label: 'CLAIMED' },
+  { id: 'CLOSED', label: 'CLOSED' },
+  { id: 'MY_TICKETS', label: 'MY TICKETS' },
+  { id: 'UNASSIGNED', label: 'UNASSIGNED' },
 ];
 
 export default function TicketsPage() {
@@ -89,9 +90,9 @@ export default function TicketsPage() {
   }, [activeView, categoryFilter, searchQuery]);
 
   const handleTicketAction = async (ticketId: string, action: 'CLAIM' | 'UNCLAIM' | 'CLOSE' | 'REOPEN' | 'DELETE') => {
-    if (action === 'DELETE' && !confirm('Are you sure you want to permanently delete this ticket record?')) return;
+    if (action === 'DELETE' && !confirm('Confirm permanent deletion of ticket record?')) return;
     if (action === 'CLOSE') {
-      const reason = prompt('Optional closing note / resolution reason:');
+      const reason = prompt('Resolution reason / closure note:');
       executeAction(ticketId, action, reason || undefined);
       return;
     }
@@ -99,6 +100,7 @@ export default function TicketsPage() {
   };
 
   const executeAction = async (ticketId: string, action: string, reason?: string) => {
+    setFeedback(null);
     try {
       const res = await fetch(`/api/tickets/${ticketId}/action`, {
         method: 'POST',
@@ -107,55 +109,53 @@ export default function TicketsPage() {
       });
 
       const data = await res.json();
-      if (res.ok) {
-        setFeedback({ type: 'success', message: `Ticket action "${action}" completed successfully.` });
-        if (inspectTicket && inspectTicket.id === ticketId) {
-          setInspectTicket(null);
-        }
-        fetchTickets();
-      } else {
-        setFeedback({ type: 'error', message: data.error || 'Failed to perform ticket action' });
+      if (!res.ok) throw new Error(data.error || 'Action failed');
+
+      setFeedback({ type: 'success', message: `Ticket action executed: ${action}` });
+      if (inspectTicket && inspectTicket.id === ticketId) {
+        if (action === 'DELETE') setInspectTicket(null);
+        else setInspectTicket(data.ticket);
       }
-    } catch (e: any) {
-      setFeedback({ type: 'error', message: e.message || 'Error updating ticket' });
+      fetchTickets();
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Ticket action failed' });
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'OPEN':
-        return <Badge variant="warning">Open</Badge>;
+        return <Badge variant="warning">OPEN</Badge>;
       case 'CLAIMED':
-        return <Badge variant="brand">Claimed</Badge>;
+        return <Badge variant="brand">CLAIMED</Badge>;
       case 'CLOSED':
-        return <Badge variant="neutral">Closed</Badge>;
+        return <Badge variant="neutral">CLOSED</Badge>;
       default:
         return <Badge variant="neutral">{status}</Badge>;
     }
   };
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Support Ticket Desk"
-        subtitle="KRAXX HQ Client & Division Inquiry Operations"
-        onRefresh={fetchTickets}
-        isRefreshing={isLoading}
+        title="SUPPORT DISPATCH & TICKET OPS"
+        subtitle="Operations Desk, Live Discord Channel Inquiries & Resolution Telemetry"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Navigation Tabs & Search */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+        {/* Filter View Bar & Search */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 font-mono text-xs">
+          {/* View Tabs */}
+          <div className="flex flex-wrap items-center gap-1 p-1 rounded bg-[#0A0F16] border border-[#16202E]">
             {VIEWS.map((v) => (
               <button
                 key={v.id}
                 type="button"
                 onClick={() => setActiveView(v.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap border transition-all ${
+                className={`px-2.5 py-1 rounded transition-colors ${
                   activeView === v.id
-                    ? 'bg-[#00f0ff] text-[#0a0e15] border-[#00f0ff]'
-                    : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
+                    ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
                 }`}
               >
                 {v.label}
@@ -163,280 +163,270 @@ export default function TicketsPage() {
             ))}
           </div>
 
-          <div className="relative flex-1 max-w-xs">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#64748b]" />
-            <input
-              type="text"
-              placeholder="Search tickets by # or subject..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-            />
+          {/* Search & Category Filter */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-3 h-3 text-[#64748B] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search ticket # / opener..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-7 pr-3 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50"
+              />
+            </div>
+
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-2.5 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+            >
+              <option value="">All Categories</option>
+              <option value="GENERAL">General</option>
+              <option value="KRAXXSEC">KRAXXSEC</option>
+              <option value="STUDIO">KRAXX Studio</option>
+              <option value="SUPPORT">Technical Support</option>
+            </select>
           </div>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
-        {/* Tickets Table */}
-        <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-[#1e2a38] flex items-center justify-between">
-            <CardTitle>
-              <TicketIcon className="w-4 h-4 text-[#00f0ff]" />
-              <span>Operations Tickets ({tickets.length})</span>
+        {/* Ticket List Card */}
+        <Card className="bg-[#0A0F16] overflow-hidden">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TicketIcon className="w-3.5 h-3.5 text-[#22D3EE]" />
+              <span>DISPATCH TELEMETRY DESK ({tickets.length})</span>
             </CardTitle>
-            <span className="text-[11px] text-[#64748b] font-mono">
-              Category: {activeView}
-            </span>
-          </div>
+          </CardHeader>
 
-          <div className="overflow-x-auto">
-            <table className="kraxx-table">
-              <thead>
-                <tr>
-                  <th>Ticket #</th>
-                  <th>Subject</th>
-                  <th>Category</th>
-                  <th>Opener</th>
-                  <th>Assigned Staff</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-12 text-xs text-[#64748b]">
-                      Loading tickets...
-                    </td>
+          {isLoading ? (
+            <div className="p-4">
+              <SkeletonTable rows={5} />
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                icon={TicketIcon}
+                title="NO TICKETS MATCHING PARAMETERS"
+                description="No active Discord tickets found in the queue matching current view parameters."
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-mono text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
+                    <th className="py-2.5 px-4 font-semibold">TICKET ID</th>
+                    <th className="py-2.5 px-4 font-semibold">STATUS</th>
+                    <th className="py-2.5 px-4 font-semibold">CATEGORY</th>
+                    <th className="py-2.5 px-4 font-semibold">SUBJECT / ISSUE</th>
+                    <th className="py-2.5 px-4 font-semibold">OPENER</th>
+                    <th className="py-2.5 px-4 font-semibold">ASSIGNED TO</th>
+                    <th className="py-2.5 px-4 font-semibold text-right">ACTIONS</th>
                   </tr>
-                ) : tickets.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-12 text-xs text-[#64748b]">
-                      No tickets found in this view.
-                    </td>
-                  </tr>
-                ) : (
-                  tickets.map((t) => (
-                    <tr key={t.id}>
-                      <td className="font-mono text-xs font-bold text-[#00f0ff]">
+                </thead>
+                <tbody className="divide-y divide-[#16202E]">
+                  {tickets.map((t) => (
+                    <tr key={t.id} className="hover:bg-[#0D131C] transition-colors">
+                      <td className="py-3 px-4 font-bold text-[#22D3EE]">
                         #{t.ticketNumber}
                       </td>
-
-                      <td className="font-semibold text-xs text-[#e2e8f0] max-w-xs truncate">
-                        {t.subject}
-                      </td>
-
-                      <td>
-                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#0f1318] border border-[#1e2a38] text-[#94a3b8]">
+                      <td className="py-3 px-4">{getStatusBadge(t.status)}</td>
+                      <td className="py-3 px-4">
+                        <span className="text-[10px] text-[#64748B] bg-[#070B10] px-2 py-0.5 rounded border border-[#16202E]">
                           {t.category}
                         </span>
                       </td>
-
-                      <td className="text-xs text-[#e2e8f0] font-medium">
+                      <td className="py-3 px-4 text-[#F1F5F9] font-medium max-w-xs truncate">
+                        {t.subject}
+                      </td>
+                      <td className="py-3 px-4 text-[#94A3B8]">
                         {t.openerName}
                       </td>
-
-                      <td className="text-xs text-[#94a3b8] font-mono">
+                      <td className="py-3 px-4 text-[#94A3B8]">
                         {t.claimerName ? (
-                          <span className="text-[#10b981] flex items-center gap-1">
-                            <UserCheck className="w-3 h-3" />
-                            <span>{t.claimerName}</span>
-                          </span>
+                          <span className="text-[#10B981]">@{t.claimerName}</span>
                         ) : (
-                          <span className="text-[#64748b] italic">Unassigned</span>
+                          <span className="text-[#64748B]">UNASSIGNED</span>
                         )}
                       </td>
-
-                      <td>{getStatusBadge(t.status)}</td>
-
-                      <td className="whitespace-nowrap font-mono text-xs text-[#64748b]">
-                        {new Date(t.createdAt).toLocaleDateString()}
-                      </td>
-
-                      <td className="text-right">
+                      <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => setInspectTicket(t)}
-                            className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#00f0ff]"
+                            className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#94A3B8] hover:text-[#22D3EE] hover:border-[#22D3EE]/30 transition-colors"
                             title="Inspect Details"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" />
                           </button>
 
                           {t.status === 'OPEN' && (
-                            <button
-                              type="button"
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleTicketAction(t.id, 'CLAIM')}
-                              className="px-2 py-1 rounded bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 text-[#00f0ff] text-xs font-semibold"
+                              className="font-mono text-[10px] py-0.5 px-2"
                             >
-                              Claim
-                            </button>
+                              CLAIM
+                            </Button>
                           )}
 
                           {t.status === 'CLAIMED' && (
-                            <button
-                              type="button"
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleTicketAction(t.id, 'CLOSE')}
-                              className="px-2 py-1 rounded bg-[#ef4444]/10 hover:bg-[#ef4444]/20 text-[#ef4444] text-xs font-semibold"
+                              className="font-mono text-[10px] py-0.5 px-2 text-[#EF4444] border-red-900/30"
                             >
-                              Close
-                            </button>
+                              CLOSE
+                            </Button>
                           )}
 
                           {t.status === 'CLOSED' && (
-                            <button
-                              type="button"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleTicketAction(t.id, 'REOPEN')}
-                              className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#00f0ff]"
-                              title="Reopen Ticket"
+                              className="font-mono text-[10px] py-0.5 px-2 text-[#22D3EE]"
                             >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            </button>
+                              REOPEN
+                            </Button>
                           )}
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
-      </div>
 
-      {/* Ticket Details Modal */}
-      {inspectTicket && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1318] border border-[#1e2a38] rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#1e2a38] pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-[#e2e8f0] flex items-center gap-2">
-                  <TicketIcon className="w-4 h-4 text-[#00f0ff]" />
-                  <span>Ticket #{inspectTicket.ticketNumber} Details</span>
-                </h3>
-                <span className="text-[11px] font-mono text-[#64748b]">Channel ID: {inspectTicket.channelId}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInspectTicket(null)}
-                className="text-[#64748b] hover:text-[#e2e8f0]"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <span className="text-[#64748b]">Subject:</span>
-                <p className="font-semibold text-[#e2e8f0] text-sm mt-0.5">{inspectTicket.subject}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-[#0a0e15] border border-[#1e2a38]">
-                <div>
-                  <span className="text-[#64748b]">Category:</span>
-                  <p className="font-mono text-[#e2e8f0]">{inspectTicket.category}</p>
+        {/* Ticket Inspector Modal */}
+        {inspectTicket && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)] max-h-[85vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider">
+                    TICKET #{inspectTicket.ticketNumber} // {inspectTicket.subject}
+                  </h3>
+                  {getStatusBadge(inspectTicket.status)}
                 </div>
-                <div>
-                  <span className="text-[#64748b]">Status:</span>
-                  <div className="mt-0.5">{getStatusBadge(inspectTicket.status)}</div>
-                </div>
-                <div>
-                  <span className="text-[#64748b]">Opener:</span>
-                  <p className="text-[#e2e8f0] font-medium">{inspectTicket.openerName}</p>
-                </div>
-                <div>
-                  <span className="text-[#64748b]">Assigned Staff:</span>
-                  <p className="text-[#e2e8f0] font-medium">{inspectTicket.claimerName || 'None'}</p>
-                </div>
-              </div>
-
-              {inspectTicket.reason && (
-                <div className="p-3 rounded-lg bg-[#0a0e15] border border-[#1e2a38]">
-                  <span className="text-[#64748b]">Closing Resolution Note:</span>
-                  <p className="text-[#e2e8f0] mt-1">{inspectTicket.reason}</p>
-                </div>
-              )}
-
-              {inspectTicket.transcriptUrl && (
-                <div className="p-3 rounded-lg bg-[#0a0e15] border border-[#1e2a38] flex items-center justify-between">
-                  <span className="text-[#64748b]">Archived Transcript:</span>
-                  <a
-                    href={inspectTicket.transcriptUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[#00f0ff] font-semibold flex items-center gap-1 hover:underline"
-                  >
-                    <span>View Transcript</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-[#1e2a38] flex items-center justify-between">
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => handleTicketAction(inspectTicket.id, 'DELETE')}
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-1" />
-                <span>Delete</span>
-              </Button>
-
-              <div className="flex items-center gap-2">
-                {inspectTicket.status === 'OPEN' && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleTicketAction(inspectTicket.id, 'CLAIM')}
-                  >
-                    Claim Ticket
-                  </Button>
-                )}
-                {inspectTicket.status === 'CLAIMED' && (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleTicketAction(inspectTicket.id, 'CLOSE')}
-                  >
-                    Close Ticket
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
+                  type="button"
                   onClick={() => setInspectTicket(null)}
+                  className="text-[#64748B] hover:text-[#F1F5F9]"
                 >
-                  Close
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4 font-mono text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded bg-[#070B10] border border-[#16202E]">
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block">CATEGORY</span>
+                    <span className="text-[#F1F5F9]">{inspectTicket.category}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block">OPENER</span>
+                    <span className="text-[#F1F5F9]">{inspectTicket.openerName} ({inspectTicket.openerId})</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block">ASSIGNED</span>
+                    <span className="text-[#F1F5F9]">{inspectTicket.claimerName || 'Unassigned'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block">CREATED</span>
+                    <span className="text-[#F1F5F9]">{new Date(inspectTicket.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {inspectTicket.reason && (
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block mb-1">CLOSURE RESOLUTION NOTE</span>
+                    <div className="p-3 rounded bg-[#070B10] border border-[#16202E] text-[#F1F5F9]">
+                      {inspectTicket.reason}
+                    </div>
+                  </div>
+                )}
+
+                {inspectTicket.transcriptUrl && (
+                  <div>
+                    <span className="text-[10px] text-[#64748B] uppercase block mb-1">AUDIT TRANSCRIPT</span>
+                    <a
+                      href={inspectTicket.transcriptUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#22D3EE] hover:underline"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>VIEW ARCHIVED HTML TRANSCRIPT</span>
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 mt-6 pt-3 border-t border-[#16202E]">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleTicketAction(inspectTicket.id, 'DELETE')}
+                  className="font-mono text-xs"
+                >
+                  DELETE RECORD
                 </Button>
+
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setInspectTicket(null)}>
+                    CLOSE
+                  </Button>
+
+                  {inspectTicket.status === 'OPEN' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleTicketAction(inspectTicket.id, 'CLAIM')}
+                    >
+                      CLAIM TICKET
+                    </Button>
+                  )}
+
+                  {inspectTicket.status === 'CLAIMED' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTicketAction(inspectTicket.id, 'CLOSE')}
+                      className="text-[#EF4444]"
+                    >
+                      RESOLVE & CLOSE
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

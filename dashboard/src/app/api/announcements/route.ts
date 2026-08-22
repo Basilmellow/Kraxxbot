@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const permCheck = requireTier(session.user.roleTier, RoleTier.TEAM_LEAD);
+  const permCheck = requireTier(session.user.roleTier, RoleTier.MANAGEMENT_HEAD);
   if (!permCheck.authorized) {
     return NextResponse.json({ error: permCheck.reason }, { status: 403 });
   }

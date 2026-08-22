@@ -5,11 +5,13 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetchGuildChannels, fetchGuildRoles, DiscordChannel, DiscordRole } from '@/lib/discord';
+import { requireTier, RoleTier } from '@/lib/permissions';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error, code: 'TIER_UNAUTHORIZED' }, { status: auth.status });
   }
 
   try {

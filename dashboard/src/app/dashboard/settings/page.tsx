@@ -14,6 +14,7 @@ import {
   Hash,
   Layers,
   Key,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -60,7 +61,7 @@ export default function SettingsPage() {
 
       const data = await res.json();
       if (res.ok) {
-        setFeedback({ type: 'success', message: 'Operational settings saved successfully.' });
+        setFeedback({ type: 'success', message: 'Subsystem configuration updated successfully.' });
       } else {
         setFeedback({ type: 'error', message: data.error || 'Failed to save settings' });
       }
@@ -72,174 +73,195 @@ export default function SettingsPage() {
   };
 
   const SECTIONS = [
-    { id: 'GENERAL', label: 'General' },
-    { id: 'DISCORD', label: 'Discord' },
-    { id: 'TICKETS', label: 'Tickets' },
-    { id: 'MODERATION', label: 'Moderation' },
-    { id: 'TASKS', label: 'Tasks' },
+    { id: 'GENERAL', label: 'GENERAL SUBSYSTEMS' },
+    { id: 'DISCORD', label: 'DISCORD GATEWAY' },
+    { id: 'TICKETS', label: 'SUPPORT TICKETS' },
+    { id: 'MODERATION', label: 'KRAXXSEC MODERATION' },
   ];
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Platform Configuration Center"
-        subtitle="Global Subsystem Constants, Environment Defaults & Security Settings"
-        onRefresh={fetchSettings}
-        isRefreshing={isLoading}
+        title="PLATFORM CONFIGURATION CENTER"
+        subtitle="Global Subsystem Constants, Environment Defaults & Access Control Rules"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-6xl w-full mx-auto space-y-5">
+        {/* Section Tabs */}
+        <div className="flex flex-wrap items-center gap-1.5 p-1 rounded bg-[#0A0F16] border border-[#16202E] font-mono text-xs w-fit">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setActiveSection(s.id)}
+              className={`px-3 py-1.5 rounded transition-all ${
+                activeSection === s.id
+                  ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                  : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Section Navigation */}
-          <div className="lg:col-span-3 space-y-1">
-            {SECTIONS.map((sec) => (
-              <button
-                key={sec.id}
-                type="button"
-                onClick={() => setActiveSection(sec.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-between border ${
-                  activeSection === sec.id
-                    ? 'bg-[#00f0ff] text-[#0a0e15] border-[#00f0ff]'
-                    : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
-                }`}
-              >
-                <span>{sec.label}</span>
-              </button>
-            ))}
-          </div>
+        {/* Settings Form */}
+        <form onSubmit={handleSave}>
+          <Card className="bg-[#0A0F16]">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between w-full">
+                <span className="flex items-center gap-2">
+                  <Settings className="w-3.5 h-3.5 text-[#22D3EE]" />
+                  <span>{activeSection} CONFIGURATION VALUES</span>
+                </span>
+                <Badge variant="brand">FOUNDER CLEARANCE REQUIRED</Badge>
+              </CardTitle>
+            </CardHeader>
 
-          {/* Form Content */}
-          <div className="lg:col-span-9">
-            <form onSubmit={handleSave} className="space-y-4">
-              <Card className="space-y-4">
-                <CardHeader>
-                  <CardTitle>
-                    <Settings className="w-4 h-4 text-[#00f0ff]" />
-                    <span>{activeSection} Configuration Parameters</span>
-                  </CardTitle>
-                </CardHeader>
-
-                {activeSection === 'GENERAL' && (
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Organization Name</label>
-                      <input
-                        type="text"
-                        value={configs['ORG_NAME'] || 'KRAXX Operations'}
-                        onChange={(e) => handleChange('ORG_NAME', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Primary Timezone</label>
-                      <input
-                        type="text"
-                        value={configs['TIMEZONE'] || 'UTC'}
-                        onChange={(e) => handleChange('TIMEZONE', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                      />
-                    </div>
+            <div className="space-y-4 font-mono text-xs pt-2">
+              {activeSection === 'GENERAL' && (
+                <>
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      ORGANIZATION / PLATFORM TITLE
+                    </label>
+                    <input
+                      type="text"
+                      value={configs['app_name'] || 'KRAXX Operations Platform'}
+                      onChange={(e) => handleChange('app_name', e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
                   </div>
-                )}
 
-                {activeSection === 'DISCORD' && (
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Command Prefix (Fallback)</label>
-                      <input
-                        type="text"
-                        value={configs['BOT_PREFIX'] || '!'}
-                        onChange={(e) => handleChange('BOT_PREFIX', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50 font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Default Embed Color</label>
-                      <input
-                        type="text"
-                        value={configs['EMBED_COLOR'] || '#00f0ff'}
-                        onChange={(e) => handleChange('EMBED_COLOR', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50 font-mono"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      PRIMARY GUILD HEADQUARTERS ID
+                    </label>
+                    <input
+                      type="text"
+                      value={configs['primary_guild_id'] || ''}
+                      onChange={(e) => handleChange('primary_guild_id', e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
                   </div>
-                )}
+                </>
+              )}
 
-                {activeSection === 'TICKETS' && (
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Max Open Tickets Per User</label>
-                      <input
-                        type="number"
-                        value={configs['TICKETS_MAX_PER_USER'] || '3'}
-                        onChange={(e) => handleChange('TICKETS_MAX_PER_USER', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50 font-mono"
-                      />
-                    </div>
+              {activeSection === 'DISCORD' && (
+                <>
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      GLOBAL LOG AUDIT CHANNEL ID
+                    </label>
+                    <input
+                      type="text"
+                      value={configs['audit_channel_id'] || ''}
+                      onChange={(e) => handleChange('audit_channel_id', e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
                   </div>
-                )}
 
-                {activeSection === 'MODERATION' && (
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Default Timeout Duration (Seconds)</label>
-                      <input
-                        type="number"
-                        value={configs['MOD_DEFAULT_TIMEOUT'] || '3600'}
-                        onChange={(e) => handleChange('MOD_DEFAULT_TIMEOUT', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50 font-mono"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      MAIN BROADCAST ANNOUNCEMENT CHANNEL ID
+                    </label>
+                    <input
+                      type="text"
+                      value={configs['announcement_channel_id'] || ''}
+                      onChange={(e) => handleChange('announcement_channel_id', e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
                   </div>
-                )}
+                </>
+              )}
 
-                {activeSection === 'TASKS' && (
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Task Number Prefix</label>
-                      <input
-                        type="text"
-                        value={configs['TASK_PREFIX'] || 'TSK'}
-                        onChange={(e) => handleChange('TASK_PREFIX', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50 font-mono"
-                      />
-                    </div>
+              {activeSection === 'TICKETS' && (
+                <>
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      DEFAULT TICKET CATEGORY DISCORD PARENT ID
+                    </label>
+                    <input
+                      type="text"
+                      value={configs['ticket_category_id'] || ''}
+                      onChange={(e) => handleChange('ticket_category_id', e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
                   </div>
-                )}
 
-                <div className="pt-3 border-t border-[#1e2a38] flex justify-end">
-                  <Button type="submit" variant="primary" isLoading={isSaving}>
-                    <Save className="w-4 h-4 mr-1.5" />
-                    <span>Save {activeSection} Settings</span>
-                  </Button>
-                </div>
-              </Card>
-            </form>
-          </div>
-        </div>
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      AUTO-CLOSE INACTIVE TICKET TIMEOUT (HOURS)
+                    </label>
+                    <input
+                      type="number"
+                      value={configs['ticket_inactivity_hours'] || '48'}
+                      onChange={(e) => handleChange('ticket_inactivity_hours', e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
+                  </div>
+                </>
+              )}
+
+              {activeSection === 'MODERATION' && (
+                <>
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      MODERATION DISCIPLINARY LOG CHANNEL ID
+                    </label>
+                    <input
+                      type="text"
+                      value={configs['mod_log_channel_id'] || ''}
+                      onChange={(e) => handleChange('mod_log_channel_id', e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      STRIKE THRESHOLD FOR AUTOMATED BAN
+                    </label>
+                    <input
+                      type="number"
+                      value={configs['mod_ban_threshold'] || '3'}
+                      onChange={(e) => handleChange('mod_ban_threshold', e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="pt-4 border-t border-[#16202E] flex justify-end">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  isLoading={isSaving}
+                  className="font-mono font-bold tracking-wider uppercase text-xs px-5"
+                >
+                  SAVE CONFIGURATION
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </form>
       </div>
     </div>
   );

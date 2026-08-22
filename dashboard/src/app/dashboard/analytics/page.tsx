@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { StatCard } from '@/components/dashboard/StatCard';
 import {
   BarChart3,
   TrendingUp,
@@ -13,6 +14,8 @@ import {
   Clock,
   Activity,
   Layers,
+  Users,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function AnalyticsPage() {
@@ -38,149 +41,169 @@ export default function AnalyticsPage() {
     fetchAnalytics();
   }, []);
 
+  const totalMod = Object.values(data?.moderation || {}).reduce((a: any, b: any) => a + b, 0) as number;
+
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Operations Analytics"
-        subtitle="Real-Time Telemetry, Support Throughput & Security Metrics"
-        onRefresh={fetchAnalytics}
-        isRefreshing={isLoading}
+        title="OPERATIONAL TELEMETRY & ANALYTICS"
+        subtitle="Real-Time System Throughput, Support Metrics & Security Analytics"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Top Metric Cards */}
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-6">
+        {/* Metric Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-[#94a3b8]">
-              <span>Active Tickets</span>
-              <Ticket className="w-4 h-4 text-[#00f0ff]" />
-            </div>
-            <div className="text-2xl font-bold text-[#e2e8f0] font-mono">
-              {data?.tickets?.open ?? 0}
-            </div>
-            <div className="text-[11px] text-[#64748b]">
-              {data?.tickets?.total ?? 0} lifetime tickets
-            </div>
-          </Card>
+          <StatCard
+            title="ACTIVE DISPATCH TICKETS"
+            value={data?.tickets?.open ?? 0}
+            subValue={`${data?.tickets?.total ?? 0} TOTAL TICKETS`}
+            icon={Ticket}
+            variant="brand"
+            trend={`${data?.tickets?.claimed ?? 0} CLAIMED`}
+          />
 
-          <Card className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-[#94a3b8]">
-              <span>Tasks Velocity</span>
-              <CheckSquare className="w-4 h-4 text-[#10b981]" />
-            </div>
-            <div className="text-2xl font-bold text-[#e2e8f0] font-mono">
-              {data?.tasks?.completed ?? 0} / {data?.tasks?.total ?? 0}
-            </div>
-            <div className="text-[11px] text-[#10b981]">
-              {data?.tasks?.inProgress ?? 0} in active execution
-            </div>
-          </Card>
+          <StatCard
+            title="TASK VELOCITY"
+            value={`${data?.tasks?.completed ?? 0}/${data?.tasks?.total ?? 0}`}
+            subValue={`${data?.tasks?.inProgress ?? 0} IN PROGRESS`}
+            icon={CheckSquare}
+            variant="security"
+            trend="STEADY"
+          />
 
-          <Card className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-[#94a3b8]">
-              <span>Active Reminders</span>
-              <Clock className="w-4 h-4 text-[#6366f1]" />
-            </div>
-            <div className="text-2xl font-bold text-[#e2e8f0] font-mono">
-              {data?.reminders?.active ?? 0}
-            </div>
-            <div className="text-[11px] text-[#64748b]">
-              Automated scheduler active
-            </div>
-          </Card>
+          <StatCard
+            title="SCHEDULED REMINDERS"
+            value={data?.reminders?.active ?? 0}
+            subValue="AUTOMATED QUEUE"
+            icon={Clock}
+            variant="studio"
+            trend="ACTIVE"
+          />
 
-          <Card className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-[#94a3b8]">
-              <span>Platform Audit Events</span>
-              <Activity className="w-4 h-4 text-[#00f0ff]" />
-            </div>
-            <div className="text-2xl font-bold text-[#e2e8f0] font-mono">
-              {data?.audit?.total ?? 0}
-            </div>
-            <div className="text-[11px] text-[#64748b]">
-              Cryptographically logged
-            </div>
-          </Card>
+          <StatCard
+            title="AUDIT LOG EVENTS"
+            value={data?.audit?.total ?? 0}
+            subValue="SECURITY TELEMETRY"
+            icon={Activity}
+            variant="brand"
+            trend="RECORDING"
+          />
         </div>
 
-        {/* Breakdown Visuals */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Moderation Sanction Distribution */}
-          <Card className="space-y-4">
+        {/* Deep Dive Breakdown Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-mono text-xs">
+          {/* Ticket Resolution Pipeline */}
+          <Card className="bg-[#0A0F16]">
             <CardHeader>
-              <CardTitle>
-                <Shield className="w-4 h-4 text-[#ef4444]" />
-                <span>Moderation Sanctions Distribution</span>
+              <CardTitle className="flex items-center gap-2">
+                <Ticket className="w-3.5 h-3.5 text-[#22D3EE]" />
+                <span>SUPPORT TICKET RESOLUTION PIPELINE</span>
               </CardTitle>
             </CardHeader>
 
-            <div className="space-y-3">
-              {['WARN', 'TIMEOUT', 'KICK', 'BAN', 'UNBAN'].map((act) => {
-                const count = data?.moderation?.[act] ?? 0;
-                return (
-                  <div key={act} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-mono text-[#94a3b8]">{act}</span>
-                      <span className="font-mono font-bold text-[#e2e8f0]">{count}</span>
-                    </div>
-                    <div className="w-full bg-[#1e2a38] h-2 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#00f0ff]"
-                        style={{ width: `${Math.min(100, count * 15)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-[#94A3B8]">OPEN TICKETS (AWAITING AGENT)</span>
+                  <span className="font-bold text-[#F59E0B]">{data?.tickets?.open ?? 0}</span>
+                </div>
+                <div className="w-full bg-[#070B10] h-2 rounded overflow-hidden border border-[#16202E]">
+                  <div
+                    className="bg-[#F59E0B] h-full"
+                    style={{
+                      width: `${
+                        data?.tickets?.total ? ((data.tickets.open || 0) / data.tickets.total) * 100 : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-[#94A3B8]">CLAIMED & UNDER INVESTIGATION</span>
+                  <span className="font-bold text-[#22D3EE]">{data?.tickets?.claimed ?? 0}</span>
+                </div>
+                <div className="w-full bg-[#070B10] h-2 rounded overflow-hidden border border-[#16202E]">
+                  <div
+                    className="bg-[#22D3EE] h-full"
+                    style={{
+                      width: `${
+                        data?.tickets?.total ? ((data.tickets.claimed || 0) / data.tickets.total) * 100 : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-[#94A3B8]">RESOLVED & CLOSED</span>
+                  <span className="font-bold text-[#10B981]">{data?.tickets?.closed ?? 0}</span>
+                </div>
+                <div className="w-full bg-[#070B10] h-2 rounded overflow-hidden border border-[#16202E]">
+                  <div
+                    className="bg-[#10B981] h-full"
+                    style={{
+                      width: `${
+                        data?.tickets?.total ? ((data.tickets.closed || 0) / data.tickets.total) * 100 : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </Card>
 
-          {/* Support Ticket Pipeline */}
-          <Card className="space-y-4">
+          {/* Security & Disciplinary Sanctions Breakdown */}
+          <Card className="bg-[#0A0F16]">
             <CardHeader>
-              <CardTitle>
-                <Ticket className="w-4 h-4 text-[#00f0ff]" />
-                <span>Ticket Resolution Distribution</span>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldAlert className="w-3.5 h-3.5 text-[#22D3EE]" />
+                <span>KRAXXSEC DISCIPLINARY SANCTION METRICS</span>
               </CardTitle>
             </CardHeader>
 
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-[#94a3b8]">OPEN</span>
-                  <span className="font-mono font-bold text-[#00f0ff]">{data?.tickets?.open ?? 0}</span>
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">WARNINGS</span>
+                  <span className="text-lg font-bold text-[#F59E0B]">
+                    {data?.moderation?.WARN ?? 0}
+                  </span>
                 </div>
-                <div className="w-full bg-[#1e2a38] h-2 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#00f0ff]"
-                    style={{ width: `${Math.min(100, (data?.tickets?.open ?? 0) * 20)}%` }}
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-[#94a3b8]">CLAIMED</span>
-                  <span className="font-mono font-bold text-[#6366f1]">{data?.tickets?.claimed ?? 0}</span>
+                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">TIMEOUTS</span>
+                  <span className="text-lg font-bold text-[#94A3B8]">
+                    {data?.moderation?.TIMEOUT ?? 0}
+                  </span>
                 </div>
-                <div className="w-full bg-[#1e2a38] h-2 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#6366f1]"
-                    style={{ width: `${Math.min(100, (data?.tickets?.claimed ?? 0) * 20)}%` }}
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-[#94a3b8]">CLOSED</span>
-                  <span className="font-mono font-bold text-[#10b981]">{data?.tickets?.closed ?? 0}</span>
+                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">KICKS</span>
+                  <span className="text-lg font-bold text-[#EF4444]">
+                    {data?.moderation?.KICK ?? 0}
+                  </span>
                 </div>
-                <div className="w-full bg-[#1e2a38] h-2 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#10b981]"
-                    style={{ width: `${Math.min(100, (data?.tickets?.closed ?? 0) * 20)}%` }}
-                  />
+
+                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">BANS</span>
+                  <span className="text-lg font-bold text-[#EF4444]">
+                    {data?.moderation?.BAN ?? 0}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">UNBANS</span>
+                  <span className="text-lg font-bold text-[#10B981]">
+                    {data?.moderation?.UNBAN ?? 0}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">TOTAL SANCTIONS</span>
+                  <span className="text-lg font-bold text-[#22D3EE]">{totalMod}</span>
                 </div>
               </div>
             </div>

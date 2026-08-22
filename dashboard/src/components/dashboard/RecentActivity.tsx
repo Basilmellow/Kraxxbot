@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { ScrollText, Clock, User, ArrowRight } from 'lucide-react';
+import { ScrollText, Clock, User, ArrowRight, Activity } from 'lucide-react';
 import Link from 'next/link';
 
 interface ActivityItem {
@@ -27,49 +27,60 @@ export function RecentActivity({ activities, isLoading }: RecentActivityProps) {
   };
 
   return (
-    <Card className="h-full">
+    <Card className="h-full bg-[#0A0F16]">
       <CardHeader>
-        <CardTitle>
-          <ScrollText className="w-4 h-4 text-[#00f0ff]" />
-          <span>Real-time Operational Audit</span>
+        <CardTitle className="flex items-center justify-between w-full">
+          <span className="flex items-center gap-2">
+            <ScrollText className="w-3.5 h-3.5 text-[#22D3EE]" />
+            <span>REAL-TIME AUDIT TELEMETRY</span>
+          </span>
+          <Link
+            href="/dashboard/audit"
+            className="text-[11px] font-mono text-[#22D3EE] hover:underline flex items-center gap-1 font-medium"
+          >
+            <span>VIEW FULL AUDIT</span>
+            <ArrowRight className="w-3 h-3" />
+          </Link>
         </CardTitle>
-        <Link
-          href="/dashboard/audit"
-          className="text-xs text-[#00f0ff] hover:underline flex items-center gap-1 font-medium"
-        >
-          <span>Full Log</span>
-          <ArrowRight className="w-3 h-3" />
-        </Link>
       </CardHeader>
 
-      <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+      <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1">
         {isLoading ? (
-          <div className="py-8 text-center text-xs text-[#64748b]">Loading audit telemetry...</div>
+          <div className="py-8 text-center text-xs font-mono text-[#64748B]">
+            SYNCHRONIZING AUDIT TELEMETRY...
+          </div>
         ) : activities.length === 0 ? (
-          <div className="py-8 text-center text-xs text-[#64748b]">No recent audit activity recorded.</div>
+          <div className="py-8 text-center text-xs font-mono text-[#64748B]">
+            NO RECENT AUDIT EVENTS RECORDED IN CURRENT SESSION.
+          </div>
         ) : (
           activities.map((item) => (
             <div
               key={item.id}
-              className="p-2.5 rounded-lg bg-[#0f1318] border border-[#1e2a38] hover:border-[#1e2a38]/80 transition-colors flex items-start justify-between gap-3 text-xs"
+              className="p-2.5 rounded bg-[#070B10] border border-[#16202E] hover:border-[#1E2C3F] transition-colors flex items-start justify-between gap-3 text-xs"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-[10px] font-mono text-[#64748B] flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-[#475569]" />
+                    {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+
                   <Badge variant={getActionBadgeVariant(item.action)}>
                     {item.action}
                   </Badge>
-                  <span className="text-[#64748b] text-[11px] font-mono flex items-center gap-1">
-                    <User className="w-3 h-3" />
-                    {item.executorId}
+
+                  <span className="text-[#94A3B8] text-[11px] font-mono flex items-center gap-1 truncate">
+                    <User className="w-3 h-3 text-[#64748B]" />
+                    <span>@{item.executorId}</span>
                   </span>
                 </div>
+
                 {item.details && (
-                  <p className="text-[#94a3b8] truncate font-sans text-xs">{item.details}</p>
+                  <p className="text-[#94A3B8] text-xs font-sans truncate pl-1 border-l border-[#16202E] ml-0.5">
+                    {item.details}
+                  </p>
                 )}
-              </div>
-              <div className="text-[10px] text-[#64748b] whitespace-nowrap font-mono flex items-center gap-1 pt-0.5">
-                <Clock className="w-3 h-3" />
-                {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           ))

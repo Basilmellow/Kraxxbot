@@ -5,6 +5,8 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
   AlarmClock,
@@ -17,6 +19,8 @@ import {
   Repeat,
   Trash2,
   XCircle,
+  X,
+  Clock,
 } from 'lucide-react';
 
 interface ReminderItem {
@@ -32,6 +36,8 @@ interface ReminderItem {
   createdBy: string;
   createdAt: string;
 }
+
+const STATUSES = ['ALL', 'ACTIVE', 'COMPLETED', 'CANCELLED'];
 
 export default function RemindersPage() {
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
@@ -101,20 +107,14 @@ export default function RemindersPage() {
     e.preventDefault();
     if (!title.trim() || !message.trim() || !triggerDate || !triggerTime) return;
 
-    const combinedDate = new Date(`${triggerDate}T${triggerTime}`);
-    if (isNaN(combinedDate.getTime()) || combinedDate <= new Date()) {
-      alert('Trigger time must be in the future.');
-      return;
-    }
-
     const targetId = targetType === 'CHANNEL' ? selectedChannel?.id : selectedUserId;
-    if (!targetId) {
-      alert('Please select a target channel or user.');
-      return;
-    }
+    if (!targetId) return;
 
     setIsCreating(true);
+    setFeedback(null);
+
     try {
+      const combinedDate = new Date(`${triggerDate}T${triggerTime}`);
       const res = await fetch('/api/reminders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,352 +130,349 @@ export default function RemindersPage() {
 
       const data = await res.json();
       if (res.ok) {
-        setFeedback({ type: 'success', message: `Reminder "${title}" scheduled successfully.` });
+        setFeedback({ type: 'success', message: 'Operational reminder scheduled.' });
         setShowCreateModal(false);
         setTitle('');
         setMessage('');
-        setTriggerDate('');
-        setTriggerTime('');
         fetchReminders();
       } else {
-        alert(data.error || 'Failed to create reminder');
+        setFeedback({ type: 'error', message: data.error || 'Failed to schedule reminder' });
       }
-    } catch (e: any) {
-      alert(e.message || 'Error creating reminder');
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Reminder creation error' });
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleCancelReminder = async (id: string, reminderTitle: string) => {
-    if (!confirm(`Cancel reminder "${reminderTitle}"?`)) return;
-
+  const handleCancelReminder = async (id: string) => {
+    if (!confirm('Confirm cancellation of reminder?')) return;
     try {
       const res = await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setReminders(reminders.map((r) => (r.id === id ? { ...r, status: 'CANCELLED' } : r)));
         setFeedback({ type: 'success', message: 'Reminder cancelled.' });
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to cancel reminder');
       }
-    } catch (e: any) {
-      alert(e.message || 'Error cancelling reminder');
+    } catch (err) {
+      console.error('Cancel failed:', err);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return <Badge variant="brand">ACTIVE</Badge>;
+      case 'COMPLETED':
+        return <Badge variant="success">DISPATCHED</Badge>;
+      case 'CANCELLED':
+        return <Badge variant="neutral">CANCELLED</Badge>;
+      default:
+        return <Badge variant="neutral">{status}</Badge>;
     }
   };
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Reminders Engine"
-        subtitle="Automated Reminders, Recurrent Cadences & Alerts"
-        onRefresh={fetchReminders}
-        isRefreshing={isLoading}
+        title="AUTOMATED REMINDER DISPATCH"
+        subtitle="Channel Reminders, Operator Notifications & Recurring Schedules"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Navigation & Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
-            {['ALL', 'ACTIVE', 'COMPLETED', 'CANCELLED'].map((st) => (
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+        {/* Filter Bar & Action */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs">
+          <div className="flex flex-wrap items-center gap-1 p-1 rounded bg-[#0A0F16] border border-[#16202E]">
+            {STATUSES.map((s) => (
               <button
-                key={st}
+                key={s}
                 type="button"
-                onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap border transition-all ${
-                  statusFilter === st
-                    ? 'bg-[#00f0ff] text-[#0a0e15] border-[#00f0ff]'
-                    : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
+                onClick={() => setStatusFilter(s)}
+                className={`px-2.5 py-1 rounded transition-colors ${
+                  statusFilter === s
+                    ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
                 }`}
               >
-                {st === 'ALL' ? 'All Reminders' : st}
+                {s}
               </button>
             ))}
           </div>
 
-          <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
-            <Plus className="w-4 h-4 mr-1" />
-            <span>New Reminder</span>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setShowCreateModal(true)}
+            className="font-mono text-xs gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>CREATE REMINDER</span>
           </Button>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
         {/* Reminders Table */}
-        <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-[#1e2a38] flex items-center justify-between">
-            <CardTitle>
-              <AlarmClock className="w-4 h-4 text-[#00f0ff]" />
-              <span>Reminders Pipeline ({reminders.length})</span>
+        <Card className="bg-[#0A0F16] overflow-hidden">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlarmClock className="w-3.5 h-3.5 text-[#22D3EE]" />
+              <span>SCHEDULED REMINDERS ({reminders.length})</span>
             </CardTitle>
-            <span className="text-[11px] text-[#64748b] font-mono">
-              Managed by Railway Background Scheduler
-            </span>
-          </div>
+          </CardHeader>
 
-          <div className="overflow-x-auto">
-            <table className="kraxx-table">
-              <thead>
-                <tr>
-                  <th>Target Type</th>
-                  <th>Target Destination</th>
-                  <th>Reminder Title & Message</th>
-                  <th>Trigger Time</th>
-                  <th>Recurrence</th>
-                  <th>Status</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-12 text-xs text-[#64748b]">
-                      Loading reminders...
-                    </td>
+          {isLoading ? (
+            <div className="p-4">
+              <SkeletonTable rows={5} />
+            </div>
+          ) : reminders.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                icon={AlarmClock}
+                title="NO REMINDERS FOUND"
+                description="No active automated reminders match your query."
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCreateModal(true)}
+                    className="font-mono text-xs"
+                  >
+                    CREATE REMINDER
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-mono text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
+                    <th className="py-2.5 px-4 font-semibold">STATUS</th>
+                    <th className="py-2.5 px-4 font-semibold">TITLE / REMINDER</th>
+                    <th className="py-2.5 px-4 font-semibold">TARGET</th>
+                    <th className="py-2.5 px-4 font-semibold">TRIGGER TIME</th>
+                    <th className="py-2.5 px-4 font-semibold">RECURRENCE</th>
+                    <th className="py-2.5 px-4 font-semibold text-right">ACTION</th>
                   </tr>
-                ) : reminders.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-12 text-xs text-[#64748b]">
-                      No reminders found.
-                    </td>
-                  </tr>
-                ) : (
-                  reminders.map((r) => (
-                    <tr key={r.id}>
-                      <td>
-                        <Badge variant={r.targetType === 'CHANNEL' ? 'brand' : 'neutral'}>
-                          {r.targetType}
-                        </Badge>
+                </thead>
+                <tbody className="divide-y divide-[#16202E]">
+                  {reminders.map((r) => (
+                    <tr key={r.id} className="hover:bg-[#0D131C] transition-colors">
+                      <td className="py-3 px-4">{getStatusBadge(r.status)}</td>
+                      <td className="py-3 px-4 text-[#F1F5F9] font-medium max-w-xs truncate">
+                        <div>{r.title}</div>
+                        <div className="text-[10px] text-[#64748B] truncate">{r.message}</div>
                       </td>
-
-                      <td className="font-mono text-xs text-[#e2e8f0]">
-                        <div className="flex items-center gap-1">
-                          {r.targetType === 'CHANNEL' ? (
-                            <Hash className="w-3.5 h-3.5 text-[#64748b]" />
-                          ) : (
-                            <User className="w-3.5 h-3.5 text-[#64748b]" />
-                          )}
-                          <span>{r.targetId}</span>
-                        </div>
+                      <td className="py-3 px-4 text-[#94A3B8]">
+                        <span className="bg-[#070B10] px-2 py-0.5 rounded border border-[#16202E]">
+                          {r.targetType === 'CHANNEL' ? `#${r.targetId}` : `@${r.targetId}`}
+                        </span>
                       </td>
-
-                      <td className="max-w-sm">
-                        <div className="font-semibold text-xs text-[#e2e8f0]">{r.title}</div>
-                        <div className="text-[11px] text-[#64748b] line-clamp-1">{r.message}</div>
+                      <td className="py-3 px-4 text-[#F1F5F9]">
+                        {r.triggerAt ? new Date(r.triggerAt).toLocaleString() : 'N/A'}
                       </td>
-
-                      <td className="whitespace-nowrap font-mono text-xs text-[#00f0ff]">
-                        {r.triggerAt ? (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span>{new Date(r.triggerAt).toLocaleString()}</span>
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-
-                      <td>
+                      <td className="py-3 px-4">
                         {r.isRecurring ? (
-                          <span className="text-[11px] text-[#10b981] flex items-center gap-1 font-mono">
+                          <span className="flex items-center gap-1 text-[#22D3EE]">
                             <Repeat className="w-3 h-3" />
-                            <span>Recurring</span>
+                            <span>RECURRING</span>
                           </span>
                         ) : (
-                          <span className="text-[11px] text-[#64748b]">One-time</span>
+                          <span className="text-[#64748B]">ONCE</span>
                         )}
                       </td>
-
-                      <td>
-                        <Badge variant={r.status === 'ACTIVE' ? 'success' : r.status === 'COMPLETED' ? 'brand' : 'neutral'}>
-                          {r.status}
-                        </Badge>
-                      </td>
-
-                      <td className="text-right">
+                      <td className="py-3 px-4 text-right">
                         {r.status === 'ACTIVE' && (
                           <button
                             type="button"
-                            onClick={() => handleCancelReminder(r.id, r.title)}
-                            className="p-1.5 rounded hover:bg-[#141a22] text-[#64748b] hover:text-[#ef4444]"
+                            onClick={() => handleCancelReminder(r.id)}
+                            className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
                             title="Cancel Reminder"
                           >
-                            <XCircle className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
-
-      {/* Create Reminder Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f1318] border border-[#1e2a38] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#1e2a38] pb-3">
-              <h3 className="text-sm font-bold text-[#e2e8f0] flex items-center gap-2">
-                <AlarmClock className="w-4 h-4 text-[#00f0ff]" />
-                <span>Schedule New Reminder</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="text-[#64748b] hover:text-[#e2e8f0]"
-              >
-                ×
-              </button>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          )}
+        </Card>
 
-            <form onSubmit={handleCreateReminder} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Reminder Subject / Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Weekly Operations Standup Alert"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  required
-                />
+        {/* Create Reminder Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
+                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
+                  <AlarmClock className="w-4 h-4 text-[#22D3EE]" />
+                  <span>SET OPERATIONAL REMINDER</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="text-[#64748B] hover:text-[#F1F5F9]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Reminder Body / Message</label>
-                <textarea
-                  rows={3}
-                  placeholder="Details sent when the reminder triggers..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                  required
-                />
-              </div>
+              <form onSubmit={handleCreateReminder} className="space-y-3 font-mono text-xs">
+                <div>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    REMINDER TITLE
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Weekly Status Report Submission"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <label className="block font-semibold text-[#94a3b8] uppercase">Target Destination</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTargetType('CHANNEL')}
-                    className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold ${
-                      targetType === 'CHANNEL'
-                        ? 'bg-[#00f0ff]/10 border-[#00f0ff] text-[#00f0ff]'
-                        : 'bg-[#0a0e15] border-[#1e2a38] text-[#64748b]'
-                    }`}
-                  >
-                    Discord Channel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTargetType('USER')}
-                    className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold ${
-                      targetType === 'USER'
-                        ? 'bg-[#00f0ff]/10 border-[#00f0ff] text-[#00f0ff]'
-                        : 'bg-[#0a0e15] border-[#1e2a38] text-[#64748b]'
-                    }`}
-                  >
-                    Direct Message User
-                  </button>
+                <div>
+                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                    MESSAGE PAYLOAD
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="Reminder message text dispatched to Discord..."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    className="w-full p-2.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      TARGET TYPE
+                    </label>
+                    <select
+                      value={targetType}
+                      onChange={(e: any) => setTargetType(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    >
+                      <option value="CHANNEL">Discord Channel</option>
+                      <option value="USER">Direct User DM</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      RECURRENCE
+                    </label>
+                    <select
+                      value={recurrence}
+                      onChange={(e) => setRecurrence(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    >
+                      <option value="NONE">One-Time Only</option>
+                      <option value="DAILY">Every Day</option>
+                      <option value="WEEKLY">Every Week</option>
+                      <option value="MONTHLY">Every Month</option>
+                    </select>
+                  </div>
                 </div>
 
                 {targetType === 'CHANNEL' ? (
                   <ChannelSelector
                     channels={channels}
                     selectedChannelId={selectedChannel?.id || ''}
-                    onSelectChannel={(ch) => setSelectedChannel(ch)}
+                    onSelectChannel={setSelectedChannel}
                   />
                 ) : (
-                  <select
-                    value={selectedUserId}
-                    onChange={(e) => setSelectedUserId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                    required
-                  >
-                    <option value="">Select target user...</option>
-                    {members.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.displayName} (@{m.id})
-                      </option>
-                    ))}
-                  </select>
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      SELECT OPERATOR
+                    </label>
+                    <select
+                      value={selectedUserId}
+                      onChange={(e) => setSelectedUserId(e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    >
+                      <option value="">Select target user...</option>
+                      {members.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Date</label>
-                  <input
-                    type="date"
-                    value={triggerDate}
-                    onChange={(e) => setTriggerDate(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      DATE
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={triggerDate}
+                      onChange={(e) => setTriggerDate(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
+                      TIME
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={triggerTime}
+                      onChange={(e) => setTriggerTime(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Time (Local)</label>
-                  <input
-                    type="time"
-                    value={triggerTime}
-                    onChange={(e) => setTriggerTime(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                    required
-                  />
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#16202E]">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCreateModal(false)}
+                  >
+                    CANCEL
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    isLoading={isCreating}
+                  >
+                    SCHEDULE REMINDER
+                  </Button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#94a3b8] mb-1 uppercase">Recurrence</label>
-                <select
-                  value={recurrence}
-                  onChange={(e) => setRecurrence(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                >
-                  <option value="NONE">One-Time Only</option>
-                  <option value="DAILY">Daily</option>
-                  <option value="WEEKLY">Weekly</option>
-                  <option value="MONTHLY">Monthly</option>
-                </select>
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1e2a38]">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreateModal(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" size="sm" isLoading={isCreating}>
-                  Schedule Reminder
-                </Button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

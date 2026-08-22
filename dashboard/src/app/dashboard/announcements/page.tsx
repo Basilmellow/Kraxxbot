@@ -18,6 +18,9 @@ import {
   AlertTriangle,
   Layers,
   ArrowRight,
+  Radio,
+  Calendar,
+  Image as ImageIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -38,8 +41,8 @@ const PRESETS: Preset[] = [
     name: 'KRAXX HQ',
     department: 'GENERAL',
     type: 'IMPORTANT',
-    badge: 'HQ Direct',
-    color: '#00f0ff',
+    badge: 'HQ DIRECT',
+    color: '#22D3EE',
     defaultTitle: 'OFFICIAL HQ BROADCAST',
     defaultDesc: 'Official administrative communication for all KRAXX operations personnel.',
   },
@@ -49,7 +52,7 @@ const PRESETS: Preset[] = [
     department: 'KRAXXSEC',
     type: 'SECURITY_ADVISORY',
     badge: 'KRAXXSEC',
-    color: '#10b981',
+    color: '#10B981',
     defaultTitle: 'SECURITY BULLETIN & THREAT ADVISORY',
     defaultDesc: 'Critical security intelligence update from KRAXXSEC Cyber Division.',
   },
@@ -59,77 +62,55 @@ const PRESETS: Preset[] = [
     department: 'KRAXX_STUDIO',
     type: 'RELEASE',
     badge: 'STUDIO',
-    color: '#6366f1',
+    color: '#818CF8',
     defaultTitle: 'KRAXX STUDIO PROJECT DISPATCH',
     defaultDesc: 'Creative technologies, deployment releases, and project milestone updates.',
   },
   {
-    id: 'recruitment',
-    name: 'RECRUITMENT',
+    id: 'emergency',
+    name: 'EMERGENCY',
     department: 'GENERAL',
-    type: 'RECRUITMENT',
-    badge: 'Talent Acquisition',
-    color: '#3b82f6',
-    defaultTitle: 'OPERATIONAL RECRUITMENT OPEN',
-    defaultDesc: 'Applications are now open for division member positions and technical specialists.',
-  },
-  {
-    id: 'event',
-    name: 'EVENT',
-    department: 'GENERAL',
-    type: 'EVENT',
-    badge: 'Event',
-    color: '#00f0ff',
-    defaultTitle: 'COMMUNITY EVENT & WORKSHOP',
-    defaultDesc: 'Join us for our scheduled operational workshop and technical session.',
-  },
-  {
-    id: 'meeting',
-    name: 'MEETING',
-    department: 'GENERAL',
-    type: 'MEETING',
-    badge: 'Operations Cadence',
-    color: '#f59e0b',
-    defaultTitle: 'MANDATORY STAFF BRIEFING',
-    defaultDesc: 'Briefing scheduled for all leads and division personnel.',
+    type: 'EMERGENCY',
+    badge: 'ALERT',
+    color: '#EF4444',
+    defaultTitle: 'CRITICAL OPERATIONAL INCIDENT NOTICE',
+    defaultDesc: 'Urgent system notice requiring immediate attention from all available operators.',
   },
   {
     id: 'maintenance',
     name: 'MAINTENANCE',
     department: 'GENERAL',
     type: 'MAINTENANCE',
-    badge: 'Infrastructure',
-    color: '#ef4444',
+    badge: 'OPS CADENCE',
+    color: '#F59E0B',
     defaultTitle: 'SCHEDULED INFRASTRUCTURE MAINTENANCE',
-    defaultDesc: 'Services and bot nodes will undergo scheduled maintenance window.',
+    defaultDesc: 'Infrastructure maintenance window scheduled. Minor service degradation possible.',
   },
 ];
 
-export default function AnnouncementCenterPage() {
+export default function AnnouncementsPage() {
   const [channels, setChannels] = useState<ChannelItem[]>([]);
   const [roles, setRoles] = useState<{ id: string; name: string; color: string | null }[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<ChannelItem | null>(null);
 
-  // Active preset
-  const [activePreset, setActivePreset] = useState<Preset>(PRESETS[0]);
-
-  // Form Fields
+  // Form State
   const [title, setTitle] = useState(PRESETS[0].defaultTitle);
-  const [message, setMessage] = useState(PRESETS[0].defaultDesc);
-  const [imageUrl, setImageUrl] = useState('');
-  const [useEmbed, setUseEmbed] = useState(true);
+  const [content, setContent] = useState(PRESETS[0].defaultDesc);
+  const [department, setDepartment] = useState<'GENERAL' | 'KRAXXSEC' | 'KRAXX_STUDIO'>('GENERAL');
+  const [announcementType, setAnnouncementType] = useState('IMPORTANT');
+  const [color, setColor] = useState(PRESETS[0].color);
   const [mentionType, setMentionType] = useState<'NONE' | 'EVERYONE' | 'HERE' | 'ROLE'>('NONE');
   const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
 
   // Scheduling State
-  const [isScheduledMode, setIsScheduledMode] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState('');
-  const [scheduleTime, setScheduleTime] = useState('');
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState('');
 
   // Status & Feedback
   const [isLoadingMeta, setIsLoadingMeta] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string; scheduled?: boolean } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     async function loadMeta() {
@@ -140,9 +121,11 @@ export default function AnnouncementCenterPage() {
           const data = await res.json();
           setChannels(data.channels || []);
           setRoles(data.roles || []);
-          // Prefer announcement channels if available
-          const annChannel = data.channels?.find((c: any) => c.type === 'announcement' || c.name.includes('announcement'));
-          setSelectedChannel(annChannel || data.channels?.[0] || null);
+          if (data.channels && data.channels.length > 0) {
+            // Find default announcements channel if available
+            const annChannel = data.channels.find((c: any) => c.type === 'announcement' || c.name.includes('announc'));
+            setSelectedChannel(annChannel || data.channels[0]);
+          }
         }
       } catch (err) {
         console.error('Failed to load metadata:', err);
@@ -154,249 +137,253 @@ export default function AnnouncementCenterPage() {
   }, []);
 
   const handleApplyPreset = (p: Preset) => {
-    setActivePreset(p);
     setTitle(p.defaultTitle);
-    setMessage(p.defaultDesc);
+    setContent(p.defaultDesc);
+    setDepartment(p.department);
+    setAnnouncementType(p.type);
+    setColor(p.color);
   };
 
-  const buildEmbedPayload = (): DiscordEmbedData | null => {
-    if (!useEmbed) return null;
-    return {
-      title,
-      description: message,
-      color: activePreset.color,
-      author: {
-        name: `KRAXX HQ • ${activePreset.name}`,
-      },
-      image: imageUrl.trim() ? { url: imageUrl.trim() } : undefined,
-      footer: {
-        text: `Official KRAXX Operations • Division: ${activePreset.department}`,
-      },
-      timestamp: new Date().toISOString(),
-    };
+  const currentEmbed: DiscordEmbedData = {
+    title,
+    description: content,
+    color,
+    author: {
+      name: department === 'KRAXXSEC' ? 'KRAXXSEC // Security Bulletin' : department === 'KRAXX_STUDIO' ? 'KRAXX STUDIO // Project Dispatch' : 'KRAXX HQ // Official Announcement',
+    },
+    image: bannerUrl.trim() ? { url: bannerUrl.trim() } : undefined,
+    footer: {
+      text: `Broadcast Dispatch • Type: ${announcementType}`,
+    },
+    timestamp: new Date().toISOString(),
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedChannel) {
-      setFeedback({ type: 'error', message: 'Please select a target Discord channel.' });
-      return;
-    }
+    if (!selectedChannel) return;
 
-    setFeedback(null);
     setIsSubmitting(true);
-
-    let scheduledForIso: string | undefined = undefined;
-    if (isScheduledMode) {
-      if (!scheduleDate || !scheduleTime) {
-        setFeedback({ type: 'error', message: 'Please select both date and time for scheduling.' });
-        setIsSubmitting(false);
-        return;
-      }
-      const combinedDate = new Date(`${scheduleDate}T${scheduleTime}`);
-      if (isNaN(combinedDate.getTime()) || combinedDate <= new Date()) {
-        setFeedback({ type: 'error', message: 'Scheduled time must be in the future.' });
-        setIsSubmitting(false);
-        return;
-      }
-      scheduledForIso = combinedDate.toISOString();
-    }
+    setFeedback(null);
 
     try {
-      const embedPayload = buildEmbedPayload();
-
       const res = await fetch('/api/announcements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title,
-          content: !useEmbed ? message : undefined,
           channelId: selectedChannel.id,
-          department: activePreset.department,
-          type: activePreset.type,
-          mentionType,
+          title: title.trim(),
+          content: content.trim(),
+          department,
+          type: announcementType,
+          mentionType: mentionType !== 'NONE' ? mentionType : undefined,
           mentionRoleId: mentionType === 'ROLE' ? selectedRoleId : undefined,
-          embeds: embedPayload ? [embedPayload] : undefined,
-          scheduledFor: scheduledForIso,
+          bannerUrl: bannerUrl.trim() || undefined,
+          scheduledAt: isScheduled && scheduledAt ? scheduledAt : undefined,
         }),
       });
 
       const data = await res.json();
-      if (res.ok) {
-        if (isScheduledMode) {
-          setFeedback({
-            type: 'success',
-            message: `Announcement successfully scheduled for ${new Date(scheduledForIso!).toLocaleString()}! Track it in the Scheduled Queue.`,
-            scheduled: true,
-          });
-        } else {
-          setFeedback({
-            type: 'success',
-            message: `Announcement successfully published to #${selectedChannel.name}! (Message ID: ${data.messageId})`,
-            scheduled: false,
-          });
-        }
-      } else {
-        setFeedback({ type: 'error', message: data.error || 'Failed to dispatch announcement' });
-      }
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch announcement.');
+
+      setFeedback({
+        type: 'success',
+        message: isScheduled
+          ? `Announcement queued for automated dispatch on ${new Date(scheduledAt).toLocaleString()}.`
+          : `Announcement successfully broadcasted to #${selectedChannel.name}.`,
+      });
     } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Error processing announcement' });
+      setFeedback({ type: 'error', message: err.message || 'Broadcast error' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Announcement Center"
-        subtitle="Corporate Broadcasts, Division Bulletins & Schedule Manager"
+        title="ANNOUNCEMENTS BROADCASTER"
+        subtitle="Ecosystem Broadcast Dispatch, Scheduling & Channel Matrix"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
         {/* Preset Selector Banner */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+        <div>
+          <div className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider mb-2">
+            OFFICIAL ECOSYSTEM PRESET TEMPLATES
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             {PRESETS.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => handleApplyPreset(p)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border flex items-center gap-1.5 ${
-                  activePreset.id === p.id
-                    ? 'border-[#00f0ff] bg-[#00f0ff]/10 text-[#00f0ff] shadow-[0_0_12px_rgba(0,240,255,0.2)]'
-                    : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
+                className={`p-2.5 rounded bg-[#0A0F16] border text-left transition-all font-mono ${
+                  title === p.defaultTitle
+                    ? 'border-[#22D3EE] bg-[#0D131C]'
+                    : 'border-[#16202E] hover:border-[#1E2C3F]'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
-                <span>{p.name}</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: p.color }}
+                  />
+                  <span className="text-[9px] text-[#64748B] uppercase">{p.badge}</span>
+                </div>
+                <div className="text-xs font-bold text-[#F1F5F9] truncate">{p.name}</div>
               </button>
             ))}
           </div>
-
-          <Link href="/dashboard/announcements/scheduled">
-            <Button variant="outline" size="sm">
-              <Clock className="w-3.5 h-3.5 mr-1.5 text-[#00f0ff]" />
-              <span>Scheduled Queue</span>
-              <ArrowRight className="w-3 h-3 ml-1" />
-            </Button>
-          </Link>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-start justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div>{feedback.message}</div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Form Controls */}
-          <div className="lg:col-span-7 space-y-5">
-            <Card>
-              <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Form and Preview Layout */}
+        <form onSubmit={handleBroadcast} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Column: Form Controls (7 cols) */}
+          <div className="lg:col-span-7 space-y-4">
+            <Card className="bg-[#0A0F16]">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between w-full">
+                  <span className="flex items-center gap-2">
+                    <Megaphone className="w-3.5 h-3.5 text-[#22D3EE]" />
+                    <span>BROADCAST COMPOSER</span>
+                  </span>
+                  <Link
+                    href="/dashboard/announcements/scheduled"
+                    className="text-[11px] font-mono text-[#22D3EE] hover:underline flex items-center gap-1"
+                  >
+                    <span>VIEW QUEUE</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </CardTitle>
+              </CardHeader>
+
+              <div className="space-y-4 font-mono text-xs">
                 {/* Target Channel */}
                 <ChannelSelector
                   channels={channels}
                   selectedChannelId={selectedChannel?.id || ''}
-                  onSelectChannel={(ch) => setSelectedChannel(ch)}
+                  onSelectChannel={setSelectedChannel}
                   isLoading={isLoadingMeta}
                 />
 
-                {/* Announcement Title */}
+                {/* Division & Type */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      ORGANIZATIONAL DIVISION
+                    </label>
+                    <select
+                      value={department}
+                      onChange={(e: any) => setDepartment(e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    >
+                      <option value="GENERAL">KRAXX HQ (General)</option>
+                      <option value="KRAXXSEC">KRAXXSEC (Security)</option>
+                      <option value="KRAXX_STUDIO">KRAXX STUDIO (Creative)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                      DISPATCH TYPE
+                    </label>
+                    <select
+                      value={announcementType}
+                      onChange={(e) => setAnnouncementType(e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    >
+                      <option value="IMPORTANT">IMPORTANT / DIRECT</option>
+                      <option value="SECURITY_ADVISORY">SECURITY ADVISORY</option>
+                      <option value="RELEASE">RELEASE / DEPLOYMENT</option>
+                      <option value="MAINTENANCE">MAINTENANCE</option>
+                      <option value="EMERGENCY">EMERGENCY ALERT</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Title */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#94a3b8] mb-1 uppercase tracking-wider">
-                    Announcement Headline / Title
+                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                    ANNOUNCEMENT HEADLINE
                   </label>
                   <input
                     type="text"
-                    placeholder="Enter broadcast headline..."
+                    required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs font-bold text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                    required
+                    placeholder="Enter broadcast headline..."
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50 font-bold"
                   />
                 </div>
 
-                {/* Message Body */}
+                {/* Content */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#94a3b8] mb-1 uppercase tracking-wider">
-                    Announcement Body (Markdown Supported)
+                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                    BROADCAST BODY (MARKDOWN)
                   </label>
                   <textarea
                     rows={6}
-                    placeholder="Type the full announcement content..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50 leading-relaxed font-sans"
                     required
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Type official broadcast text..."
+                    className="w-full p-3 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50 resize-y leading-relaxed"
                   />
                 </div>
 
                 {/* Banner Image URL */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#94a3b8] mb-1 uppercase tracking-wider">
-                    Optional Banner Image URL
+                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
+                    BANNER IMAGE URL (OPTIONAL)
                   </label>
                   <input
                     type="url"
-                    placeholder="https://cdn.discordapp.com/..."
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                    placeholder="https://..."
+                    value={bannerUrl}
+                    onChange={(e) => setBannerUrl(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50"
                   />
                 </div>
 
-                {/* Mentions & Embed Toggle */}
-                <div className="pt-2 border-t border-[#1e2a38] space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-                      Broadcast Mentions
-                    </span>
-                    <label className="flex items-center gap-1.5 text-xs text-[#94a3b8] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useEmbed}
-                        onChange={(e) => setUseEmbed(e.target.checked)}
-                        className="rounded border-[#1e2a38] text-[#00f0ff]"
-                      />
-                      <span>Format as Rich Embed</span>
-                    </label>
-                  </div>
-
+                {/* Mention Matrix */}
+                <div className="p-3 rounded bg-[#070B10] border border-[#16202E] space-y-2">
+                  <span className="text-[10px] font-bold text-[#64748B] uppercase">
+                    TARGET AUDIENCE MENTION
+                  </span>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {(['NONE', 'EVERYONE', 'HERE', 'ROLE'] as const).map((m) => (
+                    {['NONE', 'HERE', 'EVERYONE', 'ROLE'].map((m) => (
                       <button
                         key={m}
                         type="button"
-                        onClick={() => setMentionType(m)}
-                        className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-all ${
+                        onClick={() => setMentionType(m as any)}
+                        className={`px-2 py-1.5 rounded border text-center transition-all ${
                           mentionType === m
-                            ? m === 'EVERYONE'
-                              ? 'bg-[#ef4444]/20 border-[#ef4444] text-[#ef4444]'
-                              : m === 'HERE'
-                              ? 'bg-[#f59e0b]/20 border-[#f59e0b] text-[#f59e0b]'
-                              : 'bg-[#00f0ff]/10 border-[#00f0ff] text-[#00f0ff]'
-                            : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
+                            ? 'bg-[#111823] border-[#22D3EE] text-[#22D3EE] font-bold'
+                            : 'bg-[#0A0F16] border-[#16202E] text-[#94A3B8] hover:border-[#1E2C3F]'
                         }`}
                       >
-                        {m === 'NONE' ? 'None' : m === 'ROLE' ? '@Role...' : `@${m.toLowerCase()}`}
+                        {m === 'NONE' && 'NO MENTION'}
+                        {m === 'HERE' && '@here'}
+                        {m === 'EVERYONE' && '@everyone'}
+                        {m === 'ROLE' && '@role'}
                       </button>
                     ))}
                   </div>
@@ -405,7 +392,7 @@ export default function AnnouncementCenterPage() {
                     <select
                       value={selectedRoleId}
                       onChange={(e) => setSelectedRoleId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
+                      className="w-full mt-2 p-2 rounded bg-[#0A0F16] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
                     >
                       <option value="">Select target role...</option>
                       {roles.map((r) => (
@@ -417,120 +404,81 @@ export default function AnnouncementCenterPage() {
                   )}
                 </div>
 
-                {/* Mode: Send Now vs Schedule */}
-                <div className="pt-3 border-t border-[#1e2a38] space-y-3">
+                {/* Scheduler Toggle */}
+                <div className="p-3 rounded bg-[#070B10] border border-[#16202E] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-                      Execution Cadence
+                    <span className="text-[10px] font-bold text-[#64748B] uppercase">
+                      AUTOMATED DISPATCH SCHEDULER
                     </span>
-                    <div className="flex items-center gap-2 p-0.5 rounded-lg bg-[#0a0e15] border border-[#1e2a38]">
-                      <button
-                        type="button"
-                        onClick={() => setIsScheduledMode(false)}
-                        className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
-                          !isScheduledMode
-                            ? 'bg-[#00f0ff] text-[#0a0e15]'
-                            : 'text-[#64748b] hover:text-[#e2e8f0]'
-                        }`}
-                      >
-                        Send Now
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsScheduledMode(true)}
-                        className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
-                          isScheduledMode
-                            ? 'bg-[#00f0ff] text-[#0a0e15]'
-                            : 'text-[#64748b] hover:text-[#e2e8f0]'
-                        }`}
-                      >
-                        Schedule
-                      </button>
-                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[#94A3B8]">
+                      <input
+                        type="checkbox"
+                        checked={isScheduled}
+                        onChange={(e) => setIsScheduled(e.target.checked)}
+                        className="accent-[#22D3EE]"
+                      />
+                      <span>Schedule for later</span>
+                    </label>
                   </div>
 
-                  {/* Scheduled Date/Time Picker */}
-                  {isScheduledMode && (
-                    <div className="p-3 rounded-lg bg-[#0a0e15] border border-[#1e2a38] grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-[#94a3b8] mb-1">Target Date</label>
-                        <input
-                          type="date"
-                          value={scheduleDate}
-                          onChange={(e) => setScheduleDate(e.target.value)}
-                          className="w-full px-3 py-1.5 rounded bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                          required={isScheduledMode}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-[#94a3b8] mb-1">Target Time (Local)</label>
-                        <input
-                          type="time"
-                          value={scheduleTime}
-                          onChange={(e) => setScheduleTime(e.target.value)}
-                          className="w-full px-3 py-1.5 rounded bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                          required={isScheduledMode}
-                        />
-                      </div>
-                    </div>
+                  {isScheduled && (
+                    <input
+                      type="datetime-local"
+                      required={isScheduled}
+                      value={scheduledAt}
+                      onChange={(e) => setScheduledAt(e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-[#0A0F16] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    />
                   )}
                 </div>
 
                 {/* Submit Button */}
-                <div className="pt-3 border-t border-[#1e2a38] flex justify-end">
+                <div className="pt-2">
                   <Button
                     type="submit"
                     variant="primary"
                     isLoading={isSubmitting}
+                    disabled={!selectedChannel || !title.trim() || !content.trim()}
+                    className="w-full font-mono font-bold tracking-wider uppercase text-xs py-2.5"
                   >
-                    {isScheduledMode ? (
-                      <>
-                        <Clock className="w-4 h-4 mr-1.5" />
-                        <span>Schedule Broadcast</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-1.5" />
-                        <span>Publish Announcement Now</span>
-                      </>
-                    )}
+                    {isScheduled ? 'QUEUE SCHEDULED BROADCAST' : 'DISPATCH BROADCAST NOW'}
                   </Button>
                 </div>
-              </form>
+              </div>
             </Card>
           </div>
 
-          {/* Right Column: Live Preview */}
+          {/* Right Column: Live Discord Preview (5 cols) */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-                Broadcast Telemetry Preview
-              </span>
-              <Badge variant="brand">{activePreset.badge}</Badge>
-            </div>
+            <Card className="bg-[#0A0F16] sticky top-20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Radio className="w-3.5 h-3.5 text-[#22D3EE]" />
+                  <span>DISCORD BROADCAST PREVIEW</span>
+                </CardTitle>
+              </CardHeader>
 
-            {/* Preview Embed */}
-            {useEmbed && buildEmbedPayload() ? (
-              <DiscordEmbedPreview embed={buildEmbedPayload()!} />
-            ) : (
-              <div className="bg-[#313338] rounded-xl p-4 border border-[#232428] text-xs text-[#dbdee1]">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#00f0ff] p-0.5 flex items-center justify-center font-bold text-[#0a0e15] text-sm flex-shrink-0">
-                    K
-                  </div>
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-semibold text-white text-sm">KRAXX Bot</span>
-                      <span className="bg-[#5865f2] text-white text-[9px] font-bold px-1.5 py-0.2 rounded uppercase">APP</span>
-                    </div>
-                    <div className="font-bold text-[#e2e8f0] text-sm">{title}</div>
-                    <div className="text-[#dbdee1] whitespace-pre-wrap leading-relaxed">{message}</div>
-                  </div>
+              <div className="p-1 space-y-2">
+                <div className="text-[10px] font-mono text-[#64748B] uppercase">
+                  Target: {selectedChannel ? `#${selectedChannel.name}` : 'No Channel Selected'}
                 </div>
+
+                {mentionType === 'EVERYONE' && (
+                  <div className="text-xs font-mono text-[#EF4444] bg-red-950/20 px-2 py-1 rounded border border-red-500/20">
+                    @everyone
+                  </div>
+                )}
+                {mentionType === 'HERE' && (
+                  <div className="text-xs font-mono text-[#F59E0B] bg-amber-950/20 px-2 py-1 rounded border border-amber-500/20">
+                    @here
+                  </div>
+                )}
+
+                <DiscordEmbedPreview embed={currentEmbed} />
               </div>
-            )}
+            </Card>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

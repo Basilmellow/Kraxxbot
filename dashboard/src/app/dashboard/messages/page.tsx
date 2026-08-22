@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   RefreshCw,
-  Search,
+  Terminal,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function MessageCenterPage() {
@@ -94,25 +95,22 @@ export default function MessageCenterPage() {
       if (res.ok) {
         const data = await res.json();
         setContent(data.message.content || '');
-        setFeedback({ type: 'success', message: 'Message loaded from Discord successfully.' });
+        setFeedback({ type: 'success', message: 'Message loaded from Discord gateway successfully.' });
       } else {
         const err = await res.json();
-        setFeedback({ type: 'error', message: err.error || 'Message not found' });
+        setFeedback({ type: 'error', message: err.error || 'Message not found in channel.' });
       }
-    } catch (e) {
-      setFeedback({ type: 'error', message: 'Failed to retrieve message' });
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: 'Failed to connect to Discord gateway.' });
     } finally {
       setIsLoadingMessage(false);
     }
   };
 
-  // Submit Handler
+  // Submit action
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedChannel) {
-      setFeedback({ type: 'error', message: 'Please select a target Discord channel.' });
-      return;
-    }
+    if (!selectedChannel) return;
 
     setFeedback(null);
     setIsSubmitting(true);
@@ -125,446 +123,402 @@ export default function MessageCenterPage() {
           body: JSON.stringify({
             channelId: selectedChannel.id,
             content,
-            mentionType,
+            mentionType: mentionType !== 'NONE' ? mentionType : undefined,
             mentionRoleId: mentionType === 'ROLE' ? selectedRoleId : undefined,
           }),
         });
 
         const data = await res.json();
-        if (res.ok) {
-          setFeedback({
-            type: 'success',
-            message: `Message dispatched successfully to #${selectedChannel.name}!`,
-            messageId: data.messageId,
-          });
-          setContent('');
-        } else {
-          setFeedback({ type: 'error', message: data.error || 'Failed to dispatch message' });
-        }
-      } else if (mode === 'edit') {
-        if (!targetMessageId.trim()) {
-          setFeedback({ type: 'error', message: 'Message ID is required for editing.' });
-          setIsSubmitting(false);
-          return;
-        }
+        if (!res.ok) throw new Error(data.error || 'Failed to dispatch message.');
 
+        setFeedback({
+          type: 'success',
+          message: `Dispatched to #${selectedChannel.name} successfully.`,
+          messageId: data.messageId,
+        });
+        setContent('');
+      } else if (mode === 'edit') {
         const res = await fetch(`/api/messages/${targetMessageId.trim()}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             channelId: selectedChannel.id,
             content,
-            mentionType,
+            mentionType: mentionType !== 'NONE' ? mentionType : undefined,
             mentionRoleId: mentionType === 'ROLE' ? selectedRoleId : undefined,
           }),
         });
 
         const data = await res.json();
-        if (res.ok) {
-          setFeedback({
-            type: 'success',
-            message: `Message ${targetMessageId} updated successfully in #${selectedChannel.name}!`,
-            messageId: targetMessageId,
-          });
-        } else {
-          setFeedback({ type: 'error', message: data.error || 'Failed to edit message' });
-        }
-      } else if (mode === 'delete') {
-        if (!targetMessageId.trim()) {
-          setFeedback({ type: 'error', message: 'Message ID is required for deletion.' });
-          setIsSubmitting(false);
-          return;
-        }
+        if (!res.ok) throw new Error(data.error || 'Failed to update message.');
 
+        setFeedback({
+          type: 'success',
+          message: `Message #${targetMessageId} modified in #${selectedChannel.name}.`,
+        });
+      } else if (mode === 'delete') {
         const res = await fetch(`/api/messages/${targetMessageId.trim()}?channelId=${selectedChannel.id}`, {
           method: 'DELETE',
         });
 
         const data = await res.json();
-        if (res.ok) {
-          setFeedback({
-            type: 'success',
-            message: `Message ${targetMessageId} deleted successfully from #${selectedChannel.name}.`,
-          });
-          setTargetMessageId('');
-          setContent('');
-        } else {
-          setFeedback({ type: 'error', message: data.error || 'Failed to delete message' });
-        }
+        if (!res.ok) throw new Error(data.error || 'Failed to delete message.');
+
+        setFeedback({
+          type: 'success',
+          message: `Message purged from #${selectedChannel.name}.`,
+        });
+        setTargetMessageId('');
       }
     } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Network error executing operation' });
+      setFeedback({ type: 'error', message: err.message || 'Operation failed.' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Compute preview content with mentions
-  let previewText = content;
-  if (mentionType === 'EVERYONE') {
-    previewText = `@everyone\n${content}`;
-  } else if (mentionType === 'HERE') {
-    previewText = `@here\n${content}`;
-  } else if (mentionType === 'ROLE' && selectedRoleId) {
-    const role = roles.find((r) => r.id === selectedRoleId);
-    previewText = `@${role?.name || 'role'}\n${content}`;
-  }
-
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Message Center"
-        subtitle="Compose, Edit & Purge Discord Communication"
+        title="MESSAGE CENTER"
+        subtitle="Direct Discord Channel Messaging & Content Operations"
       />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-6xl w-full mx-auto space-y-5">
         {/* Mode Selector Tabs */}
-        <div className="flex items-center gap-2 p-1.5 rounded-xl bg-[#0f1318] border border-[#1e2a38] w-fit">
+        <div className="flex items-center gap-1.5 p-1 rounded bg-[#0A0F16] border border-[#16202E] w-fit font-mono text-xs">
           <button
             type="button"
             onClick={() => { setMode('send'); setFeedback(null); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all ${
               mode === 'send'
-                ? 'bg-[#00f0ff] text-[#0a0e15] shadow-[0_0_12px_rgba(0,240,255,0.3)]'
-                : 'text-[#94a3b8] hover:text-[#e2e8f0]'
+                ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                : 'text-[#94A3B8] hover:text-[#F1F5F9]'
             }`}
           >
             <Send className="w-3.5 h-3.5" />
-            <span>Send New Message</span>
+            <span>DISPATCH MESSAGE</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setMode('edit'); setFeedback(null); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all ${
               mode === 'edit'
-                ? 'bg-[#00f0ff] text-[#0a0e15] shadow-[0_0_12px_rgba(0,240,255,0.3)]'
-                : 'text-[#94a3b8] hover:text-[#e2e8f0]'
+                ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
+                : 'text-[#94A3B8] hover:text-[#F1F5F9]'
             }`}
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>Edit Bot Message</span>
+            <span>EDIT MESSAGE</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setMode('delete'); setFeedback(null); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all ${
               mode === 'delete'
-                ? 'bg-[#ef4444] text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]'
-                : 'text-[#94a3b8] hover:text-[#ef4444]'
+                ? 'bg-[#EF4444]/10 text-[#EF4444] font-semibold border border-[#EF4444]/30'
+                : 'text-[#94A3B8] hover:text-[#EF4444]'
             }`}
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete Message</span>
+            <span>DELETE MESSAGE</span>
           </button>
         </div>
 
-        {/* Feedback Alert Banner */}
+        {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-start justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
               feedback.type === 'success'
-                ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
-                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                ? 'border-[#10B981]/40 text-[#10B981]'
+                : 'border-[#EF4444]/40 text-[#EF4444]'
             }`}
           >
-            <div className="flex items-center gap-2.5">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            )}
+            <div className="flex-1">
+              <div>{feedback.message}</div>
+              {feedback.messageId && (
+                <div className="text-[10px] text-[#64748B] mt-0.5">
+                  MESSAGE ID: {feedback.messageId}
+                </div>
               )}
-              <div>
-                <span className="font-semibold">{feedback.message}</span>
-                {feedback.messageId && (
-                  <span className="ml-2 font-mono text-[11px] text-[#94a3b8] bg-[#0a0e15] px-1.5 py-0.5 rounded border border-[#1e2a38]">
-                    ID: {feedback.messageId}
-                  </span>
-                )}
-              </div>
             </div>
-            <button onClick={() => setFeedback(null)} className="text-current opacity-70 hover:opacity-100 font-bold">
-              ×
-            </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Form Controls */}
-          <div className="lg:col-span-7 space-y-5">
-            <Card>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Channel Selector */}
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Main Controls Column */}
+          <div className="lg:col-span-2 space-y-4">
+            <Card className="bg-[#0A0F16]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Terminal className="w-3.5 h-3.5 text-[#22D3EE]" />
+                  <span>
+                    {mode === 'send' && 'DISPATCH MESSAGE CONSOLE'}
+                    {mode === 'edit' && 'EDIT BOT MESSAGE CONSOLE'}
+                    {mode === 'delete' && 'PURGE MESSAGE CONSOLE'}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+
+              <div className="space-y-4">
+                {/* Target Channel */}
                 <ChannelSelector
                   channels={channels}
                   selectedChannelId={selectedChannel?.id || ''}
-                  onSelectChannel={(ch) => setSelectedChannel(ch)}
+                  onSelectChannel={setSelectedChannel}
                   isLoading={isLoadingMeta}
                 />
 
-                {/* Target Message ID (Only in Edit & Delete Mode) */}
-                {(mode === 'edit' || mode === 'delete') && (
+                {/* Target Message ID for Edit/Delete */}
+                {mode !== 'send' && (
                   <div>
-                    <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wider">
-                      Target Discord Message ID
+                    <label className="block text-[11px] font-mono font-semibold text-[#94A3B8] mb-1.5 uppercase tracking-wider">
+                      TARGET DISCORD MESSAGE ID
                     </label>
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        placeholder="e.g. 123456789012345678"
+                        placeholder="e.g. 1198765432109876543"
                         value={targetMessageId}
                         onChange={(e) => setTargetMessageId(e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] font-mono focus:outline-none focus:border-[#00f0ff]/50"
+                        className="flex-1 px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs font-mono text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50"
                         required
                       />
                       {mode === 'edit' && (
                         <Button
                           type="button"
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={handleLoadMessage}
-                          isLoading={isLoadingMessage}
+                          disabled={isLoadingMessage || !targetMessageId.trim() || !selectedChannel}
+                          className="font-mono text-xs"
                         >
-                          <RefreshCw className="w-3.5 h-3.5 mr-1" />
-                          <span>Load</span>
+                          {isLoadingMessage ? (
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                          ) : (
+                            'LOAD'
+                          )}
                         </Button>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* Mentions Controller (Only in Send & Edit Mode) */}
+                {/* Message Content (for Send and Edit) */}
                 {mode !== 'delete' && (
-                  <div className="space-y-2 pt-1 border-t border-[#1e2a38]">
-                    <label className="block text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-                      Broadcast Mention Level
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setMentionType('NONE')}
-                        className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-all ${
-                          mentionType === 'NONE'
-                            ? 'bg-[#00f0ff]/10 border-[#00f0ff] text-[#00f0ff]'
-                            : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#e2e8f0]'
-                        }`}
-                      >
-                        None
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMentionType('EVERYONE')}
-                        className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-all ${
-                          mentionType === 'EVERYONE'
-                            ? 'bg-[#ef4444]/20 border-[#ef4444] text-[#ef4444]'
-                            : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#ef4444]'
-                        }`}
-                      >
-                        @everyone
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMentionType('HERE')}
-                        className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-all ${
-                          mentionType === 'HERE'
-                            ? 'bg-[#f59e0b]/20 border-[#f59e0b] text-[#f59e0b]'
-                            : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#f59e0b]'
-                        }`}
-                      >
-                        @here
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMentionType('ROLE')}
-                        className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-all ${
-                          mentionType === 'ROLE'
-                            ? 'bg-[#6366f1]/20 border-[#6366f1] text-[#6366f1]'
-                            : 'bg-[#0f1318] border-[#1e2a38] text-[#94a3b8] hover:text-[#6366f1]'
-                        }`}
-                      >
-                        @Role...
-                      </button>
-                    </div>
-
-                    {mentionType === 'ROLE' && (
-                      <div className="pt-2">
-                        <select
-                          value={selectedRoleId}
-                          onChange={(e) => setSelectedRoleId(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-[#0f1318] border border-[#1e2a38] text-xs text-[#e2e8f0] focus:outline-none focus:border-[#00f0ff]/50"
-                        >
-                          <option value="">Select a target role...</option>
-                          {roles.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              @{r.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Markdown Formatting Toolbar & Text Area (Only in Send & Edit Mode) */}
-                {mode !== 'delete' && (
-                  <div className="space-y-2 pt-1 border-t border-[#1e2a38]">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-                        Message Content
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-mono font-semibold text-[#94A3B8] uppercase tracking-wider">
+                        RAW CONTENT / PAYLOAD
                       </label>
-                      {/* Character Counter */}
-                      <span
-                        className={`text-[11px] font-mono ${
-                          content.length > 2000 ? 'text-[#ef4444] font-bold' : 'text-[#64748b]'
-                        }`}
-                      >
-                        {content.length} / 2000
+                      <span className="text-[10px] font-mono text-[#64748B]">
+                        {content.length} / 2000 CHARS
                       </span>
                     </div>
 
-                    {/* Markdown Formatting Toolbar */}
-                    <div className="flex items-center gap-1 p-1 bg-[#0f1318] rounded-t-lg border border-[#1e2a38] border-b-0 flex-wrap">
+                    {/* Markdown Toolbar */}
+                    <div className="flex items-center gap-1 p-1 bg-[#070B10] border-t border-x border-[#16202E] rounded-t text-[#94A3B8]">
                       <button
                         type="button"
                         onClick={() => insertFormatting('**', '**')}
+                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
                         title="Bold (**text**)"
-                        className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#e2e8f0]"
                       >
-                        <Bold className="w-3.5 h-3.5" />
+                        <Bold className="w-3 h-3" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('*', '*')}
+                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
                         title="Italic (*text*)"
-                        className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#e2e8f0]"
                       >
-                        <Italic className="w-3.5 h-3.5" />
+                        <Italic className="w-3 h-3" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('`', '`')}
+                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
                         title="Inline Code (`code`)"
-                        className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#e2e8f0]"
                       >
-                        <Code className="w-3.5 h-3.5" />
+                        <Code className="w-3 h-3" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('```\n', '\n```')}
-                        title="Code Block (```lang\ncode\n```)"
-                        className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#e2e8f0]"
+                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
+                        title="Code Block (```block```)"
                       >
-                        <FileCode className="w-3.5 h-3.5" />
+                        <FileCode className="w-3 h-3" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('> ')}
+                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
                         title="Quote (> quote)"
-                        className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#e2e8f0]"
                       >
-                        <Quote className="w-3.5 h-3.5" />
+                        <Quote className="w-3 h-3" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('[', '](https://)')}
-                        title="Markdown Link"
-                        className="p-1.5 rounded hover:bg-[#141a22] text-[#94a3b8] hover:text-[#e2e8f0]"
+                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
+                        title="Link ([text](url))"
                       >
-                        <LinkIcon className="w-3.5 h-3.5" />
+                        <LinkIcon className="w-3 h-3" />
                       </button>
                     </div>
 
-                    {/* Textarea */}
                     <textarea
                       id="message-composer"
-                      rows={8}
-                      placeholder="Type your message with Discord Markdown or use formatting buttons above..."
+                      rows={6}
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-b-lg bg-[#0a0e15] border border-[#1e2a38] text-xs text-[#e2e8f0] font-sans placeholder-[#64748b] focus:outline-none focus:border-[#00f0ff]/50 leading-relaxed"
+                      placeholder="Type your markdown-formatted message here..."
+                      className="w-full p-3 rounded-b bg-[#070B10] border border-[#16202E] text-xs font-mono text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
+                      maxLength={2000}
                     />
                   </div>
                 )}
 
-                {/* Submit CTA */}
-                <div className="pt-3 border-t border-[#1e2a38] flex items-center justify-end gap-3">
+                {/* Submit Action */}
+                <div className="pt-2">
                   <Button
                     type="submit"
                     variant={mode === 'delete' ? 'danger' : 'primary'}
                     isLoading={isSubmitting}
                     disabled={
+                      !selectedChannel ||
                       (mode !== 'delete' && !content.trim()) ||
-                      ((mode === 'edit' || mode === 'delete') && !targetMessageId.trim())
+                      (mode !== 'send' && !targetMessageId.trim())
                     }
+                    className="w-full font-mono font-bold tracking-wider uppercase text-xs py-2.5"
                   >
-                    {mode === 'send' && <Send className="w-4 h-4 mr-1.5" />}
-                    {mode === 'edit' && <Edit3 className="w-4 h-4 mr-1.5" />}
-                    {mode === 'delete' && <Trash2 className="w-4 h-4 mr-1.5" />}
-                    <span>
-                      {mode === 'send' && 'Dispatch Message'}
-                      {mode === 'edit' && 'Update Message'}
-                      {mode === 'delete' && 'Delete Message'}
-                    </span>
+                    {mode === 'send' && 'DISPATCH TO DISCORD'}
+                    {mode === 'edit' && 'OVERWRITE DISCORD MESSAGE'}
+                    {mode === 'delete' && 'PURGE MESSAGE PERMANENTLY'}
                   </Button>
                 </div>
-              </form>
+              </div>
             </Card>
           </div>
 
-          {/* Right Column: Live Discord Preview */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
-                Live Client Preview
-              </span>
-              <span className="text-[11px] text-[#64748b] font-mono">
-                {selectedChannel ? `#${selectedChannel.name}` : 'No channel selected'}
-              </span>
-            </div>
+          {/* Right Parameters Column */}
+          <div className="space-y-4">
+            {/* Mention Matrix */}
+            {mode !== 'delete' && (
+              <Card className="bg-[#0A0F16]">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AtSign className="w-3.5 h-3.5 text-[#22D3EE]" />
+                    <span>BROADCAST MENTION MATRIX</span>
+                  </CardTitle>
+                </CardHeader>
 
-            {/* Discord Styled Message Bubble */}
-            <div className="bg-[#313338] rounded-xl p-4 border border-[#232428] text-xs text-[#dbdee1] shadow-xl">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#00f0ff] p-0.5 flex items-center justify-center font-bold text-[#0a0e15] text-sm flex-shrink-0">
-                  K
+                <div className="space-y-2.5 font-mono text-xs">
+                  <label className="flex items-center gap-2.5 p-2 rounded bg-[#070B10] border border-[#16202E] cursor-pointer hover:border-[#1E2C3F]">
+                    <input
+                      type="radio"
+                      name="mention"
+                      value="NONE"
+                      checked={mentionType === 'NONE'}
+                      onChange={() => setMentionType('NONE')}
+                      className="accent-[#22D3EE]"
+                    />
+                    <span className="text-[#F1F5F9]">NO MENTION</span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2 rounded bg-[#070B10] border border-[#16202E] cursor-pointer hover:border-[#1E2C3F]">
+                    <input
+                      type="radio"
+                      name="mention"
+                      value="EVERYONE"
+                      checked={mentionType === 'EVERYONE'}
+                      onChange={() => setMentionType('EVERYONE')}
+                      className="accent-[#22D3EE]"
+                    />
+                    <div className="flex items-center justify-between flex-1">
+                      <span className="text-[#F1F5F9]">@everyone</span>
+                      <Badge variant="danger">MASS</Badge>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2 rounded bg-[#070B10] border border-[#16202E] cursor-pointer hover:border-[#1E2C3F]">
+                    <input
+                      type="radio"
+                      name="mention"
+                      value="HERE"
+                      checked={mentionType === 'HERE'}
+                      onChange={() => setMentionType('HERE')}
+                      className="accent-[#22D3EE]"
+                    />
+                    <div className="flex items-center justify-between flex-1">
+                      <span className="text-[#F1F5F9]">@here</span>
+                      <Badge variant="warning">ONLINE</Badge>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2 rounded bg-[#070B10] border border-[#16202E] cursor-pointer hover:border-[#1E2C3F]">
+                    <input
+                      type="radio"
+                      name="mention"
+                      value="ROLE"
+                      checked={mentionType === 'ROLE'}
+                      onChange={() => setMentionType('ROLE')}
+                      className="accent-[#22D3EE]"
+                    />
+                    <span className="text-[#F1F5F9]">ROLE TARGET</span>
+                  </label>
+
+                  {mentionType === 'ROLE' && (
+                    <select
+                      value={selectedRoleId}
+                      onChange={(e) => setSelectedRoleId(e.target.value)}
+                      className="w-full mt-2 p-2 rounded bg-[#070B10] border border-[#16202E] text-xs font-mono text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    >
+                      <option value="">Select target Discord role...</option>
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          @{r.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-semibold text-white text-sm">KRAXX Bot</span>
-                    <span className="bg-[#5865f2] text-white text-[9px] font-bold px-1.5 py-0.2 rounded uppercase">
-                      APP
-                    </span>
-                    <span className="text-[10px] text-[#949ba4]">Today at {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
+              </Card>
+            )}
 
-                  {/* Message Content */}
-                  <div className="text-[#dbdee1] whitespace-pre-wrap leading-relaxed pt-0.5 font-sans">
-                    {previewText ? (
-                      previewText
-                    ) : (
-                      <span className="italic text-[#64748b]">Message preview will appear here in real-time...</span>
-                    )}
-                  </div>
+            {/* Operational Guidelines Card */}
+            <Card className="bg-[#0A0F16]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldAlert className="w-3.5 h-3.5 text-[#22D3EE]" />
+                  <span>SECURITY & PROTOCOLS</span>
+                </CardTitle>
+              </CardHeader>
+              <div className="space-y-2 text-[11px] font-mono text-[#94A3B8] leading-relaxed">
+                <div className="flex items-start gap-2">
+                  <span className="text-[#22D3EE] font-bold">1.</span>
+                  <span>All dispatched messages are permanently logged to the KRAXX Audit database.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-[#22D3EE] font-bold">2.</span>
+                  <span>Mass mentions (@everyone/@here) require Management Head clearance.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-[#22D3EE] font-bold">3.</span>
+                  <span>Message deletion requires confirmation and cannot be undone.</span>
                 </div>
               </div>
-            </div>
-
-            {/* Guide Card */}
-            <Card className="p-4 bg-[#0f1318]/60">
-              <h4 className="text-xs font-bold text-[#e2e8f0] mb-2 flex items-center gap-1.5">
-                <AtSign className="w-3.5 h-3.5 text-[#00f0ff]" />
-                <span>Operational Mentions Guide</span>
-              </h4>
-              <ul className="space-y-1.5 text-[11px] text-[#94a3b8] leading-normal">
-                <li>• <strong className="text-[#ef4444]">@everyone</strong> pings all members in guild (Management Head+).</li>
-                <li>• <strong className="text-[#f59e0b]">@here</strong> pings only currently online members.</li>
-                <li>• <strong className="text-[#6366f1]">@Role</strong> pings target division or team group.</li>
-                <li>• All actions are permanently recorded in the security audit trail.</li>
-              </ul>
             </Card>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

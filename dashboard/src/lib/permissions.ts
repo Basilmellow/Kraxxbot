@@ -2,6 +2,16 @@ import { RoleTier } from './constants';
 
 export { RoleTier } from './constants';
 
+// Minimum clearance tier permitted to access any KRAXX HQ dashboard route or API
+export const DASHBOARD_MIN_TIER = RoleTier.MANAGEMENT_HEAD; // 80
+
+// Only these three tiers have access to KRAXX HQ Operations Dashboard
+export const ALLOWED_DASHBOARD_TIERS: readonly RoleTier[] = [
+  RoleTier.FOUNDER,         // 100
+  RoleTier.COFOUNDER,       // 90
+  RoleTier.MANAGEMENT_HEAD, // 80
+] as const;
+
 // Role ID → RoleTier mapping (populated from env vars at runtime)
 const ROLE_TIER_MAP: Record<string, RoleTier> = {};
 
@@ -59,6 +69,15 @@ export function getRoleTierName(tier: RoleTier): string {
 }
 
 /**
+ * Checks if the user is authorized to access the KRAXX Operations Dashboard.
+ * Strictly limited to FOUNDER, COFOUNDER, and MANAGEMENT_HEAD.
+ */
+export function isDashboardAuthorized(tier?: RoleTier | number): boolean {
+  if (tier === undefined || tier === null) return false;
+  return tier >= RoleTier.MANAGEMENT_HEAD;
+}
+
+/**
  * Checks if the given tier meets the minimum required tier.
  */
 export function hasMinimumTier(userTier: RoleTier, requiredTier: RoleTier): boolean {
@@ -66,17 +85,10 @@ export function hasMinimumTier(userTier: RoleTier, requiredTier: RoleTier): bool
 }
 
 /**
- * Checks if the user is at least Management Head (can access admin features).
+ * Checks if the user is at least Management Head.
  */
 export function isManagement(tier: RoleTier): boolean {
   return tier >= RoleTier.MANAGEMENT_HEAD;
-}
-
-/**
- * Checks if the user is at least Team Lead (can access operational features).
- */
-export function isOperator(tier: RoleTier): boolean {
-  return tier >= RoleTier.TEAM_LEAD;
 }
 
 /**
@@ -95,31 +107,45 @@ export type PermissionCheck = {
 
 /**
  * Server-side permission gate for API routes.
- * Accepts Session, user object, or RoleTier.
+ * Enforces both Discord Guild membership AND strict Role Tier verification (Min: MANAGEMENT_HEAD).
  */
 export function requireTier(
   sessionOrTier: any,
-  requiredTier: RoleTier
+  requiredTier: RoleTier = RoleTier.MANAGEMENT_HEAD
 ): PermissionCheck {
   let userTier: RoleTier | undefined = undefined;
+  let isMember: boolean | undefined = undefined;
 
   if (typeof sessionOrTier === 'number') {
     userTier = sessionOrTier;
   } else if (sessionOrTier && typeof sessionOrTier === 'object') {
     userTier = sessionOrTier.user?.roleTier ?? sessionOrTier.roleTier;
+    isMember = sessionOrTier.user?.isMember ?? sessionOrTier.isMember;
   }
 
   if (userTier === undefined) {
     return {
       authorized: false,
-      reason: 'No session found. Please log in.',
+      reason: 'No authenticated session found. Please log in with Discord.',
       error: 'Unauthorized: Session missing or expired',
       status: 401,
     };
   }
 
-  if (userTier < requiredTier) {
-    const reason = `Insufficient permissions. Required: ${getRoleTierName(requiredTier)}, your tier: ${getRoleTierName(userTier)}.`;
+  if (isMember === false) {
+    return {
+      authorized: false,
+      reason: 'Access Denied: Discord account is not a verified member of KRAXX HQ guild.',
+      error: 'Forbidden: Guild membership required',
+      status: 403,
+    };
+  }
+
+  // Dashboard minimum requirement is always at least MANAGEMENT_HEAD
+  const effectiveMinTier = Math.max(requiredTier, RoleTier.MANAGEMENT_HEAD);
+
+  if (userTier < effectiveMinTier) {
+    const reason = `Access Denied. Operations Dashboard is strictly restricted to Founder, Co-Founder, and Management Head. (Required: ${getRoleTierName(effectiveMinTier)}, Your Tier: ${getRoleTierName(userTier)}).`;
     return {
       authorized: false,
       reason,
@@ -132,14 +158,21 @@ export function requireTier(
 }
 
 /**
- * Phase 2 Communication Permissions
+ * Quick helper for general dashboard route protection.
+ */
+export function requireDashboardAccess(session: any): PermissionCheck {
+  return requireTier(session, RoleTier.MANAGEMENT_HEAD);
+}
+
+/**
+ * Action-specific permissions for Management/Founder
  */
 export function canSendMessages(tier?: RoleTier): boolean {
-  return tier !== undefined && tier >= RoleTier.TEAM_LEAD;
+  return tier !== undefined && tier >= RoleTier.MANAGEMENT_HEAD;
 }
 
 export function canEditMessages(tier?: RoleTier): boolean {
-  return tier !== undefined && tier >= RoleTier.TEAM_LEAD;
+  return tier !== undefined && tier >= RoleTier.MANAGEMENT_HEAD;
 }
 
 export function canDeleteMessages(tier?: RoleTier): boolean {
@@ -151,9 +184,9 @@ export function canMentionMass(tier?: RoleTier): boolean {
 }
 
 export function canManageTemplates(tier?: RoleTier): boolean {
-  return tier !== undefined && tier >= RoleTier.TEAM_LEAD;
+  return tier !== undefined && tier >= RoleTier.MANAGEMENT_HEAD;
 }
 
 export function canScheduleAnnouncements(tier?: RoleTier): boolean {
-  return tier !== undefined && tier >= RoleTier.TEAM_LEAD;
+  return tier !== undefined && tier >= RoleTier.MANAGEMENT_HEAD;
 }
