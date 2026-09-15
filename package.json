@@ -12,6 +12,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "deploy:commands": "ts-node scripts/deploy-commands.ts",
+    "deploy:commands:dev": "ts-node scripts/deploy-commands.ts --dev",
     "validate:config": "ts-node scripts/validate-config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

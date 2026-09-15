@@ -7,6 +7,8 @@ import { onReady } from './events/ready';
 import { onInteractionCreate } from './events/interactionCreate';
 import { onGuildMemberAdd } from './events/guildMemberAdd';
 import { onGuildMemberRemove } from './events/guildMemberRemove';
+import { onGuildCreate } from './events/guildCreate';
+import { onGuildDelete } from './events/guildDelete';
 
 // Command imports
 import roleCommand from './commands/admin/role';
@@ -80,6 +82,8 @@ async function bootstrap() {
   client.on('interactionCreate', interaction => onInteractionCreate(interaction, commandMap));
   client.on('guildMemberAdd', member => onGuildMemberAdd(member));
   client.on('guildMemberRemove', member => onGuildMemberRemove(member));
+  client.on('guildCreate', guild => onGuildCreate(guild));
+  client.on('guildDelete', guild => onGuildDelete(guild));
 
   // 5. Connect Gateway
   if (env.DISCORD_TOKEN === 'your_discord_bot_token_here' || !env.DISCORD_TOKEN) {

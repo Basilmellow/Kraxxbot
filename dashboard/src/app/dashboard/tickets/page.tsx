@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/Skeleton';
+import { Modal } from '@/components/ui/Modal';
 import {
   Ticket as TicketIcon,
   Search,
@@ -43,12 +44,12 @@ interface TicketItem {
 }
 
 const VIEWS = [
-  { id: 'ALL', label: 'ALL TICKETS' },
-  { id: 'OPEN', label: 'OPEN' },
-  { id: 'CLAIMED', label: 'CLAIMED' },
-  { id: 'CLOSED', label: 'CLOSED' },
-  { id: 'MY_TICKETS', label: 'MY TICKETS' },
-  { id: 'UNASSIGNED', label: 'UNASSIGNED' },
+  { id: 'ALL', label: 'All Tickets' },
+  { id: 'OPEN', label: 'Open' },
+  { id: 'CLAIMED', label: 'Claimed' },
+  { id: 'CLOSED', label: 'Closed' },
+  { id: 'MY_TICKETS', label: 'My Tickets' },
+  { id: 'UNASSIGNED', label: 'Unassigned' },
 ];
 
 export default function TicketsPage() {
@@ -138,24 +139,24 @@ export default function TicketsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="SUPPORT DISPATCH & TICKET OPS"
-        subtitle="Operations Desk, Live Discord Channel Inquiries & Resolution Telemetry"
+        title="Support & Ticket Operations"
+        subtitle="Operations Desk, Live Discord Inquiries & Resolution Management"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
         {/* Filter View Bar & Search */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 font-mono text-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* View Tabs */}
-          <div className="flex flex-wrap items-center gap-1 p-1 rounded bg-[#0A0F16] border border-[#16202E]">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
             {VIEWS.map((v) => (
               <button
                 key={v.id}
                 type="button"
                 onClick={() => setActiveView(v.id)}
-                className={`px-2.5 py-1 rounded transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   activeView === v.id
-                    ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
-                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
+                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
                 }`}
               >
                 {v.label}
@@ -164,22 +165,22 @@ export default function TicketsPage() {
           </div>
 
           {/* Search & Category Filter */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <div className="relative">
-              <Search className="w-3 h-3 text-[#64748B] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-[#667085] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search ticket # / opener..."
+                placeholder="Search ticket # or opener..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-7 pr-3 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50"
+                className="pl-8.5 pr-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs w-48 sm:w-60"
               />
             </div>
 
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+              className="px-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
             >
               <option value="">All Categories</option>
               <option value="GENERAL">General</option>
@@ -193,29 +194,29 @@ export default function TicketsPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
         {/* Ticket List Card */}
-        <Card className="bg-[#0A0F16] overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TicketIcon className="w-3.5 h-3.5 text-[#22D3EE]" />
-              <span>DISPATCH TELEMETRY DESK ({tickets.length})</span>
-            </CardTitle>
-          </CardHeader>
+        <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
+          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
+              <TicketIcon className="w-4 h-4 text-indigo-600" />
+              <span>Support Inquiries ({tickets.length})</span>
+            </h3>
+          </div>
 
           {isLoading ? (
             <div className="p-4">
@@ -225,58 +226,58 @@ export default function TicketsPage() {
             <div className="p-8">
               <EmptyState
                 icon={TicketIcon}
-                title="NO TICKETS MATCHING PARAMETERS"
+                title="No tickets matching parameters"
                 description="No active Discord tickets found in the queue matching current view parameters."
               />
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-mono text-xs border-collapse">
+              <table className="kraxx-table">
                 <thead>
-                  <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
-                    <th className="py-2.5 px-4 font-semibold">TICKET ID</th>
-                    <th className="py-2.5 px-4 font-semibold">STATUS</th>
-                    <th className="py-2.5 px-4 font-semibold">CATEGORY</th>
-                    <th className="py-2.5 px-4 font-semibold">SUBJECT / ISSUE</th>
-                    <th className="py-2.5 px-4 font-semibold">OPENER</th>
-                    <th className="py-2.5 px-4 font-semibold">ASSIGNED TO</th>
-                    <th className="py-2.5 px-4 font-semibold text-right">ACTIONS</th>
+                  <tr>
+                    <th>Ticket ID</th>
+                    <th>Status</th>
+                    <th>Category</th>
+                    <th>Subject / Issue</th>
+                    <th>Opener</th>
+                    <th>Assigned To</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#16202E]">
+                <tbody>
                   {tickets.map((t) => (
-                    <tr key={t.id} className="hover:bg-[#0D131C] transition-colors">
-                      <td className="py-3 px-4 font-bold text-[#22D3EE]">
+                    <tr key={t.id}>
+                      <td className="font-semibold text-indigo-600 font-mono">
                         #{t.ticketNumber}
                       </td>
-                      <td className="py-3 px-4">{getStatusBadge(t.status)}</td>
-                      <td className="py-3 px-4">
-                        <span className="text-[10px] text-[#64748B] bg-[#070B10] px-2 py-0.5 rounded border border-[#16202E]">
+                      <td>{getStatusBadge(t.status)}</td>
+                      <td>
+                        <span className="text-[11px] text-[#475467] bg-[#F3F5FA] px-2 py-0.5 rounded-md border border-[#E5E7EB]">
                           {t.category}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-[#F1F5F9] font-medium max-w-xs truncate">
+                      <td className="text-[#101828] font-medium max-w-xs truncate">
                         {t.subject}
                       </td>
-                      <td className="py-3 px-4 text-[#94A3B8]">
+                      <td className="text-[#475467]">
                         {t.openerName}
                       </td>
-                      <td className="py-3 px-4 text-[#94A3B8]">
+                      <td className="text-[#475467]">
                         {t.claimerName ? (
-                          <span className="text-[#10B981]">@{t.claimerName}</span>
+                          <span className="text-emerald-600 font-medium">@{t.claimerName}</span>
                         ) : (
-                          <span className="text-[#64748B]">UNASSIGNED</span>
+                          <span className="text-[#98A2B3]">Unassigned</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => setInspectTicket(t)}
-                            className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#94A3B8] hover:text-[#22D3EE] hover:border-[#22D3EE]/30 transition-colors"
+                            className="p-1.5 rounded-lg text-[#667085] hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                             title="Inspect Details"
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <Eye className="w-4 h-4" />
                           </button>
 
                           {t.status === 'OPEN' && (
@@ -284,9 +285,9 @@ export default function TicketsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleTicketAction(t.id, 'CLAIM')}
-                              className="font-mono text-[10px] py-0.5 px-2"
+                              className="text-xs py-1 px-2.5"
                             >
-                              CLAIM
+                              Claim
                             </Button>
                           )}
 
@@ -295,20 +296,9 @@ export default function TicketsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleTicketAction(t.id, 'CLOSE')}
-                              className="font-mono text-[10px] py-0.5 px-2 text-[#EF4444] border-red-900/30"
+                              className="text-xs py-1 px-2.5 text-red-600 border-red-200 hover:bg-red-50"
                             >
-                              CLOSE
-                            </Button>
-                          )}
-
-                          {t.status === 'CLOSED' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleTicketAction(t.id, 'REOPEN')}
-                              className="font-mono text-[10px] py-0.5 px-2 text-[#22D3EE]"
-                            >
-                              REOPEN
+                              Close
                             </Button>
                           )}
                         </div>
@@ -320,113 +310,117 @@ export default function TicketsPage() {
             </div>
           )}
         </Card>
+      </div>
 
-        {/* Ticket Inspector Modal */}
-        {inspectTicket && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
-            <div className="w-full max-w-2xl rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)] max-h-[85vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider">
-                    TICKET #{inspectTicket.ticketNumber} // {inspectTicket.subject}
-                  </h3>
-                  {getStatusBadge(inspectTicket.status)}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setInspectTicket(null)}
-                  className="text-[#64748B] hover:text-[#F1F5F9]"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+      {/* Ticket Details Modal */}
+      {inspectTicket && (
+        <Modal
+          isOpen={true}
+          onClose={() => setInspectTicket(null)}
+          title={`Ticket #${inspectTicket.ticketNumber} — ${inspectTicket.subject}`}
+          subtitle={`Created on ${new Date(inspectTicket.createdAt).toLocaleString()}`}
+          maxWidth="2xl"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs">
+              <div>
+                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Status</span>
+                <div className="mt-1">{getStatusBadge(inspectTicket.status)}</div>
               </div>
-
-              <div className="space-y-4 font-mono text-xs">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded bg-[#070B10] border border-[#16202E]">
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block">CATEGORY</span>
-                    <span className="text-[#F1F5F9]">{inspectTicket.category}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block">OPENER</span>
-                    <span className="text-[#F1F5F9]">{inspectTicket.openerName} ({inspectTicket.openerId})</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block">ASSIGNED</span>
-                    <span className="text-[#F1F5F9]">{inspectTicket.claimerName || 'Unassigned'}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block">CREATED</span>
-                    <span className="text-[#F1F5F9]">{new Date(inspectTicket.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-
-                {inspectTicket.reason && (
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block mb-1">CLOSURE RESOLUTION NOTE</span>
-                    <div className="p-3 rounded bg-[#070B10] border border-[#16202E] text-[#F1F5F9]">
-                      {inspectTicket.reason}
-                    </div>
-                  </div>
-                )}
-
-                {inspectTicket.transcriptUrl && (
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block mb-1">AUDIT TRANSCRIPT</span>
-                    <a
-                      href={inspectTicket.transcriptUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#22D3EE] hover:underline"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>VIEW ARCHIVED HTML TRANSCRIPT</span>
-                    </a>
-                  </div>
-                )}
+              <div>
+                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Category</span>
+                <span className="text-[#101828] font-medium mt-1 block">{inspectTicket.category}</span>
               </div>
+              <div>
+                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Opener</span>
+                <span className="text-[#101828] font-medium mt-1 block">{inspectTicket.openerName}</span>
+              </div>
+              <div>
+                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Claimed By</span>
+                <span className="text-[#101828] font-medium mt-1 block">
+                  {inspectTicket.claimerName ? `@${inspectTicket.claimerName}` : 'None'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Closed By</span>
+                <span className="text-[#101828] font-medium mt-1 block">
+                  {inspectTicket.closedByName ? `@${inspectTicket.closedByName}` : 'N/A'}
+                </span>
+              </div>
+            </div>
 
-              <div className="flex items-center justify-between gap-2 mt-6 pt-3 border-t border-[#16202E]">
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => handleTicketAction(inspectTicket.id, 'DELETE')}
-                  className="font-mono text-xs"
-                >
-                  DELETE RECORD
-                </Button>
+            {inspectTicket.reason && (
+              <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]">
+                <span className="text-[10px] uppercase font-semibold text-[#667085] block mb-1">
+                  Resolution Reason / Note
+                </span>
+                <p className="text-xs text-[#101828] leading-relaxed">{inspectTicket.reason}</p>
+              </div>
+            )}
 
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setInspectTicket(null)}>
-                    CLOSE
+            {inspectTicket.transcriptUrl && (
+              <a
+                href={inspectTicket.transcriptUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium hover:underline"
+              >
+                <span>View Full Ticket Transcript</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
+
+            <div className="flex items-center justify-between pt-4 border-t border-[#F1F3F9]">
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => handleTicketAction(inspectTicket.id, 'DELETE')}
+              >
+                Delete Record
+              </Button>
+
+              <div className="flex items-center gap-2">
+                {inspectTicket.status === 'OPEN' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleTicketAction(inspectTicket.id, 'CLAIM')}
+                  >
+                    Claim Ticket
                   </Button>
-
-                  {inspectTicket.status === 'OPEN' && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleTicketAction(inspectTicket.id, 'CLAIM')}
-                    >
-                      CLAIM TICKET
-                    </Button>
-                  )}
-
-                  {inspectTicket.status === 'CLAIMED' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleTicketAction(inspectTicket.id, 'CLOSE')}
-                      className="text-[#EF4444]"
-                    >
-                      RESOLVE & CLOSE
-                    </Button>
-                  )}
-                </div>
+                )}
+                {inspectTicket.status === 'CLAIMED' && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleTicketAction(inspectTicket.id, 'UNCLAIM')}
+                  >
+                    Unclaim
+                  </Button>
+                )}
+                {inspectTicket.status === 'CLAIMED' && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => handleTicketAction(inspectTicket.id, 'CLOSE')}
+                  >
+                    Close Ticket
+                  </Button>
+                )}
+                {inspectTicket.status === 'CLOSED' && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleTicketAction(inspectTicket.id, 'REOPEN')}
+                  >
+                    Reopen Ticket
+                  </Button>
+                )}
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </Modal>
+      )}
     </div>
   );
 }

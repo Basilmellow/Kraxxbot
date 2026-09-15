@@ -46,11 +46,11 @@ export default function AnalyticsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="OPERATIONAL TELEMETRY & ANALYTICS"
+        title="Operational Telemetry & Analytics"
         subtitle="Real-Time System Throughput, Support Metrics & Security Analytics"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
         {/* Metric Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
@@ -91,62 +91,56 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Deep Dive Breakdown Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-mono text-xs">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
           {/* Ticket Resolution Pipeline */}
-          <Card className="bg-[#0A0F16]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Ticket className="w-3.5 h-3.5 text-[#22D3EE]" />
-                <span>SUPPORT TICKET RESOLUTION PIPELINE</span>
-              </CardTitle>
-            </CardHeader>
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F1F3F9]">
+              <div className="flex items-center gap-2">
+                <Ticket className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-semibold text-[#101828]">
+                  Support Ticket Resolution Pipeline
+                </h3>
+              </div>
+              <Badge variant="brand">LIVE</Badge>
+            </div>
 
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-[#94A3B8]">OPEN TICKETS (AWAITING AGENT)</span>
-                  <span className="font-bold text-[#F59E0B]">{data?.tickets?.open ?? 0}</span>
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span className="text-[#667085]">Resolved Tickets</span>
+                  <span className="font-semibold text-[#101828]">
+                    {data?.tickets?.resolved ?? 0} / {data?.tickets?.total ?? 0}
+                  </span>
                 </div>
-                <div className="w-full bg-[#070B10] h-2 rounded overflow-hidden border border-[#16202E]">
+                <div className="h-2 w-full bg-[#F3F5FA] rounded-full overflow-hidden">
                   <div
-                    className="bg-[#F59E0B] h-full"
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                     style={{
                       width: `${
-                        data?.tickets?.total ? ((data.tickets.open || 0) / data.tickets.total) * 100 : 0
+                        data?.tickets?.total
+                          ? Math.round(((data?.tickets?.resolved ?? 0) / data.tickets.total) * 100)
+                          : 0
                       }%`,
                     }}
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-[#94A3B8]">CLAIMED & UNDER INVESTIGATION</span>
-                  <span className="font-bold text-[#22D3EE]">{data?.tickets?.claimed ?? 0}</span>
+              <div>
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span className="text-[#667085]">Open / In Progress</span>
+                  <span className="font-semibold text-[#101828]">
+                    {data?.tickets?.open ?? 0}
+                  </span>
                 </div>
-                <div className="w-full bg-[#070B10] h-2 rounded overflow-hidden border border-[#16202E]">
+                <div className="h-2 w-full bg-[#F3F5FA] rounded-full overflow-hidden">
                   <div
-                    className="bg-[#22D3EE] h-full"
+                    className="h-full bg-indigo-600 rounded-full transition-all duration-500"
                     style={{
                       width: `${
-                        data?.tickets?.total ? ((data.tickets.claimed || 0) / data.tickets.total) * 100 : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-[#94A3B8]">RESOLVED & CLOSED</span>
-                  <span className="font-bold text-[#10B981]">{data?.tickets?.closed ?? 0}</span>
-                </div>
-                <div className="w-full bg-[#070B10] h-2 rounded overflow-hidden border border-[#16202E]">
-                  <div
-                    className="bg-[#10B981] h-full"
-                    style={{
-                      width: `${
-                        data?.tickets?.total ? ((data.tickets.closed || 0) / data.tickets.total) * 100 : 0
+                        data?.tickets?.total
+                          ? Math.round(((data?.tickets?.open ?? 0) / data.tickets.total) * 100)
+                          : 0
                       }%`,
                     }}
                   />
@@ -155,56 +149,42 @@ export default function AnalyticsPage() {
             </div>
           </Card>
 
-          {/* Security & Disciplinary Sanctions Breakdown */}
-          <Card className="bg-[#0A0F16]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldAlert className="w-3.5 h-3.5 text-[#22D3EE]" />
-                <span>KRAXXSEC DISCIPLINARY SANCTION METRICS</span>
-              </CardTitle>
-            </CardHeader>
+          {/* Security & Moderation Sanctions */}
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F1F3F9]">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-semibold text-[#101828]">
+                  Security Sanction Distribution
+                </h3>
+              </div>
+              <Badge variant="danger">{totalMod} ACTIONS</Badge>
+            </div>
 
-            <div className="space-y-4 pt-2">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
-                  <span className="text-[10px] text-[#64748B] uppercase block">WARNINGS</span>
-                  <span className="text-lg font-bold text-[#F59E0B]">
-                    {data?.moderation?.WARN ?? 0}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
-                  <span className="text-[10px] text-[#64748B] uppercase block">TIMEOUTS</span>
-                  <span className="text-lg font-bold text-[#94A3B8]">
-                    {data?.moderation?.TIMEOUT ?? 0}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
-                  <span className="text-[10px] text-[#64748B] uppercase block">KICKS</span>
-                  <span className="text-lg font-bold text-[#EF4444]">
-                    {data?.moderation?.KICK ?? 0}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
-                  <span className="text-[10px] text-[#64748B] uppercase block">BANS</span>
-                  <span className="text-lg font-bold text-[#EF4444]">
-                    {data?.moderation?.BAN ?? 0}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
-                  <span className="text-[10px] text-[#64748B] uppercase block">UNBANS</span>
-                  <span className="text-lg font-bold text-[#10B981]">
-                    {data?.moderation?.UNBAN ?? 0}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
-                  <span className="text-[10px] text-[#64748B] uppercase block">TOTAL SANCTIONS</span>
-                  <span className="text-lg font-bold text-[#22D3EE]">{totalMod}</span>
-                </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]">
+                <span className="text-[#667085] block text-[11px] font-medium">Bans Executed</span>
+                <span className="text-lg font-bold text-red-600 mt-1 block">
+                  {data?.moderation?.ban ?? 0}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]">
+                <span className="text-[#667085] block text-[11px] font-medium">Timeouts Issued</span>
+                <span className="text-lg font-bold text-amber-600 mt-1 block">
+                  {data?.moderation?.timeout ?? 0}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]">
+                <span className="text-[#667085] block text-[11px] font-medium">Kicks Dispatched</span>
+                <span className="text-lg font-bold text-[#101828] mt-1 block">
+                  {data?.moderation?.kick ?? 0}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]">
+                <span className="text-[#667085] block text-[11px] font-medium">Warnings Logged</span>
+                <span className="text-lg font-bold text-indigo-600 mt-1 block">
+                  {data?.moderation?.warn ?? 0}
+                </span>
               </div>
             </div>
           </Card>

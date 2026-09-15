@@ -16,7 +16,6 @@ import {
   LogOut,
   Image as ImageIcon,
   Sparkles,
-  Terminal,
 } from 'lucide-react';
 
 export default function WelcomeSystemPage() {
@@ -98,25 +97,25 @@ export default function WelcomeSystemPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           enabled,
-          channelId: selectedChannel?.id || null,
+          channelId: selectedChannel?.id || undefined,
           message,
-          imageUrl: imageUrl || null,
-          roleId: roleId || null,
+          imageUrl: imageUrl.trim() || undefined,
+          roleId: roleId || undefined,
           dmEnabled,
-          dmMessage: dmMessage || null,
-          leaveChannelId: selectedLeaveChannel?.id || null,
-          leaveMessage: leaveMessage || null,
+          dmMessage,
+          leaveChannelId: selectedLeaveChannel?.id || undefined,
+          leaveMessage,
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setFeedback({ type: 'success', message: 'Welcome & Onboarding configuration updated.' });
+        setFeedback({ type: 'success', message: 'Welcome and departure configuration saved.' });
       } else {
-        setFeedback({ type: 'error', message: data.error || 'Failed to save welcome configuration' });
+        setFeedback({ type: 'error', message: data.error || 'Failed to save configuration' });
       }
-    } catch (e: any) {
-      setFeedback({ type: 'error', message: e.message || 'Error saving welcome configuration' });
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Save error' });
     } finally {
       setIsSaving(false);
     }
@@ -125,161 +124,158 @@ export default function WelcomeSystemPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="ONBOARDING & WELCOME SUBSYSTEM"
-        subtitle="Automated Personnel Greeting, Auto-Role Allocation & Departure Telemetry"
+        title="Member Welcome & Gateway Onboarding"
+        subtitle="Automated Greeting Dispatches, Onboarding Direct Messages & Auto-Role Assignment"
       />
 
-      <div className="p-4 sm:p-6 max-w-6xl w-full mx-auto space-y-5">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
-        <form onSubmit={handleSave} className="space-y-5">
-          {/* Main Welcome Subsystem Card */}
-          <Card className="bg-[#0A0F16]">
-            <CardHeader>
-              <div className="flex items-center justify-between w-full">
-                <CardTitle className="flex items-center gap-2">
-                  <UserPlus className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  <span>GUILD ARRIVAL & ONBOARDING PROTOCOL</span>
-                </CardTitle>
-                <label className="flex items-center gap-2 cursor-pointer font-mono text-xs text-[#94A3B8]">
-                  <input
-                    type="checkbox"
-                    checked={enabled}
-                    onChange={(e) => setEnabled(e.target.checked)}
-                    className="accent-[#22D3EE]"
-                  />
-                  <span>ENGAGE SUBSYSTEM</span>
-                </label>
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* Main Welcome Configuration Card */}
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-[#F1F3F9]">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-semibold text-[#101828]">
+                  Public Welcome Message Dispatch
+                </h3>
               </div>
-            </CardHeader>
-
-            <div className="space-y-4 font-mono text-xs pt-2">
-              <ChannelSelector
-                channels={channels}
-                selectedChannelId={selectedChannel?.id || ''}
-                onSelectChannel={setSelectedChannel}
-              />
-
-              <div>
-                <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                  ARRIVAL MESSAGE TEMPLATE
-                </label>
-                <textarea
-                  rows={3}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Variables: {user}, {username}, {server}, {memberCount}"
-                  className="w-full p-3 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#344054]">
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  onChange={(e) => setEnabled(e.target.checked)}
+                  className="accent-indigo-600 rounded"
                 />
-                <span className="text-[10px] text-[#64748B] mt-1 block">
-                  Supported tokens: &#123;user&#125;, &#123;username&#125;, &#123;server&#125;, &#123;memberCount&#125;
-                </span>
+                <span>Enable System</span>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 text-xs">
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block font-semibold text-[#344054] mb-1">
+                    Welcome Target Channel
+                  </label>
+                  <ChannelSelector
+                    channels={channels}
+                    selectedChannelId={selectedChannel?.id || ''}
+                    onSelectChannel={setSelectedChannel}
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-[#344054] mb-1">
+                    Auto-Assign Initial Role
+                  </label>
+                  <select
+                    value={roleId}
+                    onChange={(e) => setRoleId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="">No Auto-Role</option>
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        @{r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-[#344054] mb-1">
+                    Welcome Card Banner Image URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                  AUTOMATIC ONBOARDING ROLE
-                </label>
-                <select
-                  value={roleId}
-                  onChange={(e) => setRoleId(e.target.value)}
-                  className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                >
-                  <option value="">No Auto-Role</option>
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      @{r.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block font-semibold text-[#344054] mb-1">
+                    Welcome Broadcast Template
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    className="w-full p-3.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed shadow-2xs resize-y"
+                  />
+                  <div className="mt-1 text-[11px] text-[#667085]">
+                    Variables: <code className="bg-[#F3F5FA] px-1 py-0.5 rounded text-indigo-600">{'{user}'}</code>, <code className="bg-[#F3F5FA] px-1 py-0.5 rounded text-indigo-600">{'{username}'}</code>, <code className="bg-[#F3F5FA] px-1 py-0.5 rounded text-indigo-600">{'{server}'}</code>, <code className="bg-[#F3F5FA] px-1 py-0.5 rounded text-indigo-600">{'{memberCount}'}</code>
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
 
-          {/* DM & Departure Protocols */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 font-mono text-xs">
-            {/* Direct Message Greeting */}
-            <Card className="bg-[#0A0F16]">
-              <CardHeader>
-                <div className="flex items-center justify-between w-full">
-                  <CardTitle className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-[#22D3EE]" />
-                    <span>DIRECT MESSAGE GREETING</span>
-                  </CardTitle>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-[#94A3B8]">
-                    <input
-                      type="checkbox"
-                      checked={dmEnabled}
-                      onChange={(e) => setDmEnabled(e.target.checked)}
-                      className="accent-[#22D3EE]"
-                    />
-                    <span>Active</span>
-                  </label>
-                </div>
-              </CardHeader>
-
-              <div className="pt-2">
-                <textarea
-                  rows={3}
-                  value={dmMessage}
-                  onChange={(e) => setDmMessage(e.target.value)}
-                  placeholder="Direct message sent to user on arrival..."
-                  className="w-full p-2.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
-                />
+          {/* DM Onboarding Card */}
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-4 border-b border-[#F1F3F9]">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-semibold text-[#101828]">
+                  Automated Direct Message (DM) Onboarding
+                </h3>
               </div>
-            </Card>
-
-            {/* Departure Logging */}
-            <Card className="bg-[#0A0F16]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <LogOut className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  <span>DEPARTURE TELEMETRY</span>
-                </CardTitle>
-              </CardHeader>
-
-              <div className="space-y-3 pt-2">
-                <ChannelSelector
-                  channels={channels}
-                  selectedChannelId={selectedLeaveChannel?.id || ''}
-                  onSelectChannel={setSelectedLeaveChannel}
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#344054]">
+                <input
+                  type="checkbox"
+                  checked={dmEnabled}
+                  onChange={(e) => setDmEnabled(e.target.checked)}
+                  className="accent-indigo-600 rounded"
                 />
+                <span>Enable Member DMs</span>
+              </label>
+            </div>
 
-                <textarea
-                  rows={2}
-                  value={leaveMessage}
-                  onChange={(e) => setLeaveMessage(e.target.value)}
-                  placeholder="Departure broadcast message..."
-                  className="w-full p-2.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
-                />
-              </div>
-            </Card>
-          </div>
+            <div className="text-xs">
+              <label className="block font-semibold text-[#344054] mb-1">
+                Direct Message Content
+              </label>
+              <textarea
+                rows={3}
+                value={dmMessage}
+                onChange={(e) => setDmMessage(e.target.value)}
+                className="w-full p-3.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed shadow-2xs resize-y"
+              />
+            </div>
+          </Card>
 
+          {/* Save Button */}
           <div className="flex justify-end">
             <Button
               type="submit"
               variant="primary"
+              size="md"
               isLoading={isSaving}
-              className="font-mono font-bold tracking-wider uppercase text-xs px-5 py-2.5"
+              className="gap-1.5"
             >
-              SAVE WELCOME SYSTEM CONFIGURATION
+              <Save className="w-4 h-4" />
+              <span>Save Gateway Onboarding Settings</span>
             </Button>
           </div>
         </form>

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { Modal } from '@/components/ui/Modal';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
   Zap,
@@ -18,8 +19,6 @@ import {
   Shield,
   Layers,
   Sparkles,
-  X,
-  Radio,
 } from 'lucide-react';
 
 interface AutomationRuleItem {
@@ -109,58 +108,15 @@ export default function AutomationPage() {
     loadMeta();
   }, []);
 
-  const handleCreateRule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-
-    setIsCreating(true);
-    setFeedback(null);
-
-    try {
-      const configObj: any = {
-        channelId: selectedChannel?.id,
-        roleId: selectedRole || undefined,
-        message: messageContent.trim() || undefined,
-      };
-
-      const res = await fetch('/api/automation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          trigger,
-          action,
-          config: JSON.stringify(configObj),
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setFeedback({ type: 'success', message: 'Automation rule deployed to gateway.' });
-        setShowCreateModal(false);
-        setName('');
-        setMessageContent('');
-        fetchRules();
-      } else {
-        setFeedback({ type: 'error', message: data.error || 'Failed to create automation rule' });
-      }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Error deploying automation' });
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleToggleRule = async (ruleId: string, currentStatus: boolean) => {
+  const handleToggleRule = async (ruleId: string, currentEnabled: boolean) => {
     try {
       const res = await fetch(`/api/automation/${ruleId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !currentStatus }),
+        body: JSON.stringify({ enabled: !currentEnabled }),
       });
-
       if (res.ok) {
-        setRules(rules.map((r) => (r.id === ruleId ? { ...r, enabled: !currentStatus } : r)));
+        setRules(rules.map((r) => (r.id === ruleId ? { ...r, enabled: !currentEnabled } : r)));
       }
     } catch (err) {
       console.error('Failed to toggle rule:', err);
@@ -168,287 +124,300 @@ export default function AutomationPage() {
   };
 
   const handleDeleteRule = async (ruleId: string) => {
-    if (!confirm('Confirm deletion of automation rule?')) return;
+    if (!confirm('Confirm deletion of this automation workflow?')) return;
     try {
       const res = await fetch(`/api/automation/${ruleId}`, { method: 'DELETE' });
       if (res.ok) {
         setRules(rules.filter((r) => r.id !== ruleId));
-        setFeedback({ type: 'success', message: 'Automation rule removed.' });
+        setFeedback({ type: 'success', message: 'Automation rule purged.' });
       }
     } catch (err) {
-      console.error('Failed to delete rule:', err);
+      console.error('Delete rule failed:', err);
+    }
+  };
+
+  const handleCreateRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    setIsCreating(true);
+    setFeedback(null);
+
+    const configPayload: any = {};
+    if (selectedChannel) configPayload.channelId = selectedChannel.id;
+    if (selectedRole) configPayload.roleId = selectedRole;
+    if (messageContent.trim()) configPayload.message = messageContent.trim();
+
+    try {
+      const res = await fetch('/api/automation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          trigger,
+          action,
+          config: JSON.stringify(configPayload),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setFeedback({ type: 'success', message: 'Automation workflow created.' });
+        setShowCreateModal(false);
+        setName('');
+        setMessageContent('');
+        fetchRules();
+      } else {
+        setFeedback({ type: 'error', message: data.error || 'Failed to create rule' });
+      }
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Automation error' });
+    } finally {
+      setIsCreating(false);
     }
   };
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="EVENT AUTOMATION ENGINE"
-        subtitle="Gateway Triggers, Reactive Webhooks & Autonomous Ops Logic"
+        title="Event Automation & Workflow Engine"
+        subtitle="Gateway Event Triggers, Condition Handlers & Auto-Action Pipelines"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
         {/* Header Action */}
-        <div className="flex items-center justify-between font-mono text-xs">
-          <div className="text-[11px] text-[#64748B] uppercase">
-            ACTIVE PIPELINES: {rules.filter((r) => r.enabled).length} / {rules.length}
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-[#667085]">
+            Configure autonomous event pipelines triggered by Discord gateway events.
           </div>
-
           <Button
             variant="primary"
             size="sm"
             onClick={() => setShowCreateModal(true)}
-            className="font-mono text-xs gap-1.5"
+            className="gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>CREATE AUTOMATION RULE</span>
+            <span>New Automation</span>
           </Button>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
-        {/* Rules Grid */}
+        {/* Automation Grid */}
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
           </div>
         ) : rules.length === 0 ? (
           <EmptyState
             icon={Zap}
-            title="NO AUTOMATION RULES ACTIVE"
-            description="Deploy event listeners to trigger automatic dispatches, tasks, and role allocations."
-            action={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCreateModal(true)}
-                className="font-mono text-xs"
-              >
-                CREATE FIRST RULE
-              </Button>
-            }
+            title="No automation rules configured"
+            description="Create event pipelines to automate role assignments, welcoming messages, and operational tickets."
+            actionLabel="Create Automation Rule"
+            onAction={() => setShowCreateModal(true)}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {rules.map((rule) => {
-              let parsedConfig: any = {};
-              try {
-                parsedConfig = JSON.parse(rule.config);
-              } catch {}
-
-              return (
-                <Card
-                  key={rule.id}
-                  className={`bg-[#0A0F16] flex flex-col justify-between border transition-all p-4 space-y-3 font-mono text-xs ${
-                    rule.enabled ? 'border-[#16202E] hover:border-[#22D3EE]/30' : 'border-[#16202E]/60 opacity-60'
-                  }`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Zap className={`w-3.5 h-3.5 ${rule.enabled ? 'text-[#22D3EE]' : 'text-[#64748B]'}`} />
-                        <h3 className="font-bold text-[#F1F5F9] text-sm">{rule.name}</h3>
-                      </div>
-                      <Badge variant={rule.enabled ? 'brand' : 'neutral'}>
-                        {rule.enabled ? 'ACTIVE' : 'DISABLED'}
-                      </Badge>
-                    </div>
-
-                    {/* Trigger -> Action Flow Visual */}
-                    <div className="p-2.5 rounded bg-[#070B10] border border-[#16202E] space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] text-[#64748B] uppercase">IF TRIGGER:</span>
-                        <Badge variant="warning">{rule.trigger}</Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] text-[#64748B] uppercase">THEN ACTION:</span>
-                        <Badge variant="brand">{rule.action}</Badge>
-                      </div>
-
-                      {parsedConfig.channelId && (
-                        <div className="text-[10px] text-[#64748B] pt-1 border-t border-[#16202E]">
-                          Target Channel: #{parsedConfig.channelId}
-                        </div>
-                      )}
-                    </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {rules.map((rule) => (
+              <Card
+                key={rule.id}
+                className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <h4 className="text-sm font-semibold text-[#101828] truncate">
+                      {rule.name}
+                    </h4>
+                    <Badge variant={rule.enabled ? 'success' : 'neutral'}>
+                      {rule.enabled ? 'ACTIVE' : 'PAUSED'}
+                    </Badge>
                   </div>
 
-                  <div className="pt-3 border-t border-[#16202E] flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteRule(rule.id)}
-                      className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
-                      title="Purge Rule"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  {/* Flow Diagram */}
+                  <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2 mb-4 text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#667085] block mb-0.5">
+                        Trigger
+                      </span>
+                      <span className="text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block text-[11px]">
+                        {TRIGGERS.find((t) => t.id === rule.trigger)?.label || rule.trigger}
+                      </span>
+                    </div>
 
-                    <Button
-                      variant={rule.enabled ? 'outline' : 'primary'}
-                      size="sm"
-                      onClick={() => handleToggleRule(rule.id, rule.enabled)}
-                      className="font-mono text-xs py-1"
-                    >
-                      {rule.enabled ? 'DEACTIVATE' : 'ACTIVATE'}
-                    </Button>
+                    <div className="flex items-center justify-center text-[#98A2B3]">
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#667085] block mb-0.5">
+                        Action
+                      </span>
+                      <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 inline-block text-[11px]">
+                        {ACTIONS.find((a) => a.id === rule.action)?.label || rule.action}
+                      </span>
+                    </div>
                   </div>
-                </Card>
-              );
-            })}
+                </div>
+
+                <div className="pt-3 border-t border-[#F1F3F9] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleRule(rule.id, rule.enabled)}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                  >
+                    {rule.enabled ? 'Pause Workflow' : 'Enable Workflow'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRule(rule.id)}
+                    className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
+                    title="Delete Rule"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
 
         {/* Create Rule Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
-                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-[#22D3EE]" />
-                  <span>DEPLOY AUTOMATION PIPELINE</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="text-[#64748B] hover:text-[#F1F5F9]"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+        <Modal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          title="Create Event Automation"
+          subtitle="Link gateway events directly to automated discord reactions"
+        >
+          <form onSubmit={handleCreateRule} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-semibold text-[#344054] mb-1">
+                Automation Rule Name
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Welcome & Auto-Role Dispatch"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
 
-              <form onSubmit={handleCreateRule} className="space-y-3 font-mono text-xs">
+            <div>
+              <label className="block font-semibold text-[#344054] mb-1">
+                Event Trigger
+              </label>
+              <select
+                value={trigger}
+                onChange={(e) => setTrigger(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              >
+                {TRIGGERS.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-[#344054] mb-1">
+                Automated Reaction
+              </label>
+              <select
+                value={action}
+                onChange={(e) => setAction(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              >
+                {ACTIONS.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {(action === 'SEND_MESSAGE' || action === 'SEND_EMBED') && (
+              <>
+                <ChannelSelector
+                  channels={channels}
+                  selectedChannelId={selectedChannel?.id || ''}
+                  onSelectChannel={setSelectedChannel}
+                />
                 <div>
-                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                    RULE NAME
+                  <label className="block font-semibold text-[#344054] mb-1">
+                    Message Template Content
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Auto-Notify On Ticket Creation"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                  <textarea
+                    rows={3}
+                    placeholder="Welcome {user} to KRAXX Operations!"
+                    value={messageContent}
+                    onChange={(e) => setMessageContent(e.target.value)}
+                    className="w-full p-3 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-y"
                   />
                 </div>
+              </>
+            )}
 
-                <div>
-                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                    GATEWAY EVENT TRIGGER (IF)
-                  </label>
-                  <select
-                    value={trigger}
-                    onChange={(e) => setTrigger(e.target.value)}
-                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                  >
-                    {TRIGGERS.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {(action === 'ASSIGN_ROLE' || action === 'REMOVE_ROLE') && (
+              <div>
+                <label className="block font-semibold text-[#344054] mb-1">
+                  Target Discord Role
+                </label>
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                >
+                  <option value="">Select role...</option>
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      @{r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-                <div>
-                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                    OPERATIONAL ACTION (THEN)
-                  </label>
-                  <select
-                    value={action}
-                    onChange={(e) => setAction(e.target.value)}
-                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                  >
-                    {ACTIONS.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {(action === 'SEND_MESSAGE' || action === 'SEND_EMBED') && (
-                  <>
-                    <ChannelSelector
-                      channels={channels}
-                      selectedChannelId={selectedChannel?.id || ''}
-                      onSelectChannel={setSelectedChannel}
-                    />
-
-                    <div>
-                      <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                        MESSAGE TEMPLATE
-                      </label>
-                      <textarea
-                        rows={3}
-                        required
-                        placeholder="Message payload dispatched on trigger event..."
-                        value={messageContent}
-                        onChange={(e) => setMessageContent(e.target.value)}
-                        className="w-full p-2.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {(action === 'ASSIGN_ROLE' || action === 'REMOVE_ROLE') && (
-                  <div>
-                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                      TARGET GUILD ROLE
-                    </label>
-                    <select
-                      value={selectedRole}
-                      onChange={(e) => setSelectedRole(e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                    >
-                      <option value="">Select Discord role...</option>
-                      {roles.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          @{r.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#16202E]">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowCreateModal(false)}
-                  >
-                    CANCEL
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    isLoading={isCreating}
-                  >
-                    DEPLOY RULE
-                  </Button>
-                </div>
-              </form>
+            <div className="flex items-center justify-end gap-2 pt-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCreateModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isCreating}
+              >
+                Create Workflow
+              </Button>
             </div>
-          </div>
-        )}
+          </form>
+        </Modal>
       </div>
     </div>
   );

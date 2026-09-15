@@ -136,7 +136,7 @@ export function CommandPalette() {
     ...apiResults.map((r: any) => ({
       id: r.id || String(Math.random()),
       label: r.title || r.name || r.id,
-      category: `TELEMETRY // ${r.type?.toUpperCase() || 'DATA'}`,
+      category: `SEARCH // ${r.type?.toUpperCase() || 'DATA'}`,
       href: r.url || r.href || '/dashboard',
       icon: Ticket,
       description: r.subtitle || r.details || r.status,
@@ -164,16 +164,16 @@ export function CommandPalette() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-[#05070B]/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
       <div
-        className="fixed inset-0"
+        className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs"
         onClick={() => setIsOpen(false)}
       />
 
-      <div className="relative w-full max-w-xl rounded-md bg-[#0A0F16] border border-[#1E2C3F] shadow-[0_16px_50px_rgba(0,0,0,0.8)] overflow-hidden z-10 flex flex-col max-h-[75vh]">
+      <div className="relative w-full max-w-xl rounded-2xl bg-white border border-[#E5E7EB] shadow-2xl overflow-hidden z-10 flex flex-col max-h-[75vh]">
         {/* Search Input Bar */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#16202E] bg-[#070B10]">
-          <Search className="w-4 h-4 text-[#22D3EE] flex-shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#F1F3F9] bg-[#F8FAFC]">
+          <Search className="w-4 h-4 text-indigo-600 flex-shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -183,27 +183,27 @@ export function CommandPalette() {
               setSelectedIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Type a command, search telemetry, tickets, members, or tools..."
-            className="flex-1 bg-transparent border-none text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none font-mono"
+            placeholder="Type a command, search pages, tickets, members, or tools..."
+            className="flex-1 bg-transparent border-none text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-none"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 text-[#64748B] hover:text-[#F1F5F9]"
+              className="p-1 text-[#667085] hover:text-[#101828]"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
-          <span className="text-[10px] font-mono text-[#64748B] px-1.5 py-0.5 rounded bg-[#111823] border border-[#16202E]">
+          <kbd className="text-[10px] text-[#667085] px-1.5 py-0.5 rounded bg-white border border-[#E5E7EB] font-sans font-medium">
             ESC
-          </span>
+          </kbd>
         </div>
 
         {/* Results List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {allItems.length === 0 ? (
-            <div className="py-12 text-center text-xs text-[#64748B] font-mono">
-              NO MATCHING COMMANDS OR TELEMETRY FOUND
+            <div className="py-12 text-center text-xs text-[#667085]">
+              No matching commands or pages found.
             </div>
           ) : (
             allItems.map((item, idx) => {
@@ -213,25 +213,25 @@ export function CommandPalette() {
                   key={`${item.id}-${idx}`}
                   onClick={() => handleSelect(item)}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`px-3 py-2 rounded-sm cursor-pointer flex items-center justify-between transition-colors text-xs ${
+                  className={`px-3 py-2.5 rounded-xl cursor-pointer flex items-center justify-between transition-colors text-xs ${
                     isSelected
-                      ? 'bg-[#111823] text-[#22D3EE] border-l-2 border-[#22D3EE]'
-                      : 'text-[#94A3B8] hover:bg-[#0D131C] hover:text-[#F1F5F9]'
+                      ? 'bg-indigo-50/80 text-indigo-900 border-l-2 border-indigo-600'
+                      : 'text-[#475467] hover:bg-[#F8FAFC] hover:text-[#101828]'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="font-mono text-[10px] text-[#64748B] px-1.5 py-0.5 rounded bg-[#070B10] border border-[#16202E] uppercase">
+                    <span className="text-[10px] font-semibold text-[#667085] px-1.5 py-0.5 rounded bg-[#F3F5FA] border border-[#E5E7EB] uppercase">
                       {item.category}
                     </span>
-                    <span className="font-medium text-[#F1F5F9] truncate">{item.label}</span>
+                    <span className="font-medium text-[#101828] truncate">{item.label}</span>
                     {item.description && (
-                      <span className="text-[11px] text-[#64748B] truncate hidden sm:inline">
+                      <span className="text-[11px] text-[#667085] truncate hidden sm:inline">
                         — {item.description}
                       </span>
                     )}
                   </div>
                   {isSelected && (
-                    <CornerDownLeft className="w-3.5 h-3.5 text-[#22D3EE] flex-shrink-0" />
+                    <CornerDownLeft className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
                   )}
                 </div>
               );
@@ -240,13 +240,13 @@ export function CommandPalette() {
         </div>
 
         {/* Command Footer */}
-        <div className="px-4 py-2 bg-[#070B10] border-t border-[#16202E] flex items-center justify-between text-[10px] font-mono text-[#64748B]">
+        <div className="px-4 py-2.5 bg-[#F8FAFC] border-t border-[#F1F3F9] flex items-center justify-between text-[11px] text-[#667085]">
           <div className="flex items-center gap-3">
-            <span>↑↓ NAVIGATE</span>
-            <span>↵ EXECUTE</span>
-            <span>ESC DISMISS</span>
+            <span>↑↓ Navigate</span>
+            <span>↵ Select</span>
+            <span>ESC Close</span>
           </div>
-          <span className="text-[#22D3EE]">KRAXX HQ // COMMAND SYSTEM</span>
+          <span className="text-indigo-600 font-medium">KRAXX HQ Command</span>
         </div>
       </div>
     </div>

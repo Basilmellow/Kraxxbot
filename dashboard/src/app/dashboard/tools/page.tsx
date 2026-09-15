@@ -15,7 +15,6 @@ import {
   Sparkles,
   Calendar,
   Layers,
-  Terminal,
 } from 'lucide-react';
 
 const DISCORD_EPOCH = BigInt('1420070400000');
@@ -84,117 +83,108 @@ export default function ServerToolsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="SERVER UTILITIES & TOOLS"
+        title="Server Utilities & Gateway Tools"
         subtitle="Cryptographic Snowflake Decoders, Discord Timestamps & Gateway Formatting"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-mono text-xs">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6 text-xs">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Tool 1: Snowflake Decoder */}
-          <Card className="bg-[#0A0F16]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Hash className="w-3.5 h-3.5 text-[#22D3EE]" />
-                <span>SNOWFLAKE TIMESTAMP DECODER</span>
-              </CardTitle>
-            </CardHeader>
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-[#F1F3F9]">
+              <Hash className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm font-semibold text-[#101828]">
+                Discord Snowflake ID Decoder
+              </h3>
+            </div>
 
-            <div className="space-y-4 pt-2">
+            <div className="space-y-3">
               <div>
-                <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                  ENTER DISCORD ID (SNOWFLAKE)
+                <label className="block font-semibold text-[#344054] mb-1">
+                  Discord Snowflake ID
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 1198765432109876543"
+                  placeholder="Paste user, message, or channel ID (e.g. 104829104928104829)"
                   value={snowflakeInput}
                   onChange={(e) => handleCalculateSnowflake(e.target.value)}
-                  className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
 
               {snowflakeResult ? (
-                <div className="p-3.5 rounded bg-[#070B10] border border-[#16202E] space-y-2.5">
-                  <div className="text-[10px] font-bold text-[#22D3EE] uppercase tracking-wider">
-                    DECODED CRYPTOGRAPHIC METADATA
+                <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#667085]">Creation Timestamp:</span>
+                    <span className="font-semibold text-[#101828]">
+                      {snowflakeResult.timestamp.toUTCString()}
+                    </span>
                   </div>
-                  <div className="space-y-1.5 text-xs text-[#F1F5F9]">
-                    <div className="flex justify-between">
-                      <span className="text-[#64748B]">CREATION TIMESTAMP:</span>
-                      <span className="font-bold">{snowflakeResult.timestamp.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#64748B]">INTERNAL WORKER ID:</span>
-                      <span>{snowflakeResult.workerId.toString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#64748B]">INTERNAL PROCESS ID:</span>
-                      <span>{snowflakeResult.processId.toString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#64748B]">SEQUENCE INCREMENT:</span>
-                      <span>{snowflakeResult.increment.toString()}</span>
-                    </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#667085]">Relative Age:</span>
+                    <span className="text-indigo-600 font-medium">
+                      {Math.floor((Date.now() - snowflakeResult.timestamp.getTime()) / (1000 * 60 * 60 * 24))} days ago
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#667085]">Internal Worker / Process ID:</span>
+                    <span className="font-mono text-[#475467]">
+                      {snowflakeResult.workerId.toString()} / {snowflakeResult.processId.toString()}
+                    </span>
                   </div>
                 </div>
               ) : (
-                <div className="p-4 text-center text-[11px] text-[#64748B] rounded bg-[#070B10] border border-[#16202E]">
-                  Enter a valid 17-20 digit Discord snowflake ID to extract generation timestamp and hardware identifiers.
+                <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs text-[#98A2B3] text-center">
+                  Enter a valid 17-20 digit Discord Snowflake ID to inspect creation metadata.
                 </div>
               )}
             </div>
           </Card>
 
-          {/* Tool 2: Discord Timestamp Builder */}
-          <Card className="bg-[#0A0F16]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-[#22D3EE]" />
-                <span>DYNAMIC DISCORD TIMESTAMP BUILDER</span>
-              </CardTitle>
-            </CardHeader>
+          {/* Tool 2: Discord Timestamp Formatter */}
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-[#F1F3F9]">
+              <Clock className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm font-semibold text-[#101828]">
+                Discord Dynamic Timestamp Generator
+              </h3>
+            </div>
 
-            <div className="space-y-4 pt-2">
+            <div className="space-y-3">
               <div>
-                <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                  SELECT TARGET DATE & TIME
+                <label className="block font-semibold text-[#344054] mb-1">
+                  Target Date & Time
                 </label>
                 <input
                   type="datetime-local"
                   value={timestampDate}
                   onChange={(e) => setTimestampDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
 
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {timestampFormats.map((tf) => (
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {timestampFormats.map((tf, idx) => (
                   <div
-                    key={tf.format}
-                    className="flex items-center justify-between p-2 rounded bg-[#070B10] border border-[#16202E]"
+                    key={idx}
+                    className="p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] flex items-center justify-between text-xs"
                   >
-                    <div className="min-w-0 pr-2">
-                      <div className="font-bold text-[#22D3EE] text-[11px]">{tf.format}</div>
-                      <div className="text-[10px] text-[#64748B] truncate">{tf.desc}</div>
+                    <div>
+                      <div className="font-mono text-indigo-600 font-semibold">{tf.format}</div>
+                      <div className="text-[11px] text-[#667085]">{tf.desc}</div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
+                    <button
+                      type="button"
                       onClick={() => copyToClipboard(tf.format, tf.format)}
-                      className="font-mono text-[10px] py-1 px-2 gap-1"
+                      className="p-1.5 rounded-lg text-[#667085] hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                      title="Copy Syntax"
                     >
                       {copiedFormat === tf.format ? (
-                        <>
-                          <Check className="w-3 h-3 text-[#10B981]" />
-                          <span>COPIED</span>
-                        </>
+                        <Check className="w-4 h-4 text-emerald-600" />
                       ) : (
-                        <>
-                          <Copy className="w-3 h-3 text-[#64748B]" />
-                          <span>COPY</span>
-                        </>
+                        <Copy className="w-4 h-4" />
                       )}
-                    </Button>
+                    </button>
                   </div>
                 ))}
               </div>

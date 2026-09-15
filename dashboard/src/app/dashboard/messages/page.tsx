@@ -95,7 +95,7 @@ export default function MessageCenterPage() {
       if (res.ok) {
         const data = await res.json();
         setContent(data.message.content || '');
-        setFeedback({ type: 'success', message: 'Message loaded from Discord gateway successfully.' });
+        setFeedback({ type: 'success', message: 'Message loaded from Discord successfully.' });
       } else {
         const err = await res.json();
         setFeedback({ type: 'error', message: err.error || 'Message not found in channel.' });
@@ -180,92 +180,92 @@ export default function MessageCenterPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="MESSAGE CENTER"
+        title="Message Center"
         subtitle="Direct Discord Channel Messaging & Content Operations"
       />
 
-      <div className="p-4 sm:p-6 max-w-6xl w-full mx-auto space-y-5">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
         {/* Mode Selector Tabs */}
-        <div className="flex items-center gap-1.5 p-1 rounded bg-[#0A0F16] border border-[#16202E] w-fit font-mono text-xs">
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] w-fit shadow-2xs">
           <button
             type="button"
             onClick={() => { setMode('send'); setFeedback(null); }}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               mode === 'send'
-                ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
-                : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                ? 'bg-indigo-50 text-indigo-600 font-semibold'
+                : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
             }`}
           >
             <Send className="w-3.5 h-3.5" />
-            <span>DISPATCH MESSAGE</span>
+            <span>Dispatch Message</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setMode('edit'); setFeedback(null); }}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               mode === 'edit'
-                ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
-                : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                ? 'bg-indigo-50 text-indigo-600 font-semibold'
+                : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
             }`}
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>EDIT MESSAGE</span>
+            <span>Edit Message</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setMode('delete'); setFeedback(null); }}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               mode === 'delete'
-                ? 'bg-[#EF4444]/10 text-[#EF4444] font-semibold border border-[#EF4444]/30'
-                : 'text-[#94A3B8] hover:text-[#EF4444]'
+                ? 'bg-red-50 text-red-600 font-semibold'
+                : 'text-[#667085] hover:text-red-600 hover:bg-[#F8FAFC]'
             }`}
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>DELETE MESSAGE</span>
+            <span>Delete Message</span>
           </button>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
             <div className="flex-1">
-              <div>{feedback.message}</div>
+              <div className="font-medium">{feedback.message}</div>
               {feedback.messageId && (
-                <div className="text-[10px] text-[#64748B] mt-0.5">
-                  MESSAGE ID: {feedback.messageId}
+                <div className="text-[11px] text-[#667085] mt-0.5 font-mono">
+                  Message ID: {feedback.messageId}
                 </div>
               )}
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Controls Column */}
           <div className="lg:col-span-2 space-y-4">
-            <Card className="bg-[#0A0F16]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Terminal className="w-3.5 h-3.5 text-[#22D3EE]" />
+            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#F1F3F9]">
+                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-indigo-600" />
                   <span>
-                    {mode === 'send' && 'DISPATCH MESSAGE CONSOLE'}
-                    {mode === 'edit' && 'EDIT BOT MESSAGE CONSOLE'}
-                    {mode === 'delete' && 'PURGE MESSAGE CONSOLE'}
+                    {mode === 'send' && 'Dispatch Message Console'}
+                    {mode === 'edit' && 'Edit Bot Message Console'}
+                    {mode === 'delete' && 'Purge Message Console'}
                   </span>
-                </CardTitle>
-              </CardHeader>
+                </h3>
+              </div>
 
               <div className="space-y-4">
                 {/* Target Channel */}
@@ -279,8 +279,8 @@ export default function MessageCenterPage() {
                 {/* Target Message ID for Edit/Delete */}
                 {mode !== 'send' && (
                   <div>
-                    <label className="block text-[11px] font-mono font-semibold text-[#94A3B8] mb-1.5 uppercase tracking-wider">
-                      TARGET DISCORD MESSAGE ID
+                    <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                      Target Discord Message ID
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -288,7 +288,7 @@ export default function MessageCenterPage() {
                         placeholder="e.g. 1198765432109876543"
                         value={targetMessageId}
                         onChange={(e) => setTargetMessageId(e.target.value)}
-                        className="flex-1 px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs font-mono text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50"
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
                         required
                       />
                       {mode === 'edit' && (
@@ -298,12 +298,11 @@ export default function MessageCenterPage() {
                           size="sm"
                           onClick={handleLoadMessage}
                           disabled={isLoadingMessage || !targetMessageId.trim() || !selectedChannel}
-                          className="font-mono text-xs"
                         >
                           {isLoadingMessage ? (
-                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            'LOAD'
+                            'Load'
                           )}
                         </Button>
                       )}
@@ -315,63 +314,55 @@ export default function MessageCenterPage() {
                 {mode !== 'delete' && (
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-[11px] font-mono font-semibold text-[#94A3B8] uppercase tracking-wider">
-                        RAW CONTENT / PAYLOAD
+                      <label className="text-xs font-semibold text-[#344054]">
+                        Message Content / Payload
                       </label>
-                      <span className="text-[10px] font-mono text-[#64748B]">
-                        {content.length} / 2000 CHARS
+                      <span className="text-[11px] text-[#667085]">
+                        {content.length} / 2000 chars
                       </span>
                     </div>
 
                     {/* Markdown Toolbar */}
-                    <div className="flex items-center gap-1 p-1 bg-[#070B10] border-t border-x border-[#16202E] rounded-t text-[#94A3B8]">
+                    <div className="flex items-center gap-1 p-1 bg-[#F8FAFC] border-t border-x border-[#E5E7EB] rounded-t-xl text-[#667085]">
                       <button
                         type="button"
                         onClick={() => insertFormatting('**', '**')}
-                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
+                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
                         title="Bold (**text**)"
                       >
-                        <Bold className="w-3 h-3" />
+                        <Bold className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('*', '*')}
-                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
+                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
                         title="Italic (*text*)"
                       >
-                        <Italic className="w-3 h-3" />
+                        <Italic className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('`', '`')}
-                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
+                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
                         title="Inline Code (`code`)"
                       >
-                        <Code className="w-3 h-3" />
+                        <Code className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('```\n', '\n```')}
-                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
-                        title="Code Block (```block```)"
+                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
+                        title="Code Block (```)"
                       >
-                        <FileCode className="w-3 h-3" />
+                        <FileCode className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('> ')}
-                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
-                        title="Quote (> quote)"
+                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
+                        title="Blockquote (>)"
                       >
-                        <Quote className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => insertFormatting('[', '](https://)')}
-                        className="p-1.5 rounded hover:bg-[#111823] hover:text-[#22D3EE] transition-colors"
-                        title="Link ([text](url))"
-                      >
-                        <LinkIcon className="w-3 h-3" />
+                        <Quote className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
@@ -380,10 +371,58 @@ export default function MessageCenterPage() {
                       rows={6}
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
-                      placeholder="Type your markdown-formatted message here..."
-                      className="w-full p-3 rounded-b bg-[#070B10] border border-[#16202E] text-xs font-mono text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
-                      maxLength={2000}
+                      placeholder="Type your message payload here. Supports standard Discord markdown formatting..."
+                      className="w-full p-3.5 rounded-b-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed shadow-2xs"
+                      required
                     />
+                  </div>
+                )}
+
+                {/* Mention Controls */}
+                {mode !== 'delete' && (
+                  <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-3">
+                    <label className="text-xs font-semibold text-[#344054] flex items-center gap-1.5">
+                      <AtSign className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Ping & Mention Controls</span>
+                    </label>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(['NONE', 'EVERYONE', 'HERE', 'ROLE'] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setMentionType(m)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            mentionType === m
+                              ? 'bg-indigo-600 text-white font-semibold shadow-2xs'
+                              : 'bg-white border border-[#E5E7EB] text-[#475467] hover:bg-[#F3F5FA]'
+                          }`}
+                        >
+                          {m === 'NONE' && 'None'}
+                          {m === 'EVERYONE' && '@everyone'}
+                          {m === 'HERE' && '@here'}
+                          {m === 'ROLE' && 'Specific Role'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {mentionType === 'ROLE' && (
+                      <div className="pt-2">
+                        <select
+                          value={selectedRoleId}
+                          onChange={(e) => setSelectedRoleId(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          required
+                        >
+                          <option value="">Select target role to ping...</option>
+                          {roles.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              @{r.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -392,130 +431,52 @@ export default function MessageCenterPage() {
                   <Button
                     type="submit"
                     variant={mode === 'delete' ? 'danger' : 'primary'}
+                    size="md"
                     isLoading={isSubmitting}
-                    disabled={
-                      !selectedChannel ||
-                      (mode !== 'delete' && !content.trim()) ||
-                      (mode !== 'send' && !targetMessageId.trim())
-                    }
-                    className="w-full font-mono font-bold tracking-wider uppercase text-xs py-2.5"
+                    disabled={!selectedChannel || (mode !== 'delete' && !content.trim()) || (mode === 'delete' && !targetMessageId.trim())}
+                    className="w-full sm:w-auto"
                   >
-                    {mode === 'send' && 'DISPATCH TO DISCORD'}
-                    {mode === 'edit' && 'OVERWRITE DISCORD MESSAGE'}
-                    {mode === 'delete' && 'PURGE MESSAGE PERMANENTLY'}
+                    {mode === 'send' && 'Dispatch Message to Channel'}
+                    {mode === 'edit' && 'Save Modified Message'}
+                    {mode === 'delete' && 'Purge Target Message'}
                   </Button>
                 </div>
               </div>
             </Card>
           </div>
 
-          {/* Right Parameters Column */}
-          <div className="space-y-4">
-            {/* Mention Matrix */}
-            {mode !== 'delete' && (
-              <Card className="bg-[#0A0F16]">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AtSign className="w-3.5 h-3.5 text-[#22D3EE]" />
-                    <span>BROADCAST MENTION MATRIX</span>
-                  </CardTitle>
-                </CardHeader>
-
-                <div className="space-y-2.5 font-mono text-xs">
-                  <label className="flex items-center gap-2.5 p-2 rounded bg-[#070B10] border border-[#16202E] cursor-pointer hover:border-[#1E2C3F]">
-                    <input
-                      type="radio"
-                      name="mention"
-                      value="NONE"
-                      checked={mentionType === 'NONE'}
-                      onChange={() => setMentionType('NONE')}
-                      className="accent-[#22D3EE]"
-                    />
-                    <span className="text-[#F1F5F9]">NO MENTION</span>
-                  </label>
-
-                  <label className="flex items-center gap-2.5 p-2 rounded bg-[#070B10] border border-[#16202E] cursor-pointer hover:border-[#1E2C3F]">
-                    <input
-                      type="radio"
-                      name="mention"
-                      value="EVERYONE"
-                      checked={mentionType === 'EVERYONE'}
-                      onChange={() => setMentionType('EVERYONE')}
-                      className="accent-[#22D3EE]"
-                    />
-                    <div className="flex items-center justify-between flex-1">
-                      <span className="text-[#F1F5F9]">@everyone</span>
-                      <Badge variant="danger">MASS</Badge>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-2.5 p-2 rounded bg-[#070B10] border border-[#16202E] cursor-pointer hover:border-[#1E2C3F]">
-                    <input
-                      type="radio"
-                      name="mention"
-                      value="HERE"
-                      checked={mentionType === 'HERE'}
-                      onChange={() => setMentionType('HERE')}
-                      className="accent-[#22D3EE]"
-                    />
-                    <div className="flex items-center justify-between flex-1">
-                      <span className="text-[#F1F5F9]">@here</span>
-                      <Badge variant="warning">ONLINE</Badge>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-2.5 p-2 rounded bg-[#070B10] border border-[#16202E] cursor-pointer hover:border-[#1E2C3F]">
-                    <input
-                      type="radio"
-                      name="mention"
-                      value="ROLE"
-                      checked={mentionType === 'ROLE'}
-                      onChange={() => setMentionType('ROLE')}
-                      className="accent-[#22D3EE]"
-                    />
-                    <span className="text-[#F1F5F9]">ROLE TARGET</span>
-                  </label>
-
-                  {mentionType === 'ROLE' && (
-                    <select
-                      value={selectedRoleId}
-                      onChange={(e) => setSelectedRoleId(e.target.value)}
-                      className="w-full mt-2 p-2 rounded bg-[#070B10] border border-[#16202E] text-xs font-mono text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                    >
-                      <option value="">Select target Discord role...</option>
-                      {roles.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          @{r.name}
-                        </option>
-                      ))}
-                    </select>
+          {/* Right Info & Live Preview Column */}
+          <div className="lg:col-span-1 space-y-4">
+            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs">
+              <h4 className="text-xs font-semibold text-[#101828] uppercase tracking-wider mb-2">
+                Live Discord Message Preview
+              </h4>
+              <div className="p-3.5 rounded-xl bg-[#313338] text-[#dbdee1] text-xs font-sans space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px]">
+                    K
+                  </div>
+                  <span className="font-semibold text-white text-xs">KRAXX Bot</span>
+                  <span className="bg-[#5865f2] text-white text-[9px] font-bold px-1 rounded">BOT</span>
+                </div>
+                <div className="text-xs whitespace-pre-wrap pl-8">
+                  {mentionType === 'EVERYONE' && <span className="text-[#c9cdfb] font-medium mr-1">@everyone</span>}
+                  {mentionType === 'HERE' && <span className="text-[#c9cdfb] font-medium mr-1">@here</span>}
+                  {mentionType === 'ROLE' && selectedRoleId && (
+                    <span className="text-[#c9cdfb] font-medium mr-1">
+                      @{roles.find(r => r.id === selectedRoleId)?.name || 'Role'}
+                    </span>
                   )}
-                </div>
-              </Card>
-            )}
-
-            {/* Operational Guidelines Card */}
-            <Card className="bg-[#0A0F16]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldAlert className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  <span>SECURITY & PROTOCOLS</span>
-                </CardTitle>
-              </CardHeader>
-              <div className="space-y-2 text-[11px] font-mono text-[#94A3B8] leading-relaxed">
-                <div className="flex items-start gap-2">
-                  <span className="text-[#22D3EE] font-bold">1.</span>
-                  <span>All dispatched messages are permanently logged to the KRAXX Audit database.</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-[#22D3EE] font-bold">2.</span>
-                  <span>Mass mentions (@everyone/@here) require Management Head clearance.</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-[#22D3EE] font-bold">3.</span>
-                  <span>Message deletion requires confirmation and cannot be undone.</span>
+                  {content || <span className="text-[#949ba4] italic">Message content will preview here...</span>}
                 </div>
               </div>
+            </Card>
+
+            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs text-xs space-y-2">
+              <h4 className="font-semibold text-[#101828]">Security & Clearance</h4>
+              <p className="text-[#667085] leading-relaxed">
+                Messages dispatched via this console are logged in the real-time audit trail and signed with your Discord credentials.
+              </p>
             </Card>
           </div>
         </form>

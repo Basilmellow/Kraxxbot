@@ -1,11 +1,49 @@
-import { Interaction, Collection, GuildMember } from 'discord.js';
+import { Interaction, Collection, GuildMember, PermissionFlagsBits } from 'discord.js';
 import { logger } from '../utils/logger';
 import { VerificationService } from '../services/verification.service';
 import { AnnouncementService } from '../services/announcement.service';
 import { SelfRoleService } from '../services/selfrole.service';
 import { TicketService } from '../services/ticket.service';
 import { KraxxEmbedBuilder } from '../embeds/kraxxEmbedBuilder';
-import { isTicketManager } from '../config/roles';
+import { GuildRepository } from '../database/repositories/guild.repository';
+
+/**
+ * Checks if a GuildMember can manage tickets in any guild.
+ * Multi-tenant logic: checks Discord-native permissions first,
+ * then falls back to GuildSettings configured roles.
+ */
+async function canManageTickets(member: GuildMember, guildId: string): Promise<boolean> {
+  // Discord-native permission check (works across all guilds)
+  if (
+    member.permissions.has(PermissionFlagsBits.Administrator) ||
+    member.permissions.has(PermissionFlagsBits.ManageGuild) ||
+    member.permissions.has(PermissionFlagsBits.ManageMessages)
+  ) {
+    return true;
+  }
+
+  // Fall back to configured support/staff roles in GuildSettings
+  try {
+    const guild = await GuildRepository.findById(guildId);
+    const settings = guild?.settings;
+    if (settings) {
+      const configuredRoles = [
+        settings.adminRoleId,
+        settings.modRoleId,
+        settings.supportRoleId,
+        settings.staffRoleId,
+      ].filter(Boolean) as string[];
+
+      for (const roleId of configuredRoles) {
+        if (member.roles.cache.has(roleId)) return true;
+      }
+    }
+  } catch (_) {
+    // If DB lookup fails, fall back to denying
+  }
+
+  return false;
+}
 
 export async function onInteractionCreate(
   interaction: Interaction,
@@ -48,7 +86,10 @@ export async function onInteractionCreate(
 
       if (mgmtTicketButtons.includes(interaction.customId)) {
         const member = interaction.member as GuildMember;
-        if (!isTicketManager(member)) {
+        const guildId = interaction.guildId!;
+
+        const authorized = await canManageTickets(member, guildId);
+        if (!authorized) {
           await interaction.reply({
             content: 'You do not have permission to manage tickets.',
             ephemeral: true,

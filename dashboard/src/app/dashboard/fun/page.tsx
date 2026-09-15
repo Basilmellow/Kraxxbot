@@ -11,10 +11,7 @@ import {
   Dices,
   HelpCircle,
   Sparkles,
-  CheckCircle2,
-  Flame,
   Award,
-  Terminal,
 } from 'lucide-react';
 
 export default function EntertainmentPage() {
@@ -22,7 +19,7 @@ export default function EntertainmentPage() {
   const [triviaEnabled, setTriviaEnabled] = useState(true);
 
   // Random picker state
-  const [pickerInput, setPickerInput] = useState('Option Alpha, Option Bravo, Option Charlie');
+  const [pickerInput, setPickerInput] = useState('Alpha Team, Bravo Team, Charlie Team, Delta Team');
   const [pickerResult, setPickerResult] = useState<string | null>(null);
 
   const handlePick = () => {
@@ -35,123 +32,131 @@ export default function EntertainmentPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="GAMIFICATION & CTF CHALLENGES"
+        title="Gamification & CTF Challenges"
         subtitle="Lightweight Experience Calculations, CTF Challenges & Operational Lottery"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5 font-mono text-xs">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6 text-xs">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Module 1: XP & Activity Leveling */}
-          <Card className="bg-[#0A0F16]">
-            <CardHeader>
-              <div className="flex items-center justify-between w-full">
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  <span>OPERATOR XP & ACTIVITY ENGINE</span>
-                </CardTitle>
-                <label className="flex items-center gap-1.5 cursor-pointer text-[#94A3B8]">
-                  <input
-                    type="checkbox"
-                    checked={xpEnabled}
-                    onChange={(e) => setXpEnabled(e.target.checked)}
-                    className="accent-[#22D3EE]"
-                  />
-                  <span>Active</span>
-                </label>
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F1F3F9]">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-semibold text-[#101828]">
+                  Operator XP & Activity Engine
+                </h3>
               </div>
-            </CardHeader>
+              <label className="flex items-center gap-2 cursor-pointer font-semibold text-[#344054]">
+                <input
+                  type="checkbox"
+                  checked={xpEnabled}
+                  onChange={(e) => setXpEnabled(e.target.checked)}
+                  className="accent-indigo-600 rounded"
+                />
+                <span>Active</span>
+              </label>
+            </div>
 
-            <div className="space-y-3 pt-2">
-              <p className="text-[11px] text-[#94A3B8] font-sans leading-relaxed">
-                Calculates operator operational participation in Discord channels to compute ranks and achievement tiers.
-              </p>
+            <p className="text-xs text-[#667085] leading-relaxed">
+              Calculates operator participation in Discord channels to compute ranks and achievement tiers automatically.
+            </p>
 
-              <div className="p-3 rounded bg-[#070B10] border border-[#16202E] space-y-2">
-                <div className="flex items-center justify-between text-[#F1F5F9]">
-                  <span className="text-[#64748B]">GAIN RATE:</span>
-                  <span className="text-[#22D3EE] font-bold">15-25 XP / msg</span>
-                </div>
-                <div className="flex items-center justify-between text-[#F1F5F9]">
-                  <span className="text-[#64748B]">COOLDOWN INTERVAL:</span>
-                  <span>60 seconds</span>
-                </div>
-                <div className="flex items-center justify-between text-[#F1F5F9]">
-                  <span className="text-[#64748B]">TIER REWARDS:</span>
-                  <span className="text-[#10B981]">Level 5, 10, 25, 50</span>
-                </div>
+            <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[#667085]">Gain Rate:</span>
+                <span className="text-indigo-600 font-bold">15-25 XP / message</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[#667085]">Cooldown Interval:</span>
+                <span className="text-[#101828] font-medium">60 seconds</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[#667085]">Tier Milestones:</span>
+                <span className="text-emerald-600 font-bold">Level 5, 10, 25, 50</span>
               </div>
             </div>
           </Card>
 
           {/* Module 2: CTF & Technical Trivia */}
-          <Card className="bg-[#0A0F16]">
-            <CardHeader>
-              <div className="flex items-center justify-between w-full">
-                <CardTitle className="flex items-center gap-2">
-                  <HelpCircle className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  <span>CTF & SECURITY TRIVIA DISPATCH</span>
-                </CardTitle>
-                <label className="flex items-center gap-1.5 cursor-pointer text-[#94A3B8]">
-                  <input
-                    type="checkbox"
-                    checked={triviaEnabled}
-                    onChange={(e) => setTriviaEnabled(e.target.checked)}
-                    className="accent-[#22D3EE]"
-                  />
-                  <span>Active</span>
-                </label>
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F1F3F9]">
+              <div className="flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-semibold text-[#101828]">
+                  CTF & Security Trivia Dispatch
+                </h3>
               </div>
-            </CardHeader>
+              <label className="flex items-center gap-2 cursor-pointer font-semibold text-[#344054]">
+                <input
+                  type="checkbox"
+                  checked={triviaEnabled}
+                  onChange={(e) => setTriviaEnabled(e.target.checked)}
+                  className="accent-indigo-600 rounded"
+                />
+                <span>Active</span>
+              </label>
+            </div>
 
-            <div className="space-y-3 pt-2">
-              <p className="text-[11px] text-[#94A3B8] font-sans leading-relaxed">
-                Automated cyber defense, cryptography, and reverse engineering challenge prompts dispatched to community channels.
-              </p>
+            <p className="text-xs text-[#667085] leading-relaxed">
+              Automated trivia drops featuring cybersecurity, operational protocols, and systems logic questions.
+            </p>
 
-              <div className="p-3 rounded bg-[#070B10] border border-[#16202E] space-y-2">
-                <div className="flex items-center justify-between text-[#F1F5F9]">
-                  <span className="text-[#64748B]">SCHEDULE CADENCE:</span>
-                  <span className="text-[#22D3EE]">Daily at 14:00 UTC</span>
-                </div>
-                <div className="flex items-center justify-between text-[#F1F5F9]">
-                  <span className="text-[#64748B]">CATEGORIES:</span>
-                  <span>Cryptography, Forensics, Networking</span>
-                </div>
+            <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[#667085]">Categories:</span>
+                <span className="text-[#101828] font-medium">Cybersecurity, Networking, Cryptography</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[#667085]">Dispatch Schedule:</span>
+                <span className="text-indigo-600 font-bold">Daily at 14:00 UTC</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[#667085]">Correct Reward:</span>
+                <span className="text-emerald-600 font-bold">+100 Operator XP</span>
               </div>
             </div>
           </Card>
 
-          {/* Module 3: Operational Decision Randomizer */}
-          <Card className="bg-[#0A0F16] lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Dices className="w-3.5 h-3.5 text-[#22D3EE]" />
-                <span>OPERATIONAL DECISION RANDOMIZER</span>
-              </CardTitle>
-            </CardHeader>
+          {/* Module 3: Operational Random Picker */}
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-4 lg:col-span-2">
+            <div className="flex items-center gap-2 pb-3 border-b border-[#F1F3F9]">
+              <Dices className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm font-semibold text-[#101828]">
+                Randomized Decision Engine / Team Selector
+              </h3>
+            </div>
 
-            <div className="space-y-3 pt-2">
+            <div className="space-y-3">
               <div>
-                <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                  COMMA-SEPARATED CHOICES
+                <label className="block font-semibold text-[#344054] mb-1">
+                  Comma-Separated Candidates / Teams
                 </label>
                 <input
                   type="text"
                   value={pickerInput}
                   onChange={(e) => setPickerInput(e.target.value)}
-                  className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2">
-                <Button variant="primary" size="sm" onClick={handlePick} className="font-mono text-xs">
-                  EXECUTE PSEUDO-RANDOM PICK
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handlePick}
+                  className="gap-1.5"
+                >
+                  <Dices className="w-3.5 h-3.5" />
+                  <span>Execute Random Selection</span>
                 </Button>
 
                 {pickerResult && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[#64748B]">SELECTED:</span>
-                    <Badge variant="brand">{pickerResult}</Badge>
+                    <span className="text-xs text-[#667085]">Selected:</span>
+                    <Badge variant="brand" className="text-xs py-1 px-3">
+                      {pickerResult}
+                    </Badge>
                   </div>
                 )}
               </div>

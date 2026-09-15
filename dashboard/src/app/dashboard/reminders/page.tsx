@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/Skeleton';
+import { Modal } from '@/components/ui/Modal';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
   AlarmClock,
@@ -19,7 +20,6 @@ import {
   Repeat,
   Trash2,
   XCircle,
-  X,
   Clock,
 } from 'lucide-react';
 
@@ -105,16 +105,31 @@ export default function RemindersPage() {
 
   const handleCreateReminder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !message.trim() || !triggerDate || !triggerTime) return;
+    if (!title.trim() || !message.trim()) return;
 
-    const targetId = targetType === 'CHANNEL' ? selectedChannel?.id : selectedUserId;
-    if (!targetId) return;
+    let targetId = '';
+    if (targetType === 'CHANNEL') {
+      if (!selectedChannel) return;
+      targetId = selectedChannel.id;
+    } else {
+      if (!selectedUserId) return;
+      targetId = selectedUserId;
+    }
+
+    let triggerAt: string | undefined = undefined;
+    if (triggerDate && triggerTime) {
+      triggerAt = new Date(`${triggerDate}T${triggerTime}`).toISOString();
+    }
+
+    let cronPattern: string | undefined = undefined;
+    if (recurrence === 'DAILY') cronPattern = '0 9 * * *';
+    else if (recurrence === 'WEEKLY') cronPattern = '0 9 * * 1';
+    else if (recurrence === 'MONTHLY') cronPattern = '0 9 1 * *';
 
     setIsCreating(true);
     setFeedback(null);
 
     try {
-      const combinedDate = new Date(`${triggerDate}T${triggerTime}`);
       const res = await fetch('/api/reminders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,8 +138,9 @@ export default function RemindersPage() {
           message: message.trim(),
           targetType,
           targetId,
-          triggerAt: combinedDate.toISOString(),
-          recurrence,
+          triggerAt,
+          cronPattern,
+          isRecurring: recurrence !== 'NONE',
         }),
       });
 
@@ -146,7 +162,7 @@ export default function RemindersPage() {
   };
 
   const handleCancelReminder = async (id: string) => {
-    if (!confirm('Confirm cancellation of reminder?')) return;
+    if (!confirm('Cancel this active reminder?')) return;
     try {
       const res = await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -154,18 +170,18 @@ export default function RemindersPage() {
         setFeedback({ type: 'success', message: 'Reminder cancelled.' });
       }
     } catch (err) {
-      console.error('Cancel failed:', err);
+      console.error('Failed to cancel reminder:', err);
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'ACTIVE':
-        return <Badge variant="brand">ACTIVE</Badge>;
+        return <Badge variant="success">ACTIVE</Badge>;
       case 'COMPLETED':
-        return <Badge variant="success">DISPATCHED</Badge>;
+        return <Badge variant="neutral">FIRED</Badge>;
       case 'CANCELLED':
-        return <Badge variant="neutral">CANCELLED</Badge>;
+        return <Badge variant="danger">CANCELLED</Badge>;
       default:
         return <Badge variant="neutral">{status}</Badge>;
     }
@@ -174,23 +190,23 @@ export default function RemindersPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="AUTOMATED REMINDER DISPATCH"
-        subtitle="Channel Reminders, Operator Notifications & Recurring Schedules"
+        title="Automated Reminders & Chrono Alerts"
+        subtitle="Time-Based Push Notifications, DM Alerts & Recurring Cron Triggers"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
-        {/* Filter Bar & Action */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs">
-          <div className="flex flex-wrap items-center gap-1 p-1 rounded bg-[#0A0F16] border border-[#16202E]">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+        {/* Filter Controls & Create Action */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
             {STATUSES.map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setStatusFilter(s)}
-                className={`px-2.5 py-1 rounded transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   statusFilter === s
-                    ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
-                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
+                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
                 }`}
               >
                 {s}
@@ -202,110 +218,110 @@ export default function RemindersPage() {
             variant="primary"
             size="sm"
             onClick={() => setShowCreateModal(true)}
-            className="font-mono text-xs gap-1.5"
+            className="gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>CREATE REMINDER</span>
+            <span>Create Reminder</span>
           </Button>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
-        {/* Reminders Table */}
-        <Card className="bg-[#0A0F16] overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlarmClock className="w-3.5 h-3.5 text-[#22D3EE]" />
-              <span>SCHEDULED REMINDERS ({reminders.length})</span>
-            </CardTitle>
-          </CardHeader>
+        {/* Reminders Table Card */}
+        <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
+          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
+              <AlarmClock className="w-4 h-4 text-indigo-600" />
+              <span>Reminder Chrono Queue ({reminders.length})</span>
+            </h3>
+          </div>
 
           {isLoading ? (
             <div className="p-4">
-              <SkeletonTable rows={5} />
+              <SkeletonTable rows={4} />
             </div>
           ) : reminders.length === 0 ? (
             <div className="p-8">
               <EmptyState
                 icon={AlarmClock}
-                title="NO REMINDERS FOUND"
-                description="No active automated reminders match your query."
-                action={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowCreateModal(true)}
-                    className="font-mono text-xs"
-                  >
-                    CREATE REMINDER
-                  </Button>
-                }
+                title="No reminders currently scheduled"
+                description="Create a one-off or recurring chron alert to notify channels or members automatically."
+                actionLabel="Create Reminder"
+                onAction={() => setShowCreateModal(true)}
               />
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-mono text-xs border-collapse">
+              <table className="kraxx-table">
                 <thead>
-                  <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
-                    <th className="py-2.5 px-4 font-semibold">STATUS</th>
-                    <th className="py-2.5 px-4 font-semibold">TITLE / REMINDER</th>
-                    <th className="py-2.5 px-4 font-semibold">TARGET</th>
-                    <th className="py-2.5 px-4 font-semibold">TRIGGER TIME</th>
-                    <th className="py-2.5 px-4 font-semibold">RECURRENCE</th>
-                    <th className="py-2.5 px-4 font-semibold text-right">ACTION</th>
+                  <tr>
+                    <th>Status</th>
+                    <th>Reminder Title</th>
+                    <th>Target Destination</th>
+                    <th>Trigger Schedule</th>
+                    <th>Cadence</th>
+                    <th>Created By</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#16202E]">
+                <tbody>
                   {reminders.map((r) => (
-                    <tr key={r.id} className="hover:bg-[#0D131C] transition-colors">
-                      <td className="py-3 px-4">{getStatusBadge(r.status)}</td>
-                      <td className="py-3 px-4 text-[#F1F5F9] font-medium max-w-xs truncate">
-                        <div>{r.title}</div>
-                        <div className="text-[10px] text-[#64748B] truncate">{r.message}</div>
+                    <tr key={r.id}>
+                      <td>{getStatusBadge(r.status)}</td>
+                      <td>
+                        <div className="font-semibold text-[#101828] text-xs">
+                          {r.title}
+                        </div>
+                        <div className="text-[11px] text-[#667085] truncate max-w-xs mt-0.5">
+                          {r.message}
+                        </div>
                       </td>
-                      <td className="py-3 px-4 text-[#94A3B8]">
-                        <span className="bg-[#070B10] px-2 py-0.5 rounded border border-[#16202E]">
+                      <td>
+                        <span className="text-[11px] font-mono text-[#475467] bg-[#F3F5FA] px-2 py-0.5 rounded-md border border-[#E5E7EB]">
                           {r.targetType === 'CHANNEL' ? `#${r.targetId}` : `@${r.targetId}`}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-[#F1F5F9]">
-                        {r.triggerAt ? new Date(r.triggerAt).toLocaleString() : 'N/A'}
+                      <td className="text-xs text-[#475467]">
+                        {r.triggerAt ? new Date(r.triggerAt).toLocaleString() : r.cronPattern || 'Manual Trigger'}
                       </td>
-                      <td className="py-3 px-4">
+                      <td>
                         {r.isRecurring ? (
-                          <span className="flex items-center gap-1 text-[#22D3EE]">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-indigo-600 font-semibold">
                             <Repeat className="w-3 h-3" />
-                            <span>RECURRING</span>
+                            <span>Recurring</span>
                           </span>
                         ) : (
-                          <span className="text-[#64748B]">ONCE</span>
+                          <span className="text-[11px] text-[#98A2B3]">One-Time</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="text-xs text-[#475467]">
+                        @{r.createdBy}
+                      </td>
+                      <td className="text-right">
                         {r.status === 'ACTIVE' && (
                           <button
                             type="button"
                             onClick={() => handleCancelReminder(r.id)}
-                            className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
+                            className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
                             title="Cancel Reminder"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </td>
@@ -317,161 +333,161 @@ export default function RemindersPage() {
           )}
         </Card>
 
-        {/* Create Reminder Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
-                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
-                  <AlarmClock className="w-4 h-4 text-[#22D3EE]" />
-                  <span>SET OPERATIONAL REMINDER</span>
-                </h3>
+        {/* Create Modal */}
+        <Modal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          title="Schedule Automated Reminder"
+          subtitle="Configure one-off alert or recurring cron notice"
+        >
+          <form onSubmit={handleCreateReminder} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-semibold text-[#344054] mb-1">
+                Reminder Subject
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Weekly Security Sync Alert"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-[#344054] mb-1">
+                Notification Message
+              </label>
+              <textarea
+                rows={3}
+                required
+                placeholder="Message to post when triggered..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="w-full p-3 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-y"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-[#344054] mb-1.5">
+                Target Type
+              </label>
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="text-[#64748B] hover:text-[#F1F5F9]"
+                  onClick={() => setTargetType('CHANNEL')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    targetType === 'CHANNEL'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                      : 'border-[#E5E7EB] bg-white text-[#475467]'
+                  }`}
                 >
-                  <X className="w-4 h-4" />
+                  Discord Channel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetType('USER')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    targetType === 'USER'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                      : 'border-[#E5E7EB] bg-white text-[#475467]'
+                  }`}
+                >
+                  Direct Member DM
                 </button>
               </div>
-
-              <form onSubmit={handleCreateReminder} className="space-y-3 font-mono text-xs">
-                <div>
-                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                    REMINDER TITLE
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Weekly Status Report Submission"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                    MESSAGE PAYLOAD
-                  </label>
-                  <textarea
-                    rows={3}
-                    required
-                    placeholder="Reminder message text dispatched to Discord..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    className="w-full p-2.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                      TARGET TYPE
-                    </label>
-                    <select
-                      value={targetType}
-                      onChange={(e: any) => setTargetType(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                    >
-                      <option value="CHANNEL">Discord Channel</option>
-                      <option value="USER">Direct User DM</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                      RECURRENCE
-                    </label>
-                    <select
-                      value={recurrence}
-                      onChange={(e) => setRecurrence(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                    >
-                      <option value="NONE">One-Time Only</option>
-                      <option value="DAILY">Every Day</option>
-                      <option value="WEEKLY">Every Week</option>
-                      <option value="MONTHLY">Every Month</option>
-                    </select>
-                  </div>
-                </div>
-
-                {targetType === 'CHANNEL' ? (
-                  <ChannelSelector
-                    channels={channels}
-                    selectedChannelId={selectedChannel?.id || ''}
-                    onSelectChannel={setSelectedChannel}
-                  />
-                ) : (
-                  <div>
-                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                      SELECT OPERATOR
-                    </label>
-                    <select
-                      value={selectedUserId}
-                      onChange={(e) => setSelectedUserId(e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                    >
-                      <option value="">Select target user...</option>
-                      {members.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.displayName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                      DATE
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={triggerDate}
-                      onChange={(e) => setTriggerDate(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                      TIME
-                    </label>
-                    <input
-                      type="time"
-                      required
-                      value={triggerTime}
-                      onChange={(e) => setTriggerTime(e.target.value)}
-                      className="w-full px-2 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#16202E]">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowCreateModal(false)}
-                  >
-                    CANCEL
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    isLoading={isCreating}
-                  >
-                    SCHEDULE REMINDER
-                  </Button>
-                </div>
-              </form>
             </div>
-          </div>
-        )}
+
+            {targetType === 'CHANNEL' ? (
+              <ChannelSelector
+                channels={channels}
+                selectedChannelId={selectedChannel?.id || ''}
+                onSelectChannel={setSelectedChannel}
+              />
+            ) : (
+              <div>
+                <label className="block font-semibold text-[#344054] mb-1">
+                  Target Member
+                </label>
+                <select
+                  value={selectedUserId}
+                  onChange={(e) => setSelectedUserId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  required
+                >
+                  <option value="">Select operator...</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      @{m.displayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-[#344054] mb-1">
+                  Trigger Date
+                </label>
+                <input
+                  type="date"
+                  value={triggerDate}
+                  onChange={(e) => setTriggerDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#344054] mb-1">
+                  Trigger Time
+                </label>
+                <input
+                  type="time"
+                  value={triggerTime}
+                  onChange={(e) => setTriggerTime(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-[#344054] mb-1">
+                Recurrence Cadence
+              </label>
+              <select
+                value={recurrence}
+                onChange={(e) => setRecurrence(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              >
+                <option value="NONE">One-Time Only</option>
+                <option value="DAILY">Daily at 09:00 AM</option>
+                <option value="WEEKLY">Weekly on Mondays</option>
+                <option value="MONTHLY">Monthly on 1st</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCreateModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isCreating}
+              >
+                Schedule Alert
+              </Button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </div>
   );

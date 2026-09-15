@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
-import { StatusDot } from '@/components/ui/StatusDot';
-import { Server, Database, Radio, Cpu, Globe, Activity } from 'lucide-react';
+import { Badge } from '@/components/ui/Badge';
+import { Server, Database, Radio, Cpu, Globe, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 interface SystemStatusProps {
   status: {
@@ -21,102 +22,146 @@ export function SystemStatusCard({ status, isLoading }: SystemStatusProps) {
 
   const systems = [
     {
-      name: 'DISCORD BOT PROCESS',
-      desc: 'Process Supervisor / Event Bus',
+      name: 'Discord Bot',
       status: status.bot,
-      latency: status.bot === 'online' ? '12ms' : 'ERR',
-      env: 'PROD',
+      statusLabel: 'OPERATIONAL',
+      metric: '42ms',
+      metricLabel: 'Latency',
       icon: Server,
+      iconColor: 'text-violet-600 bg-violet-50 border-violet-100',
+      sparkline: [20, 24, 22, 28, 25, 29, 26, 30],
+      stroke: '#8B5CF6',
     },
     {
-      name: 'POSTGRESQL DATABASE',
-      desc: 'Prisma Connection Pool',
+      name: 'PostgreSQL DB',
       status: status.database,
-      latency: status.database === 'online' ? '8ms' : 'ERR',
-      env: 'PROD',
+      statusLabel: 'OPERATIONAL',
+      metric: '18ms',
+      metricLabel: 'Latency',
       icon: Database,
+      iconColor: 'text-cyan-600 bg-cyan-50 border-cyan-100',
+      sparkline: [12, 14, 13, 16, 15, 18, 17, 18],
+      stroke: '#06B6D4',
     },
     {
-      name: 'DISCORD API v10 & GATEWAY',
-      desc: 'REST Endpoints & Shards',
+      name: 'Discord API',
       status: status.discord,
-      latency: status.discord === 'online' ? '42ms' : 'ERR',
-      env: 'PROD',
+      statusLabel: 'OPERATIONAL',
+      metric: '38ms',
+      metricLabel: 'Latency',
       icon: Radio,
+      iconColor: 'text-indigo-600 bg-indigo-50 border-indigo-100',
+      sparkline: [30, 32, 35, 34, 38, 36, 39, 38],
+      stroke: '#4F46E5',
     },
     {
-      name: 'BACKGROUND SCHEDULER',
-      desc: 'Cron Engine & Queue Manager',
+      name: 'Scheduler',
       status: status.bot === 'online' ? 'online' : ('offline' as const),
-      latency: status.bot === 'online' ? '5ms' : 'ERR',
-      env: 'PROD',
+      statusLabel: 'OPERATIONAL',
+      metric: '04:07 PM',
+      metricLabel: 'Next Run',
       icon: Cpu,
+      iconColor: 'text-sky-600 bg-sky-50 border-sky-100',
+      sparkline: [10, 15, 12, 18, 16, 20, 19, 22],
+      stroke: '#0284C7',
     },
     {
-      name: 'DASHBOARD TELEMETRY',
-      desc: 'Next.js 16 Edge / Server Runtime',
+      name: 'Dashboard',
       status: 'online' as const,
-      latency: '3ms',
-      env: 'PROD',
+      statusLabel: 'OPERATIONAL',
+      metric: '99.9%',
+      metricLabel: 'Uptime',
       icon: Globe,
+      iconColor: 'text-emerald-600 bg-emerald-50 border-emerald-100',
+      sparkline: [98, 99, 99, 99, 100, 99, 100, 100],
+      stroke: '#10B981',
+      version: 'v2.4.0',
     },
   ];
 
   return (
-    <Card className="h-full bg-[#0A0F16]">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between w-full">
-          <span className="flex items-center gap-2">
-            <Activity className="w-3.5 h-3.5 text-[#22D3EE]" />
-            <span>INFRASTRUCTURE TELEMETRY & HEALTH</span>
-          </span>
-          <div className="flex items-center gap-2 font-mono text-[10px] text-[#64748B] normal-case">
-            <span>SYNC: {timeStr}</span>
-            <span className="text-[#10B981] px-1.5 py-0.2 rounded bg-[#10B981]/10 border border-[#10B981]/20">
-              CLUSTER: ACTIVE
-            </span>
-          </div>
-        </CardTitle>
-      </CardHeader>
+    <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs">
+      <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#F1F3F9]">
+        <div className="flex items-center gap-2.5">
+          <h3 className="text-sm font-semibold text-[#101828]">
+            Infrastructure & Subsystem Health
+          </h3>
+        </div>
+        <Link
+          href="/dashboard/tools"
+          className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 hover:underline"
+        >
+          <span>View All Systems</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {systems.map((sys) => {
           const Icon = sys.icon;
           const isOperational = sys.status === 'online';
 
+          // mini sparkline path
+          const minVal = Math.min(...sys.sparkline);
+          const maxVal = Math.max(...sys.sparkline);
+          const range = maxVal - minVal || 1;
+          const width = 100;
+          const height = 22;
+          const points = sys.sparkline
+            .map((val, idx) => {
+              const x = (idx / (sys.sparkline.length - 1)) * width;
+              const y = height - ((val - minVal) / range) * (height - 4) - 2;
+              return `${x.toFixed(1)},${y.toFixed(1)}`;
+            })
+            .join(' ');
+
           return (
             <div
               key={sys.name}
-              className="p-3 rounded bg-[#070B10] border border-[#16202E] hover:border-[#1E2C3F] transition-colors flex flex-col justify-between"
+              className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] hover:border-[#D1D5DB] transition-all flex flex-col justify-between"
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded bg-[#0D131C] text-[#64748B] border border-[#16202E]">
-                    <Icon className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  </div>
-                  <span className="text-[9px] font-mono text-[#64748B] uppercase px-1 py-0.2 rounded bg-[#0A0F16] border border-[#121A24]">
-                    {sys.env}
-                  </span>
-                </div>
-                <StatusDot
-                  status={isLoading ? 'unknown' : (sys.status as any)}
-                  label={sys.status === 'online' ? 'OPERATIONAL' : sys.status.toUpperCase()}
-                  showPulse={isOperational}
-                />
-              </div>
-
               <div>
-                <div className="text-xs font-mono font-semibold text-[#F1F5F9] truncate">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className={`p-1.5 rounded-lg border ${sys.iconColor}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <Badge variant={isOperational ? 'success' : 'danger'}>
+                    {isOperational ? 'OPERATIONAL' : 'DEGRADED'}
+                  </Badge>
+                </div>
+
+                <div className="text-xs font-semibold text-[#101828]">
                   {sys.name}
                 </div>
-                <div className="text-[10px] text-[#64748B] truncate mt-0.5">{sys.desc}</div>
+                {sys.version && (
+                  <div className="text-[10px] text-[#667085] mt-0.5">
+                    {sys.version}
+                  </div>
+                )}
               </div>
 
-              <div className="mt-2.5 pt-2 border-t border-[#121A24] flex items-center justify-between text-[10px] font-mono text-[#64748B]">
-                <span>LATENCY</span>
-                <span className={isOperational ? 'text-[#10B981]' : 'text-[#EF4444]'}>
-                  {sys.latency}
-                </span>
+              <div className="mt-3 pt-2.5 border-t border-[#E5E7EB]/60">
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <span className="text-xs font-bold text-[#101828]">
+                    {sys.metric}
+                  </span>
+                  <span className="text-[10px] text-[#667085]">
+                    {sys.metricLabel}
+                  </span>
+                </div>
+
+                <div className="w-full h-5">
+                  <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+                    <polyline
+                      fill="none"
+                      stroke={sys.stroke}
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      points={points}
+                    />
+                  </svg>
+                </div>
               </div>
             </div>
           );

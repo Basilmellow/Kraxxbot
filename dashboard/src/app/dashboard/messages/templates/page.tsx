@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { Modal } from '@/components/ui/Modal';
 import { DiscordEmbedPreview, DiscordEmbedData } from '@/components/discord/DiscordEmbedPreview';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
@@ -19,7 +20,6 @@ import {
   AlertTriangle,
   FolderOpen,
   Calendar,
-  X,
   Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -98,24 +98,26 @@ export default function EmbedTemplatesPage() {
   }, []);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Confirm deletion of template "${name}"?`)) return;
-
+    if (!confirm(`Delete template "${name}" permanently?`)) return;
     try {
       const res = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete template');
-      setTemplates((prev) => prev.filter((t) => t.id !== id));
-      setFeedback({ type: 'success', message: `Template "${name}" deleted.` });
+      if (res.ok) {
+        setFeedback({ type: 'success', message: `Template "${name}" deleted.` });
+        fetchTemplates();
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to delete');
+      }
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Delete error' });
     }
   };
 
-  const handleQuickDispatch = async (e: React.FormEvent) => {
+  const handleSendFromTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sendModalTemplate || !selectedChannel) return;
 
     setIsSending(true);
-    setFeedback(null);
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -127,7 +129,7 @@ export default function EmbedTemplatesPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to dispatch embed');
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch template');
 
       setSendModalTemplate(null);
       setFeedback({
@@ -135,32 +137,47 @@ export default function EmbedTemplatesPage() {
         message: `Template "${sendModalTemplate.name}" dispatched to #${selectedChannel.name}.`,
       });
     } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Failed to dispatch' });
+      setFeedback({ type: 'error', message: err.message || 'Dispatch error' });
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const getCategoryBadge = (cat: string) => {
+    switch (cat.toUpperCase()) {
+      case 'SECURITY':
+        return <Badge variant="success">KRAXXSEC</Badge>;
+      case 'STUDIO':
+        return <Badge variant="studio">STUDIO</Badge>;
+      case 'EMERGENCY':
+        return <Badge variant="danger">EMERGENCY</Badge>;
+      case 'OPERATIONS':
+        return <Badge variant="brand">HQ OPS</Badge>;
+      default:
+        return <Badge variant="neutral">{cat}</Badge>;
     }
   };
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="EMBED TEMPLATE LIBRARY"
-        subtitle="Standardized Operational Dispatches & Discord Broadcast Presets"
+        title="Embed Template Library"
+        subtitle="Saved Embed Layouts, Division Archetypes & Instant Dispatch"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
-        {/* Header Actions & Categories */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded bg-[#0A0F16] border border-[#16202E] font-mono text-xs">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+        {/* Header Actions & Category Tabs */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-2.5 py-1 rounded transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   selectedCategory === cat
-                    ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
-                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
+                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
                 }`}
               >
                 {cat}
@@ -169,9 +186,9 @@ export default function EmbedTemplatesPage() {
           </div>
 
           <Link href="/dashboard/messages/embed">
-            <Button variant="primary" size="sm" className="font-mono text-xs gap-1.5">
+            <Button variant="primary" size="sm" className="flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5" />
-              <span>NEW EMBED BUILDER</span>
+              <span>Create New Embed</span>
             </Button>
           </Link>
         </div>
@@ -179,210 +196,178 @@ export default function EmbedTemplatesPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
-        {/* Templates Grid */}
+        {/* Template Grid */}
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
           </div>
         ) : templates.length === 0 ? (
           <EmptyState
             icon={FolderOpen}
-            title="NO TEMPLATES FOUND IN CATEGORY"
-            description="No saved operational embed templates match your current filter criteria."
-            action={
-              <Link href="/dashboard/messages/embed">
-                <Button variant="outline" size="sm" className="font-mono text-xs">
-                  CREATE NEW TEMPLATE
-                </Button>
-              </Link>
-            }
+            title="No templates found in library"
+            description="Create rich embed templates in the Embed Builder to store them in this operations library."
+            actionLabel="Open Embed Builder"
+            onAction={() => window.location.href = '/dashboard/messages/embed'}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {templates.map((tpl) => {
-              const embed = tpl.embedData || {};
-              return (
-                <Card
-                  key={tpl.id}
-                  className="bg-[#0A0F16] flex flex-col justify-between hover:border-[#22D3EE]/30 transition-all p-4 space-y-3"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Badge variant="brand">{tpl.category}</Badge>
-                      <span className="text-[10px] font-mono text-[#64748B]">
-                        {new Date(tpl.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {templates.map((tpl) => (
+              <Card
+                key={tpl.id}
+                className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h4 className="text-sm font-semibold text-[#101828] truncate">
+                      {tpl.name}
+                    </h4>
+                    {getCategoryBadge(tpl.category)}
+                  </div>
 
-                    <div>
-                      <h3 className="text-xs font-mono font-bold text-[#F1F5F9] truncate">
-                        {tpl.name}
-                      </h3>
-                      {tpl.description && (
-                        <p className="text-[11px] text-[#94A3B8] font-sans line-clamp-2 mt-0.5">
-                          {tpl.description}
-                        </p>
-                      )}
-                    </div>
+                  {tpl.description && (
+                    <p className="text-xs text-[#667085] line-clamp-2 mb-3 leading-relaxed">
+                      {tpl.description}
+                    </p>
+                  )}
 
-                    {embed.title && (
-                      <div className="p-2 rounded bg-[#070B10] border border-[#16202E] text-[11px] font-mono text-[#22D3EE] truncate">
-                        {embed.title}
+                  {/* Embed Mini Strip Indicator */}
+                  <div
+                    className="p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs font-mono space-y-1 mb-4"
+                    style={{
+                      borderLeft: `4px solid ${
+                        typeof tpl.embedData?.color === 'string'
+                          ? tpl.embedData.color
+                          : '#4F46E5'
+                      }`,
+                    }}
+                  >
+                    <div className="font-bold text-[#101828] truncate">
+                      {tpl.embedData?.title || 'No Title'}
+                    </div>
+                    {tpl.embedData?.description && (
+                      <div className="text-[11px] text-[#667085] line-clamp-1">
+                        {tpl.embedData.description}
                       </div>
                     )}
                   </div>
+                </div>
 
-                  <div className="pt-3 border-t border-[#16202E] flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setPreviewTemplate(tpl)}
-                        className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#94A3B8] hover:text-[#22D3EE] hover:border-[#22D3EE]/30 transition-colors"
-                        title="Live Preview"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(tpl.id, tpl.name)}
-                        className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
-                        title="Delete Template"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSendModalTemplate(tpl)}
-                      className="font-mono text-xs gap-1 py-1"
+                <div className="pt-3 border-t border-[#F1F3F9] flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTemplate(tpl)}
+                      className="p-1.5 rounded-lg text-[#667085] hover:text-[#101828] hover:bg-[#F3F5FA] transition-colors"
+                      title="Preview Template"
                     >
-                      <Send className="w-3 h-3 text-[#22D3EE]" />
-                      <span>DISPATCH</span>
-                    </Button>
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(tpl.id, tpl.name)}
+                      className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
+                      title="Delete Template"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                </Card>
-              );
-            })}
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSendModalTemplate(tpl)}
+                    className="flex items-center gap-1.5 text-xs"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>Dispatch</span>
+                  </Button>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
 
-        {/* Live Preview Modal */}
+        {/* Preview Modal */}
         {previewTemplate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
-            <div className="w-full max-w-2xl rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)] max-h-[85vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
-                <div>
-                  <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider">
-                    {previewTemplate.name}
-                  </h3>
-                  <p className="text-[10px] font-mono text-[#64748B]">CATEGORY: {previewTemplate.category}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPreviewTemplate(null)}
-                  className="text-[#64748B] hover:text-[#F1F5F9]"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="p-2">
-                <DiscordEmbedPreview embed={previewTemplate.embedData} />
-              </div>
-
-              <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-[#16202E]">
-                <Button variant="ghost" size="sm" onClick={() => setPreviewTemplate(null)}>
-                  CLOSE
-                </Button>
+          <Modal
+            isOpen={true}
+            onClose={() => setPreviewTemplate(null)}
+            title={`Preview: ${previewTemplate.name}`}
+            subtitle={`Category: ${previewTemplate.category}`}
+            maxWidth="2xl"
+          >
+            <div className="space-y-4">
+              <DiscordEmbedPreview embed={previewTemplate.embedData} />
+              <div className="flex justify-end pt-2">
                 <Button
                   variant="primary"
                   size="sm"
                   onClick={() => {
-                    setSendModalTemplate(previewTemplate);
+                    const t = previewTemplate;
                     setPreviewTemplate(null);
+                    setSendModalTemplate(t);
                   }}
-                  className="font-mono text-xs gap-1.5"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>DISPATCH THIS TEMPLATE</span>
+                  Proceed to Dispatch
                 </Button>
               </div>
             </div>
-          </div>
+          </Modal>
         )}
 
-        {/* Dispatch Modal */}
+        {/* Dispatch Template Modal */}
         {sendModalTemplate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
-                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
-                  <Send className="w-4 h-4 text-[#22D3EE]" />
-                  <span>DISPATCH TEMPLATE</span>
-                </h3>
-                <button
+          <Modal
+            isOpen={true}
+            onClose={() => setSendModalTemplate(null)}
+            title={`Dispatch "${sendModalTemplate.name}"`}
+            subtitle="Select the target channel to broadcast this saved template"
+          >
+            <form onSubmit={handleSendFromTemplate} className="space-y-4">
+              <ChannelSelector
+                channels={channels}
+                selectedChannelId={selectedChannel?.id || ''}
+                onSelectChannel={setSelectedChannel}
+              />
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setSendModalTemplate(null)}
-                  className="text-[#64748B] hover:text-[#F1F5F9]"
                 >
-                  <X className="w-4 h-4" />
-                </button>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isSending}
+                  disabled={!selectedChannel}
+                >
+                  Confirm & Dispatch
+                </Button>
               </div>
-
-              <form onSubmit={handleQuickDispatch} className="space-y-4 font-mono text-xs">
-                <div className="p-3 rounded bg-[#070B10] border border-[#16202E]">
-                  <span className="text-[10px] text-[#64748B] uppercase">SELECTED TEMPLATE:</span>
-                  <div className="font-bold text-[#F1F5F9]">{sendModalTemplate.name}</div>
-                </div>
-
-                <ChannelSelector
-                  channels={channels}
-                  selectedChannelId={selectedChannel?.id || ''}
-                  onSelectChannel={setSelectedChannel}
-                />
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSendModalTemplate(null)}
-                  >
-                    CANCEL
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    isLoading={isSending}
-                    disabled={!selectedChannel}
-                    className="font-mono font-bold"
-                  >
-                    DISPATCH NOW
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
+            </form>
+          </Modal>
         )}
       </div>
     </div>

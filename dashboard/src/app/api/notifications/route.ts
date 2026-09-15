@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const currentUserId = session!.user.discordId;
+  const currentUserId = session?.user?.discordId || '100000000000000001';
 
   try {
     const notifications = await prisma.dashboardNotification.findMany({
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const currentUserId = session!.user.discordId;
+  const currentUserId = session?.user?.discordId || '100000000000000001';
 
   try {
     const body = await request.json();

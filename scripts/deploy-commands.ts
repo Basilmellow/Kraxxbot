@@ -49,23 +49,50 @@ const commands = [
   ticketCommand.data.toJSON(),
 ];
 
+/**
+ * Parses --guild <guildId> flag from CLI arguments.
+ * Usage:
+ *   npm run deploy:commands             → global registration (production)
+ *   npm run deploy:commands:dev         → guild registration (instant, dev)
+ *   npx ts-node scripts/deploy-commands.ts --guild 123456789
+ */
+function parseTargetGuildId(): string | null {
+  const args = process.argv.slice(2);
+  const guildFlagIndex = args.indexOf('--guild');
+  if (guildFlagIndex !== -1 && args[guildFlagIndex + 1]) {
+    return args[guildFlagIndex + 1];
+  }
+
+  // Fallback: Use DISCORD_GUILD_ID from env when running deploy:commands:dev
+  const devMode = args.includes('--dev') || process.env.DEPLOY_MODE === 'dev';
+  if (devMode && env.DISCORD_GUILD_ID && env.DISCORD_GUILD_ID !== 'your_discord_guild_id_here') {
+    return env.DISCORD_GUILD_ID;
+  }
+
+  return null;
+}
+
 async function deployCommands() {
   logger.info(`Starting deployment of ${commands.length} application (/) commands...`);
 
   const rest = new REST({ version: '10' }).setToken(env.DISCORD_TOKEN);
+  const targetGuildId = parseTargetGuildId();
 
   try {
-    if (env.DISCORD_GUILD_ID && env.DISCORD_GUILD_ID !== 'your_discord_guild_id_here') {
-      logger.info(`Deploying commands to Target Guild ID: ${env.DISCORD_GUILD_ID}`);
+    if (targetGuildId) {
+      // Guild registration — commands update instantly (ideal for development)
+      logger.info(`🏠 Deploying to Guild ID: ${targetGuildId} (instant refresh — dev mode)`);
       await rest.put(
-        Routes.applicationGuildCommands(env.DISCORD_CLIENT_ID, env.DISCORD_GUILD_ID),
+        Routes.applicationGuildCommands(env.DISCORD_CLIENT_ID, targetGuildId),
         { body: commands }
       );
-      logger.info('✅ Successfully registered guild application commands.');
+      logger.info('✅ Guild-scoped application commands deployed successfully.');
     } else {
-      logger.info('Deploying commands globally...');
+      // Global registration — propagates to ALL guilds where bot is installed (up to 1 hour)
+      logger.info('🌐 Deploying globally across all guilds (production mode)...');
       await rest.put(Routes.applicationCommands(env.DISCORD_CLIENT_ID), { body: commands });
-      logger.info('✅ Successfully registered global application commands.');
+      logger.info('✅ Global application commands deployed successfully.');
+      logger.info('⏳ Note: Global commands may take up to 1 hour to propagate to all Discord servers.');
     }
   } catch (error) {
     logger.error({ err: error }, '❌ Failed to deploy application commands');

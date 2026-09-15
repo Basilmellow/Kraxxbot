@@ -1,46 +1,47 @@
 import React from 'react';
 
-interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
-  className?: string;
-}
-
-export function Skeleton({ className = '', ...props }: SkeletonProps) {
+export function Skeleton({ className = '' }: { className?: string }) {
   return (
     <div
-      className={`bg-[#111823] border border-[#16202E] animate-pulse-subtle rounded ${className}`}
-      {...props}
+      className={`bg-[#E5E7EB] rounded-md animate-pulse-subtle ${className}`}
     />
   );
 }
 
-export function SkeletonCard({ className = '' }: { className?: string }) {
+export function SkeletonCard() {
   return (
-    <div className={`p-4 rounded-md bg-[#0A0F16] border border-[#16202E] space-y-3 ${className}`}>
-      <div className="flex items-center justify-between">
+    <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 space-y-3">
+      <div className="flex justify-between items-center">
         <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-12" />
+        <Skeleton className="h-8 w-8 rounded-lg" />
       </div>
-      <Skeleton className="h-8 w-3/4" />
-      <Skeleton className="h-3 w-1/2" />
+      <Skeleton className="h-7 w-20" />
+      <Skeleton className="h-3 w-40" />
     </div>
   );
 }
 
-export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
+export function SkeletonTable({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="w-full space-y-2">
-      <div className="flex gap-4 p-3 bg-[#070B10] border-b border-[#16202E]">
-        {Array.from({ length: cols }).map((_, i) => (
-          <Skeleton key={i} className="h-4 flex-1" />
+    <div className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden">
+      <div className="p-4 border-b border-[#F1F3F9] flex justify-between">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-4 w-20" />
+      </div>
+      <div className="divide-y divide-[#F1F3F9]">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="space-y-1.5 flex-1">
+                <Skeleton className="h-3.5 w-1/3" />
+                <Skeleton className="h-3 w-1/4" />
+              </div>
+            </div>
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
         ))}
       </div>
-      {Array.from({ length: rows }).map((_, r) => (
-        <div key={r} className="flex gap-4 p-3 bg-[#0A0F16] border-b border-[#121A24]">
-          {Array.from({ length: cols }).map((_, c) => (
-            <Skeleton key={c} className="h-4 flex-1" />
-          ))}
-        </div>
-      ))}
     </div>
   );
 }

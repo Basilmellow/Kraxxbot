@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'KRAXX Operations Platform',
-  description: 'Internal operations management platform for KRAXX HQ',
+  title: 'KRAXX HQ — Operations Platform',
+  description: 'Enterprise Operations & Digital Control Platform for KRAXX HQ',
   icons: {
     icon: '/favicon.ico',
   },
@@ -24,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} dark`} suppressHydrationWarning>
-      <body>
+    <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
+      <body className="bg-[#F7F8FC] text-[#101828] font-sans antialiased selection:bg-indigo-500/20 selection:text-indigo-900">
         <Providers>{children}</Providers>
       </body>
     </html>

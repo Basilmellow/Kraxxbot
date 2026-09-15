@@ -44,7 +44,7 @@ export default function ModerationPage() {
   const [targetId, setTargetId] = useState('');
   const [selectedAction, setSelectedAction] = useState<'WARN' | 'TIMEOUT' | 'KICK' | 'BAN' | 'UNBAN'>('WARN');
   const [reason, setReason] = useState('');
-  const [timeoutDuration, setTimeoutDuration] = useState(3600); // 1 hr default
+  const [timeoutDuration, setTimeoutDuration] = useState(3600);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -78,7 +78,7 @@ export default function ModerationPage() {
 
     if (selectedAction === 'BAN' || selectedAction === 'KICK') {
       const confirmed = confirm(
-        `CONFIRM CRITICAL ACTION: Execute [${selectedAction}] on Discord user ID: ${targetId}?`
+        `Confirm critical security action: Execute [${selectedAction}] on Discord user ID: ${targetId}?`
       );
       if (!confirmed) return;
     }
@@ -102,16 +102,16 @@ export default function ModerationPage() {
       if (res.ok) {
         setFeedback({
           type: 'success',
-          message: `Disciplinary action [${selectedAction}] executed on ${targetId}.`,
+          message: `Moderation action ${selectedAction} successfully dispatched against ${targetId}.`,
         });
         setTargetId('');
         setReason('');
         fetchLogs();
       } else {
-        setFeedback({ type: 'error', message: data.error || 'Failed to execute moderation action' });
+        setFeedback({ type: 'error', message: data.error || 'Failed to dispatch moderation action' });
       }
     } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Execution error' });
+      setFeedback({ type: 'error', message: err.message || 'Action error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -119,14 +119,14 @@ export default function ModerationPage() {
 
   const getActionBadge = (action: string) => {
     switch (action) {
-      case 'WARN':
-        return <Badge variant="warning">WARN</Badge>;
-      case 'TIMEOUT':
-        return <Badge variant="neutral">TIMEOUT</Badge>;
-      case 'KICK':
-        return <Badge variant="danger">KICK</Badge>;
       case 'BAN':
         return <Badge variant="danger">BAN</Badge>;
+      case 'KICK':
+        return <Badge variant="danger">KICK</Badge>;
+      case 'TIMEOUT':
+        return <Badge variant="warning">TIMEOUT</Badge>;
+      case 'WARN':
+        return <Badge variant="brand">WARNING</Badge>;
       case 'UNBAN':
         return <Badge variant="success">UNBAN</Badge>;
       default:
@@ -137,163 +137,154 @@ export default function ModerationPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="SECURITY & DISCIPLINARY CONTROL"
-        subtitle="KRAXXSEC Protocol Enforcement, Gateway Sanctions & Audit Log"
+        title="Moderation & Security Center"
+        subtitle="Guild Threat Enforcement, Incident Telemetry & Sanction Records"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
-        {/* Action Dispatch Console & Log Matrix */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Action Console (5 cols) */}
           <div className="lg:col-span-5 space-y-4">
-            <Card className="bg-[#0A0F16]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldAlert className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  <span>DISCIPLINARY ACTION CONSOLE</span>
-                </CardTitle>
-              </CardHeader>
+            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#F1F3F9]">
+                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-indigo-600" />
+                  <span>Enforcement Console</span>
+                </h3>
+              </div>
 
-              <form onSubmit={handleSubmitModAction} className="space-y-4 font-mono text-xs">
-                {/* Target User ID */}
+              <form onSubmit={handleSubmitModAction} className="space-y-4 text-xs">
                 <div>
-                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                    TARGET DISCORD USER ID
+                  <label className="block font-semibold text-[#344054] mb-1">
+                    Target Discord User ID
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. 842109876543210987"
+                    placeholder="e.g. 719283928192839128"
                     value={targetId}
                     onChange={(e) => setTargetId(e.target.value)}
-                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
                   />
                 </div>
 
-                {/* Action Selector */}
                 <div>
-                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1.5">
-                    SANCTION TYPE
+                  <label className="block font-semibold text-[#344054] mb-1.5">
+                    Security Action Type
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                    {[
-                      { id: 'WARN', label: 'WARN', color: 'border-[#F59E0B]/40 text-[#F59E0B]' },
-                      { id: 'TIMEOUT', label: 'TIMEOUT', color: 'border-[#94A3B8]/40 text-[#94A3B8]' },
-                      { id: 'KICK', label: 'KICK', color: 'border-[#EF4444]/40 text-[#EF4444]' },
-                      { id: 'BAN', label: 'BAN', color: 'border-[#EF4444]/60 text-[#EF4444]' },
-                      { id: 'UNBAN', label: 'UNBAN', color: 'border-[#10B981]/40 text-[#10B981]' },
-                    ].map((a) => (
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['WARN', 'TIMEOUT', 'KICK', 'BAN', 'UNBAN'] as const).map((a) => (
                       <button
-                        key={a.id}
+                        key={a}
                         type="button"
-                        onClick={() => setSelectedAction(a.id as any)}
-                        className={`p-2 rounded border text-center font-bold transition-all ${
-                          selectedAction === a.id
-                            ? 'bg-[#111823] border-[#22D3EE] text-[#22D3EE]'
-                            : `bg-[#070B10] border-[#16202E] ${a.color} hover:border-[#1E2C3F]`
+                        onClick={() => setSelectedAction(a)}
+                        className={`py-2 rounded-xl text-xs font-semibold border transition-all ${
+                          selectedAction === a
+                            ? a === 'BAN' || a === 'KICK'
+                              ? 'bg-red-50 border-red-600 text-red-700'
+                              : 'bg-indigo-50 border-indigo-600 text-indigo-700'
+                            : 'bg-white border-[#E5E7EB] text-[#475467] hover:bg-[#F8FAFC]'
                         }`}
                       >
-                        {a.label}
+                        {a}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Timeout Duration */}
                 {selectedAction === 'TIMEOUT' && (
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      TIMEOUT DURATION
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Timeout Duration
                     </label>
                     <select
                       value={timeoutDuration}
-                      onChange={(e) => setTimeoutDuration(parseInt(e.target.value, 10))}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      onChange={(e) => setTimeoutDuration(Number(e.target.value))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
                     >
+                      <option value={60}>1 Minute (Test)</option>
                       <option value={300}>5 Minutes</option>
-                      <option value={900}>15 Minutes</option>
+                      <option value={600}>10 Minutes</option>
                       <option value={3600}>1 Hour</option>
-                      <option value={86400}>24 Hours</option>
-                      <option value={604800}>7 Days</option>
+                      <option value={86400}>24 Hours (1 Day)</option>
+                      <option value={604800}>1 Week</option>
                     </select>
                   </div>
                 )}
 
-                {/* Reason */}
                 <div>
-                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                    FORMAL INCIDENT REASON
+                  <label className="block font-semibold text-[#344054] mb-1">
+                    Formal Sanction Reason
                   </label>
                   <textarea
                     rows={3}
-                    placeholder="Enter formal justification for audit logs..."
+                    placeholder="Reason for audit log and DM dispatch..."
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    className="w-full p-3 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50 resize-y"
+                    className="w-full p-3 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs resize-y"
                   />
                 </div>
 
-                {/* Execute Button */}
-                <Button
-                  type="submit"
-                  variant={selectedAction === 'BAN' || selectedAction === 'KICK' ? 'danger' : 'primary'}
-                  isLoading={isSubmitting}
-                  disabled={!targetId.trim()}
-                  className="w-full font-mono font-bold tracking-wider uppercase text-xs py-2.5"
-                >
-                  EXECUTE [{selectedAction}] SANCTION
-                </Button>
+                <div className="pt-2">
+                  <Button
+                    type="submit"
+                    variant={selectedAction === 'BAN' || selectedAction === 'KICK' ? 'danger' : 'primary'}
+                    size="md"
+                    isLoading={isSubmitting}
+                    disabled={!targetId.trim()}
+                    className="w-full font-semibold text-xs py-2.5"
+                  >
+                    Execute {selectedAction} Command
+                  </Button>
+                </div>
               </form>
             </Card>
           </div>
 
-          {/* Right Column: Moderation Log Stream (7 cols) */}
+          {/* Right Column: Mod Log Records (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <Card className="bg-[#0A0F16] overflow-hidden">
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 w-full">
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="w-3.5 h-3.5 text-[#22D3EE]" />
-                    <span>SANCTION AUDIT LOGS ({logs.length})</span>
-                  </CardTitle>
+            <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
+              <div className="p-5 border-b border-[#F1F3F9] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-indigo-600" />
+                  <span>Moderation Audit Trail ({logs.length})</span>
+                </h3>
 
-                  {/* Filter Tabs */}
-                  <div className="flex flex-wrap items-center gap-1 p-0.5 rounded bg-[#070B10] border border-[#16202E] font-mono text-[10px]">
-                    {ACTION_FILTERS.map((f) => (
-                      <button
-                        key={f}
-                        type="button"
-                        onClick={() => setActionFilter(f)}
-                        className={`px-2 py-0.5 rounded transition-colors ${
-                          actionFilter === f
-                            ? 'bg-[#111823] text-[#22D3EE] font-bold border border-[#1E2C3F]'
-                            : 'text-[#94A3B8] hover:text-[#F1F5F9]'
-                        }`}
-                      >
-                        {f}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap items-center gap-1">
+                  {ACTION_FILTERS.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setActionFilter(f)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                        actionFilter === f
+                          ? 'bg-indigo-50 text-indigo-600 font-semibold'
+                          : 'text-[#667085] hover:text-[#101828]'
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
                 </div>
-              </CardHeader>
+              </div>
 
               {isLoading ? (
                 <div className="p-4">
@@ -303,32 +294,36 @@ export default function ModerationPage() {
                 <div className="p-8">
                   <EmptyState
                     icon={Shield}
-                    title="NO MODERATION LOGS RECORDED"
-                    description="No disciplinary actions match your current filter parameters."
+                    title="No moderation records found"
+                    description="No moderation actions logged matching your filter parameters."
                   />
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left font-mono text-xs border-collapse">
+                  <table className="kraxx-table">
                     <thead>
-                      <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
-                        <th className="py-2.5 px-3 font-semibold">ACTION</th>
-                        <th className="py-2.5 px-3 font-semibold">TARGET USER ID</th>
-                        <th className="py-2.5 px-3 font-semibold">JUSTIFICATION</th>
-                        <th className="py-2.5 px-3 font-semibold">MODERATOR</th>
-                        <th className="py-2.5 px-3 font-semibold text-right">DATE</th>
+                      <tr>
+                        <th>Action</th>
+                        <th>Target User</th>
+                        <th>Reason</th>
+                        <th>Moderator</th>
+                        <th className="text-right">Timestamp</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#16202E]">
+                    <tbody>
                       {logs.map((log) => (
-                        <tr key={log.id} className="hover:bg-[#0D131C] transition-colors">
-                          <td className="py-2.5 px-3">{getActionBadge(log.action)}</td>
-                          <td className="py-2.5 px-3 font-bold text-[#F1F5F9]">{log.targetId}</td>
-                          <td className="py-2.5 px-3 text-[#94A3B8] max-w-xs truncate">
-                            {log.reason || 'No justification provided'}
+                        <tr key={log.id}>
+                          <td>{getActionBadge(log.action)}</td>
+                          <td className="font-mono text-xs text-[#101828]">
+                            {log.targetId}
                           </td>
-                          <td className="py-2.5 px-3 text-[#64748B]">{log.moderatorId}</td>
-                          <td className="py-2.5 px-3 text-right text-[#64748B]">
+                          <td className="max-w-xs truncate text-xs text-[#475467]">
+                            {log.reason || 'No reason specified'}
+                          </td>
+                          <td className="text-xs text-[#667085]">
+                            @{log.moderatorId}
+                          </td>
+                          <td className="text-right text-xs text-[#667085]">
                             {new Date(log.createdAt).toLocaleDateString()}
                           </td>
                         </tr>

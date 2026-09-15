@@ -73,31 +73,31 @@ export default function SettingsPage() {
   };
 
   const SECTIONS = [
-    { id: 'GENERAL', label: 'GENERAL SUBSYSTEMS' },
-    { id: 'DISCORD', label: 'DISCORD GATEWAY' },
-    { id: 'TICKETS', label: 'SUPPORT TICKETS' },
-    { id: 'MODERATION', label: 'KRAXXSEC MODERATION' },
+    { id: 'GENERAL', label: 'General Subsystems' },
+    { id: 'DISCORD', label: 'Discord Gateway' },
+    { id: 'TICKETS', label: 'Support Tickets' },
+    { id: 'MODERATION', label: 'KRAXXSEC Moderation' },
   ];
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="PLATFORM CONFIGURATION CENTER"
+        title="Platform Configuration Center"
         subtitle="Global Subsystem Constants, Environment Defaults & Access Control Rules"
       />
 
-      <div className="p-4 sm:p-6 max-w-6xl w-full mx-auto space-y-5">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl w-full mx-auto space-y-6">
         {/* Section Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1 rounded bg-[#0A0F16] border border-[#16202E] font-mono text-xs w-fit">
+        <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs w-fit">
           {SECTIONS.map((s) => (
             <button
               key={s.id}
               type="button"
               onClick={() => setActiveSection(s.id)}
-              className={`px-3 py-1.5 rounded transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 activeSection === s.id
-                  ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
-                  : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                  ? 'bg-indigo-50 text-indigo-600'
+                  : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
               }`}
             >
               {s.label}
@@ -108,58 +108,58 @@ export default function SettingsPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
         {/* Settings Form */}
         <form onSubmit={handleSave}>
-          <Card className="bg-[#0A0F16]">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between w-full">
-                <span className="flex items-center gap-2">
-                  <Settings className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  <span>{activeSection} CONFIGURATION VALUES</span>
-                </span>
-                <Badge variant="brand">FOUNDER CLEARANCE REQUIRED</Badge>
-              </CardTitle>
-            </CardHeader>
+          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-[#F1F3F9]">
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-semibold text-[#101828]">
+                  {SECTIONS.find((s) => s.id === activeSection)?.label} Settings
+                </h3>
+              </div>
+              <Badge variant="brand">FOUNDER CLEARANCE REQUIRED</Badge>
+            </div>
 
-            <div className="space-y-4 font-mono text-xs pt-2">
+            <div className="space-y-4 text-xs">
               {activeSection === 'GENERAL' && (
                 <>
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      ORGANIZATION / PLATFORM TITLE
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Organization / Platform Title
                     </label>
                     <input
                       type="text"
                       value={configs['app_name'] || 'KRAXX Operations Platform'}
                       onChange={(e) => handleChange('app_name', e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      PRIMARY GUILD HEADQUARTERS ID
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Primary Guild Headquarters Discord ID
                     </label>
                     <input
                       type="text"
                       value={configs['primary_guild_id'] || ''}
                       onChange={(e) => handleChange('primary_guild_id', e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
                 </>
@@ -168,26 +168,26 @@ export default function SettingsPage() {
               {activeSection === 'DISCORD' && (
                 <>
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      GLOBAL LOG AUDIT CHANNEL ID
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Global Security Log Audit Channel ID
                     </label>
                     <input
                       type="text"
                       value={configs['audit_channel_id'] || ''}
                       onChange={(e) => handleChange('audit_channel_id', e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      MAIN BROADCAST ANNOUNCEMENT CHANNEL ID
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Main Broadcast Announcement Channel ID
                     </label>
                     <input
                       type="text"
                       value={configs['announcement_channel_id'] || ''}
                       onChange={(e) => handleChange('announcement_channel_id', e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
                 </>
@@ -196,26 +196,26 @@ export default function SettingsPage() {
               {activeSection === 'TICKETS' && (
                 <>
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      DEFAULT TICKET CATEGORY DISCORD PARENT ID
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Default Ticket Category Discord Parent Channel ID
                     </label>
                     <input
                       type="text"
                       value={configs['ticket_category_id'] || ''}
                       onChange={(e) => handleChange('ticket_category_id', e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      AUTO-CLOSE INACTIVE TICKET TIMEOUT (HOURS)
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Auto-Close Inactive Ticket Timeout (Hours)
                     </label>
                     <input
                       type="number"
                       value={configs['ticket_inactivity_hours'] || '48'}
                       onChange={(e) => handleChange('ticket_inactivity_hours', e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
                 </>
@@ -224,39 +224,39 @@ export default function SettingsPage() {
               {activeSection === 'MODERATION' && (
                 <>
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      MODERATION DISCIPLINARY LOG CHANNEL ID
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Moderation Disciplinary Log Channel ID
                     </label>
                     <input
                       type="text"
                       value={configs['mod_log_channel_id'] || ''}
                       onChange={(e) => handleChange('mod_log_channel_id', e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      STRIKE THRESHOLD FOR AUTOMATED BAN
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Strike Threshold for Automated Ban
                     </label>
                     <input
                       type="number"
                       value={configs['mod_ban_threshold'] || '3'}
                       onChange={(e) => handleChange('mod_ban_threshold', e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
                 </>
               )}
 
-              <div className="pt-4 border-t border-[#16202E] flex justify-end">
+              <div className="pt-4 border-t border-[#F1F3F9] flex justify-end">
                 <Button
                   type="submit"
                   variant="primary"
                   isLoading={isSaving}
-                  className="font-mono font-bold tracking-wider uppercase text-xs px-5"
+                  className="font-semibold text-xs px-5"
                 >
-                  SAVE CONFIGURATION
+                  Save Settings
                 </Button>
               </div>
             </div>

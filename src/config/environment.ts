@@ -8,7 +8,7 @@ const environmentSchema = z.object({
   // Discord Application Credentials
   DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
   DISCORD_CLIENT_ID: z.string().min(1, 'DISCORD_CLIENT_ID is required'),
-  DISCORD_GUILD_ID: z.string().min(1, 'DISCORD_GUILD_ID is required'),
+  DISCORD_GUILD_ID: z.string().optional().default(''), // Optional — used for dev command registration only
 
   // Database
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),

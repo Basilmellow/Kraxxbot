@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { Modal } from '@/components/ui/Modal';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
   Vote,
@@ -16,9 +17,6 @@ import {
   AlertTriangle,
   Clock,
   Trash2,
-  Hash,
-  Sparkles,
-  X,
   MessageSquare,
 } from 'lucide-react';
 
@@ -118,7 +116,7 @@ export default function SocialPage() {
 
       const data = await res.json();
       if (res.ok) {
-        setFeedback({ type: 'success', message: 'Poll deployed to Discord channel.' });
+        setFeedback({ type: 'success', message: 'Interactive poll published.' });
         setShowPollModal(false);
         setPollQuestion('');
         setPollOptions(['Option 1', 'Option 2']);
@@ -133,59 +131,55 @@ export default function SocialPage() {
     }
   };
 
-  const handleUpdateSuggestion = async (id: string, newStatus: string) => {
+  const handleUpdateSuggestionStatus = async (id: string, status: string) => {
     try {
       const res = await fetch(`/api/social/suggestions/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status }),
       });
-
       if (res.ok) {
-        setSuggestions(
-          suggestions.map((s) => (s.id === id ? { ...s, status: newStatus as any } : s))
-        );
+        setSuggestions(suggestions.map((s) => (s.id === id ? { ...s, status: status as any } : s)));
       }
     } catch (err) {
-      console.error('Update suggestion failed:', err);
+      console.error('Failed to update suggestion status:', err);
     }
   };
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="COMMUNITY OPS & SUGGESTIONS"
-        subtitle="Interactive Discord Polls, Member Feedback Stream & Governance"
+        title="Community Engagement & Social Signals"
+        subtitle="Live Polls, Operator Suggestions & Guild Sentiment Engine"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
-        {/* Navigation Tabs */}
-        <div className="flex items-center justify-between font-mono text-xs">
-          <div className="flex items-center gap-1.5 p-1 rounded bg-[#0A0F16] border border-[#16202E]">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+        {/* Navigation Tabs & Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
             <button
               type="button"
               onClick={() => setActiveTab('POLLS')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 activeTab === 'POLLS'
-                  ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
-                  : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                  ? 'bg-indigo-50 text-indigo-600'
+                  : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
               }`}
             >
               <Vote className="w-3.5 h-3.5" />
-              <span>DISCORD POLLS ({polls.length})</span>
+              <span>Interactive Polls ({polls.length})</span>
             </button>
-
             <button
               type="button"
               onClick={() => setActiveTab('SUGGESTIONS')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 activeTab === 'SUGGESTIONS'
-                  ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
-                  : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                  ? 'bg-indigo-50 text-indigo-600'
+                  : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
               }`}
             >
               <Lightbulb className="w-3.5 h-3.5" />
-              <span>SUGGESTIONS DESK ({suggestions.length})</span>
+              <span>Operator Suggestions ({suggestions.length})</span>
             </button>
           </div>
 
@@ -194,10 +188,10 @@ export default function SocialPage() {
               variant="primary"
               size="sm"
               onClick={() => setShowPollModal(true)}
-              className="font-mono text-xs gap-1.5"
+              className="gap-1.5"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>DEPLOY NEW POLL</span>
+              <span>Create New Poll</span>
             </Button>
           )}
         </div>
@@ -205,250 +199,222 @@ export default function SocialPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
-        {/* Content Tabs */}
+        {/* Content Section */}
         {activeTab === 'POLLS' ? (
-          <div>
-            {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <SkeletonCard key={i} />
-                ))}
-              </div>
-            ) : polls.length === 0 ? (
-              <EmptyState
-                icon={Vote}
-                title="NO ACTIVE POLLS RECORDED"
-                description="There are currently no active community polls deployed in Discord."
-                action={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowPollModal(true)}
-                    className="font-mono text-xs"
-                  >
-                    DEPLOY FIRST POLL
-                  </Button>
+          isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          ) : polls.length === 0 ? (
+            <EmptyState
+              icon={Vote}
+              title="No active polls"
+              description="Deploy a community voting survey with interactive reactions."
+              actionLabel="Launch Poll"
+              onAction={() => setShowPollModal(true)}
+            />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {polls.map((p) => {
+                let optionsArr: string[] = [];
+                try {
+                  optionsArr = JSON.parse(p.options);
+                } catch {
+                  optionsArr = [p.options];
                 }
-              />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {polls.map((p) => {
-                  let optArr: string[] = [];
-                  try {
-                    optArr = JSON.parse(p.options);
-                  } catch {}
 
-                  return (
-                    <Card
-                      key={p.id}
-                      className="bg-[#0A0F16] p-4 space-y-3 font-mono text-xs flex flex-col justify-between"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Badge variant={p.status === 'ACTIVE' ? 'brand' : 'neutral'}>
-                            {p.status}
-                          </Badge>
-                          <span className="text-[10px] text-[#64748B]">
-                            {new Date(p.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-
-                        <h3 className="font-bold text-[#F1F5F9] text-sm">{p.question}</h3>
-
-                        <div className="space-y-1 pt-1">
-                          {optArr.map((opt, i) => (
-                            <div
-                              key={i}
-                              className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[11px] text-[#94A3B8]"
-                            >
-                              {i + 1}. {opt}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t border-[#16202E] text-[10px] text-[#64748B]">
-                        Target: #{p.channelId}
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div>
-            {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <SkeletonCard key={i} />
-                ))}
-              </div>
-            ) : suggestions.length === 0 ? (
-              <EmptyState
-                icon={Lightbulb}
-                title="NO COMMUNITY SUGGESTIONS"
-                description="No incoming community suggestions are currently in the review pipeline."
-              />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {suggestions.map((s) => (
+                return (
                   <Card
-                    key={s.id}
-                    className="bg-[#0A0F16] p-4 space-y-3 font-mono text-xs flex flex-col justify-between"
+                    key={p.id}
+                    className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between"
                   >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Badge
-                          variant={
-                            s.status === 'APPROVED' || s.status === 'IMPLEMENTED'
-                              ? 'success'
-                              : s.status === 'REJECTED'
-                              ? 'danger'
-                              : 'warning'
-                          }
-                        >
-                          {s.status}
+                    <div>
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <h4 className="text-sm font-semibold text-[#101828]">
+                          {p.question}
+                        </h4>
+                        <Badge variant={p.status === 'ACTIVE' ? 'success' : 'neutral'}>
+                          {p.status}
                         </Badge>
-                        <span className="text-[10px] text-[#64748B]">Author: {s.authorId}</span>
                       </div>
 
-                      <h3 className="font-bold text-[#F1F5F9] text-sm">{s.title}</h3>
-                      <p className="text-[11px] text-[#94A3B8] font-sans leading-relaxed">
-                        {s.content}
-                      </p>
+                      <div className="space-y-1.5 mb-4">
+                        {optionsArr.map((opt, i) => (
+                          <div
+                            key={i}
+                            className="p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs text-[#344054] flex items-center justify-between"
+                          >
+                            <span>{opt}</span>
+                            <span className="text-[10px] text-[#98A2B3] font-mono">Option {i + 1}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
-                    <div className="pt-3 border-t border-[#16202E] flex items-center justify-between">
-                      <span className="text-[10px] text-[#64748B]">
-                        {new Date(s.createdAt).toLocaleDateString()}
-                      </span>
-
-                      <select
-                        value={s.status}
-                        onChange={(e) => handleUpdateSuggestion(s.id, e.target.value)}
-                        className="bg-[#070B10] border border-[#16202E] rounded px-2 py-1 text-[11px] text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                      >
-                        <option value="SUBMITTED">SUBMITTED</option>
-                        <option value="UNDER_REVIEW">UNDER REVIEW</option>
-                        <option value="APPROVED">APPROVED</option>
-                        <option value="REJECTED">REJECTED</option>
-                        <option value="IMPLEMENTED">IMPLEMENTED</option>
-                      </select>
+                    <div className="pt-3 border-t border-[#F1F3F9] text-xs text-[#667085] flex items-center justify-between">
+                      <span>Channel: #{p.channelId}</span>
+                      <span>{new Date(p.createdAt).toLocaleDateString()}</span>
                     </div>
                   </Card>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
+          )
+        ) : (
+          /* Suggestions Tab */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {suggestions.map((s) => (
+              <Card
+                key={s.id}
+                className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h4 className="text-sm font-semibold text-[#101828]">
+                      {s.title}
+                    </h4>
+                    <Badge variant={s.status === 'APPROVED' ? 'success' : s.status === 'IMPLEMENTED' ? 'cyan' : 'neutral'}>
+                      {s.status}
+                    </Badge>
+                  </div>
+
+                  <p className="text-xs text-[#667085] line-clamp-3 mb-4 leading-relaxed">
+                    {s.content}
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-[#F1F3F9] flex items-center justify-between">
+                  <select
+                    value={s.status}
+                    onChange={(e) => handleUpdateSuggestionStatus(s.id, e.target.value)}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="SUBMITTED">Submitted</option>
+                    <option value="UNDER_REVIEW">Under Review</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="IMPLEMENTED">Implemented</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+
+                  <span className="text-[11px] text-[#98A2B3]">
+                    {new Date(s.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
 
         {/* Create Poll Modal */}
-        {showPollModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
-                <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider flex items-center gap-2">
-                  <Vote className="w-4 h-4 text-[#22D3EE]" />
-                  <span>DEPLOY INTERACTIVE POLL</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowPollModal(false)}
-                  className="text-[#64748B] hover:text-[#F1F5F9]"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+        <Modal
+          isOpen={showPollModal}
+          onClose={() => setShowPollModal(false)}
+          title="Create Interactive Poll"
+          subtitle="Deploy a real-time community poll to target Discord channel"
+        >
+          <form onSubmit={handleCreatePoll} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-semibold text-[#344054] mb-1">
+                Poll Question / Prompt
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Preferred time for security sync?"
+                value={pollQuestion}
+                onChange={(e) => setPollQuestion(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
 
-              <form onSubmit={handleCreatePoll} className="space-y-3 font-mono text-xs">
-                <div>
-                  <label className="block text-[10px] text-[#94A3B8] uppercase mb-1">
-                    POLL QUESTION
-                  </label>
+            <div>
+              <label className="block font-semibold text-[#344054] mb-1">
+                Target Channel
+              </label>
+              <ChannelSelector
+                channels={channels}
+                selectedChannelId={selectedChannel?.id || ''}
+                onSelectChannel={setSelectedChannel}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block font-semibold text-[#344054]">
+                Voting Options (2-5)
+              </label>
+              {pollOptions.map((opt, idx) => (
+                <div key={idx} className="flex gap-2">
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Which operational sprint objective should be prioritized?"
-                    value={pollQuestion}
-                    onChange={(e) => setPollQuestion(e.target.value)}
-                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                    value={opt}
+                    onChange={(e) => {
+                      const updated = [...pollOptions];
+                      updated[idx] = e.target.value;
+                      setPollOptions(updated);
+                    }}
+                    placeholder={`Option ${idx + 1}`}
+                    className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
-                </div>
-
-                <ChannelSelector
-                  channels={channels}
-                  selectedChannelId={selectedChannel?.id || ''}
-                  onSelectChannel={setSelectedChannel}
-                />
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] text-[#94A3B8] uppercase">
-                    POLL OPTIONS
-                  </label>
-                  {pollOptions.map((opt, i) => (
-                    <input
-                      key={i}
-                      type="text"
-                      required
-                      value={opt}
-                      onChange={(e) => {
-                        const updated = [...pollOptions];
-                        updated[i] = e.target.value;
-                        setPollOptions(updated);
-                      }}
-                      className="w-full px-3 py-1.5 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                    />
-                  ))}
-                  {pollOptions.length < 5 && (
+                  {pollOptions.length > 2 && (
                     <button
                       type="button"
-                      onClick={() => setPollOptions([...pollOptions, `Option ${pollOptions.length + 1}`])}
-                      className="text-[10px] text-[#22D3EE] hover:underline"
+                      onClick={() => setPollOptions(pollOptions.filter((_, i) => i !== idx))}
+                      className="p-2 text-[#98A2B3] hover:text-red-600"
                     >
-                      + Add Option
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#16202E]">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowPollModal(false)}
-                  >
-                    CANCEL
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    isLoading={isCreatingPoll}
-                    disabled={!selectedChannel}
-                  >
-                    DEPLOY POLL
-                  </Button>
-                </div>
-              </form>
+              ))}
+              {pollOptions.length < 5 && (
+                <button
+                  type="button"
+                  onClick={() => setPollOptions([...pollOptions, `Option ${pollOptions.length + 1}`])}
+                  className="text-xs text-indigo-600 font-semibold hover:underline"
+                >
+                  + Add Option
+                </button>
+              )}
             </div>
-          </div>
-        )}
+
+            <div className="flex items-center justify-end gap-2 pt-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowPollModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isCreatingPoll}
+              >
+                Launch Poll
+              </Button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </div>
   );

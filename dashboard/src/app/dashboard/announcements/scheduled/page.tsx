@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/Skeleton';
+import { Modal } from '@/components/ui/Modal';
 import { DiscordEmbedPreview } from '@/components/discord/DiscordEmbedPreview';
 import {
   Clock,
@@ -20,8 +21,6 @@ import {
   User,
   ArrowLeft,
   Filter,
-  X,
-  Radio,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -109,149 +108,131 @@ export default function ScheduledAnnouncementsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="SCHEDULED BROADCAST QUEUE"
-        subtitle="Automated Announcement Dispatch Schedule & Execution Telemetry"
+        title="Scheduled Broadcast Queue"
+        subtitle="Automated Future Dispatches & Dispatch History"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
-        {/* Header Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard/announcements">
-              <Button variant="ghost" size="sm" className="font-mono text-xs gap-1">
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>COMPOSER</span>
-              </Button>
-            </Link>
-
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-1 p-1 rounded bg-[#0A0F16] border border-[#16202E] font-mono text-xs">
-              {STATUS_FILTERS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setSelectedStatus(s)}
-                  className={`px-2.5 py-1 rounded transition-colors ${
-                    selectedStatus === s
-                      ? 'bg-[#111823] text-[#22D3EE] font-semibold border border-[#1E2C3F]'
-                      : 'text-[#94A3B8] hover:text-[#F1F5F9]'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+        {/* Header & Filter Controls */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
+            {STATUS_FILTERS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSelectedStatus(s)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  selectedStatus === s
+                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
+                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
           </div>
+
+          <Link href="/dashboard/announcements">
+            <Button variant="outline" size="sm" className="flex items-center gap-1.5">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Composer</span>
+            </Button>
+          </Link>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
-        {/* Scheduled List Table */}
-        <Card className="bg-[#0A0F16] overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-[#22D3EE]" />
-              <span>SCHEDULED TELEMETRY QUEUE ({items.length})</span>
-            </CardTitle>
-          </CardHeader>
+        {/* Scheduled List Card */}
+        <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
+          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
+              <Clock className="w-4 h-4 text-indigo-600" />
+              <span>Broadcast Queue Items ({items.length})</span>
+            </h3>
+          </div>
 
           {isLoading ? (
             <div className="p-4">
-              <SkeletonTable rows={5} />
+              <SkeletonTable rows={4} />
             </div>
           ) : items.length === 0 ? (
             <div className="p-8">
               <EmptyState
-                icon={Clock}
-                title="NO SCHEDULED BROADCASTS"
-                description="There are currently no announcements queued for automated dispatch."
-                action={
-                  <Link href="/dashboard/announcements">
-                    <Button variant="outline" size="sm" className="font-mono text-xs">
-                      SCHEDULE AN ANNOUNCEMENT
-                    </Button>
-                  </Link>
-                }
+                icon={Calendar}
+                title="No scheduled announcements found"
+                description="No upcoming broadcasts queued in the system for this filter."
               />
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-mono text-xs border-collapse">
+              <table className="kraxx-table">
                 <thead>
-                  <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
-                    <th className="py-2.5 px-4 font-semibold">STATUS</th>
-                    <th className="py-2.5 px-4 font-semibold">SCHEDULED DISPATCH</th>
-                    <th className="py-2.5 px-4 font-semibold">DIVISION</th>
-                    <th className="py-2.5 px-4 font-semibold">HEADLINE</th>
-                    <th className="py-2.5 px-4 font-semibold">TARGET CHANNEL</th>
-                    <th className="py-2.5 px-4 font-semibold text-right">ACTIONS</th>
+                  <tr>
+                    <th>Status</th>
+                    <th>Department</th>
+                    <th>Broadcast Title / Content</th>
+                    <th>Target Channel</th>
+                    <th>Scheduled For</th>
+                    <th>Author</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#16202E]">
+                <tbody>
                   {items.map((item) => (
-                    <tr key={item.id} className="hover:bg-[#0D131C] transition-colors">
-                      <td className="py-3 px-4">{getStatusBadge(item.status)}</td>
-                      <td className="py-3 px-4 text-[#F1F5F9]">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3 h-3 text-[#22D3EE]" />
-                          <span>{new Date(item.scheduledFor).toLocaleString()}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge
-                          variant={
-                            item.department === 'KRAXXSEC'
-                              ? 'success'
-                              : item.department === 'KRAXX_STUDIO'
-                              ? 'studio'
-                              : 'brand'
-                          }
-                        >
+                    <tr key={item.id}>
+                      <td>{getStatusBadge(item.status)}</td>
+                      <td>
+                        <span className="text-[11px] font-semibold text-[#475467] bg-[#F3F5FA] px-2 py-0.5 rounded-md border border-[#E5E7EB]">
                           {item.department}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-[#F1F5F9] font-bold max-w-xs truncate">
-                        {item.title || 'Untitled Broadcast'}
-                      </td>
-                      <td className="py-3 px-4 text-[#94A3B8]">
-                        <span className="bg-[#070B10] px-2 py-0.5 rounded border border-[#16202E]">
-                          #{item.channelId}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="max-w-xs truncate font-medium text-[#101828]">
+                        {item.title || item.content || 'Rich Embed Message'}
+                      </td>
+                      <td className="text-[#475467] font-mono text-[11px]">
+                        #{item.channelId}
+                      </td>
+                      <td className="text-[#475467] text-xs">
+                        {new Date(item.scheduledFor).toLocaleString()}
+                      </td>
+                      <td className="text-[#475467] text-xs">
+                        @{item.createdBy}
+                      </td>
+                      <td className="text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => setDetailItem(item)}
-                            className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#94A3B8] hover:text-[#22D3EE] hover:border-[#22D3EE]/30 transition-colors"
+                            className="p-1.5 rounded-lg text-[#667085] hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                             title="Inspect Details"
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <Eye className="w-4 h-4" />
                           </button>
+
                           {item.status === 'PENDING' && (
                             <button
                               type="button"
                               onClick={() => handleCancel(item.id, item.title)}
-                              className="p-1.5 rounded bg-[#070B10] border border-[#16202E] text-[#64748B] hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
+                              className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
                               title="Cancel Broadcast"
                             >
-                              <XCircle className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           )}
                         </div>
@@ -264,72 +245,38 @@ export default function ScheduledAnnouncementsPage() {
           )}
         </Card>
 
-        {/* Detail Inspector Modal */}
+        {/* Detail Modal */}
         {detailItem && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#05070B]/80 backdrop-blur-sm">
-            <div className="w-full max-w-2xl rounded-md bg-[#0A0F16] border border-[#1E2C3F] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.8)] max-h-[85vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#16202E]">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-mono font-bold text-[#F1F5F9] uppercase tracking-wider">
-                    {detailItem.title || 'SCHEDULED BROADCAST INSPECTOR'}
-                  </h3>
-                  {getStatusBadge(detailItem.status)}
+          <Modal
+            isOpen={true}
+            onClose={() => setDetailItem(null)}
+            title={detailItem.title || 'Scheduled Broadcast Details'}
+            subtitle={`Target: Channel #${detailItem.channelId} • Scheduled: ${new Date(detailItem.scheduledFor).toLocaleString()}`}
+            maxWidth="2xl"
+          >
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs">
+                <div>
+                  <span className="text-[#667085] block text-[10px] uppercase font-semibold">Status</span>
+                  <div className="mt-1">{getStatusBadge(detailItem.status)}</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setDetailItem(null)}
-                  className="text-[#64748B] hover:text-[#F1F5F9]"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-4 font-mono text-xs">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded bg-[#070B10] border border-[#16202E]">
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block">SCHEDULED FOR</span>
-                    <span className="text-[#F1F5F9]">{new Date(detailItem.scheduledFor).toLocaleString()}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block">TARGET CHANNEL</span>
-                    <span className="text-[#F1F5F9]">#{detailItem.channelId}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block">OPERATOR ID</span>
-                    <span className="text-[#F1F5F9]">{detailItem.createdBy}</span>
-                  </div>
+                <div>
+                  <span className="text-[#667085] block text-[10px] uppercase font-semibold">Department</span>
+                  <span className="text-[#101828] font-medium mt-1 block">{detailItem.department}</span>
                 </div>
-
-                {detailItem.content && (
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block mb-1">CONTENT BODY</span>
-                    <div className="p-3 rounded bg-[#070B10] border border-[#16202E] text-[#F1F5F9] whitespace-pre-wrap">
-                      {detailItem.content}
-                    </div>
-                  </div>
-                )}
-
-                {detailItem.embedPayload && detailItem.embedPayload.length > 0 && (
-                  <div>
-                    <span className="text-[10px] text-[#64748B] uppercase block mb-1">EMBED PREVIEW</span>
-                    <DiscordEmbedPreview embed={detailItem.embedPayload[0]} />
-                  </div>
-                )}
-
-                {detailItem.error && (
-                  <div className="p-3 rounded bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444]">
-                    <span className="font-bold">EXECUTION ERROR:</span> {detailItem.error}
-                  </div>
-                )}
               </div>
 
-              <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-[#16202E]">
-                <Button variant="ghost" size="sm" onClick={() => setDetailItem(null)}>
-                  CLOSE
-                </Button>
-              </div>
+              {detailItem.content && (
+                <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs text-[#101828] whitespace-pre-wrap">
+                  {detailItem.content}
+                </div>
+              )}
+
+              {detailItem.embedPayload && detailItem.embedPayload[0] && (
+                <DiscordEmbedPreview embed={detailItem.embedPayload[0]} />
+              )}
             </div>
-          </div>
+          </Modal>
         )}
       </div>
     </div>

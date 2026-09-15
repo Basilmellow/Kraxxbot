@@ -44,23 +44,21 @@ export default function RolesHierarchyPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="ROLE HIERARCHY & PERMISSIONS"
+        title="Role Hierarchy & Discord Permissions"
         subtitle="Guild Security Structure, Precedence Ranks & Bitfield Permissions"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
-        <Card className="bg-[#0A0F16] overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center justify-between w-full">
-              <CardTitle className="flex items-center gap-2">
-                <ShieldAlert className="w-3.5 h-3.5 text-[#22D3EE]" />
-                <span>SERVER ROLE HIERARCHY ({roles.length})</span>
-              </CardTitle>
-              <span className="text-[10px] text-[#64748B] font-mono">
-                PRECEDENCE: HIGHEST TO LOWEST
-              </span>
-            </div>
-          </CardHeader>
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+        <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
+          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-indigo-600" />
+              <span>Server Role Hierarchy ({roles.length})</span>
+            </h3>
+            <span className="text-xs text-[#667085]">
+              Precedence: Highest to Lowest
+            </span>
+          </div>
 
           {isLoading ? (
             <div className="p-4">
@@ -70,53 +68,55 @@ export default function RolesHierarchyPage() {
             <div className="p-8">
               <EmptyState
                 icon={Shield}
-                title="NO ROLES RESOLVED"
+                title="No roles resolved"
                 description="Unable to acquire guild role hierarchy from Discord gateway."
               />
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-mono text-xs border-collapse">
+              <table className="kraxx-table">
                 <thead>
-                  <tr className="border-b border-[#16202E] bg-[#070B10] text-[#64748B]">
-                    <th className="py-2.5 px-4 font-semibold">PRECEDENCE</th>
-                    <th className="py-2.5 px-4 font-semibold">ROLE IDENTITY</th>
-                    <th className="py-2.5 px-4 font-semibold">DISCORD ROLE ID</th>
-                    <th className="py-2.5 px-4 font-semibold">MEMBERS</th>
-                    <th className="py-2.5 px-4 font-semibold">SYSTEM INTEGRATION</th>
-                    <th className="py-2.5 px-4 font-semibold text-right">BITFIELD</th>
+                  <tr>
+                    <th>Precedence</th>
+                    <th>Role Identity</th>
+                    <th>Discord Role ID</th>
+                    <th>Members</th>
+                    <th>Integration</th>
+                    <th className="text-right">Bitfield</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#16202E]">
+                <tbody>
                   {roles.map((r) => (
-                    <tr key={r.id} className="hover:bg-[#0D131C] transition-colors">
-                      <td className="py-3 px-4 font-bold text-[#22D3EE]">
+                    <tr key={r.id}>
+                      <td className="font-bold text-indigo-600 font-mono text-xs">
                         #{r.position}
                       </td>
-                      <td className="py-3 px-4">
+                      <td>
                         <div className="flex items-center gap-2">
                           <span
                             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: r.color || '#94A3B8' }}
+                            style={{ backgroundColor: r.color || '#98A2B3' }}
                           />
-                          <span className="font-bold text-[#F1F5F9]">{r.name}</span>
+                          <span className="font-semibold text-xs text-[#101828]">
+                            @{r.name}
+                          </span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-[#64748B]">{r.id}</td>
-                      <td className="py-3 px-4">
-                        <span className="bg-[#070B10] px-2 py-0.5 rounded border border-[#16202E] text-[#94A3B8]">
-                          {r.memberCount} operators
-                        </span>
+                      <td className="font-mono text-xs text-[#667085]">
+                        {r.id}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="text-xs text-[#475467]">
+                        <span className="font-semibold text-[#101828]">{r.memberCount}</span> operators
+                      </td>
+                      <td>
                         {r.isManaged ? (
-                          <Badge variant="brand">MANAGED BOT ROLE</Badge>
+                          <Badge variant="cyan">MANAGED BOT ROLE</Badge>
                         ) : (
-                          <Badge variant="neutral">STANDARD GUILD ROLE</Badge>
+                          <Badge variant="neutral">STANDARD ROLE</Badge>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-right text-[#64748B] font-mono text-[11px]">
-                        0x{r.permissions}
+                      <td className="text-right font-mono text-[11px] text-[#667085]">
+                        {r.permissions}
                       </td>
                     </tr>
                   ))}

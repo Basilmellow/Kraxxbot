@@ -42,7 +42,7 @@ const PRESETS: Preset[] = [
     department: 'GENERAL',
     type: 'IMPORTANT',
     badge: 'HQ DIRECT',
-    color: '#22D3EE',
+    color: '#4F46E5',
     defaultTitle: 'OFFICIAL HQ BROADCAST',
     defaultDesc: 'Official administrative communication for all KRAXX operations personnel.',
   },
@@ -62,7 +62,7 @@ const PRESETS: Preset[] = [
     department: 'KRAXX_STUDIO',
     type: 'RELEASE',
     badge: 'STUDIO',
-    color: '#818CF8',
+    color: '#8B5CF6',
     defaultTitle: 'KRAXX STUDIO PROJECT DISPATCH',
     defaultDesc: 'Creative technologies, deployment releases, and project milestone updates.',
   },
@@ -122,7 +122,6 @@ export default function AnnouncementsPage() {
           setChannels(data.channels || []);
           setRoles(data.roles || []);
           if (data.channels && data.channels.length > 0) {
-            // Find default announcements channel if available
             const annChannel = data.channels.find((c: any) => c.type === 'announcement' || c.name.includes('announc'));
             setSelectedChannel(annChannel || data.channels[0]);
           }
@@ -201,36 +200,36 @@ export default function AnnouncementsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="ANNOUNCEMENTS BROADCASTER"
+        title="Announcements Broadcaster"
         subtitle="Ecosystem Broadcast Dispatch, Scheduling & Channel Matrix"
       />
 
-      <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-5">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
         {/* Preset Selector Banner */}
         <div>
-          <div className="text-[10px] font-mono text-[#64748B] uppercase tracking-wider mb-2">
-            OFFICIAL ECOSYSTEM PRESET TEMPLATES
+          <div className="text-xs font-semibold text-[#667085] uppercase tracking-wider mb-2.5">
+            Official Ecosystem Preset Templates
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {PRESETS.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => handleApplyPreset(p)}
-                className={`p-2.5 rounded bg-[#0A0F16] border text-left transition-all font-mono ${
+                className={`p-3.5 rounded-2xl bg-white border text-left transition-all shadow-xs ${
                   title === p.defaultTitle
-                    ? 'border-[#22D3EE] bg-[#0D131C]'
-                    : 'border-[#16202E] hover:border-[#1E2C3F]'
+                    ? 'border-indigo-600 ring-2 ring-indigo-500/10'
+                    : 'border-[#E5E7EB] hover:border-[#D1D5DB]'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-1.5">
                   <span
-                    className="w-2 h-2 rounded-full"
+                    className="w-2.5 h-2.5 rounded-full"
                     style={{ backgroundColor: p.color }}
                   />
-                  <span className="text-[9px] text-[#64748B] uppercase">{p.badge}</span>
+                  <span className="text-[10px] font-semibold text-[#667085] uppercase">{p.badge}</span>
                 </div>
-                <div className="text-xs font-bold text-[#F1F5F9] truncate">{p.name}</div>
+                <div className="text-xs font-bold text-[#101828] truncate">{p.name}</div>
               </button>
             ))}
           </div>
@@ -239,18 +238,18 @@ export default function AnnouncementsPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded bg-[#0A0F16] border flex items-start gap-3 font-mono text-xs ${
+            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
               feedback.type === 'success'
-                ? 'border-[#10B981]/40 text-[#10B981]'
-                : 'border-[#EF4444]/40 text-[#EF4444]'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
             )}
-            <div>{feedback.message}</div>
+            <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
@@ -258,24 +257,22 @@ export default function AnnouncementsPage() {
         <form onSubmit={handleBroadcast} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Form Controls (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <Card className="bg-[#0A0F16]">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between w-full">
-                  <span className="flex items-center gap-2">
-                    <Megaphone className="w-3.5 h-3.5 text-[#22D3EE]" />
-                    <span>BROADCAST COMPOSER</span>
-                  </span>
-                  <Link
-                    href="/dashboard/announcements/scheduled"
-                    className="text-[11px] font-mono text-[#22D3EE] hover:underline flex items-center gap-1"
-                  >
-                    <span>VIEW QUEUE</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </CardTitle>
-              </CardHeader>
+            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#F1F3F9]">
+                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
+                  <Megaphone className="w-4 h-4 text-indigo-600" />
+                  <span>Broadcast Composer</span>
+                </h3>
+                <Link
+                  href="/dashboard/announcements/scheduled"
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 hover:underline"
+                >
+                  <span>View Queue</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
 
-              <div className="space-y-4 font-mono text-xs">
+              <div className="space-y-4 text-xs">
                 {/* Target Channel */}
                 <ChannelSelector
                   channels={channels}
@@ -287,13 +284,13 @@ export default function AnnouncementsPage() {
                 {/* Division & Type */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      ORGANIZATIONAL DIVISION
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Organizational Division
                     </label>
                     <select
                       value={department}
                       onChange={(e: any) => setDepartment(e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
                     >
                       <option value="GENERAL">KRAXX HQ (General)</option>
                       <option value="KRAXXSEC">KRAXXSEC (Security)</option>
@@ -302,88 +299,88 @@ export default function AnnouncementsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                      DISPATCH TYPE
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Broadcast Classification
                     </label>
                     <select
                       value={announcementType}
                       onChange={(e) => setAnnouncementType(e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
                     >
-                      <option value="IMPORTANT">IMPORTANT / DIRECT</option>
-                      <option value="SECURITY_ADVISORY">SECURITY ADVISORY</option>
-                      <option value="RELEASE">RELEASE / DEPLOYMENT</option>
-                      <option value="MAINTENANCE">MAINTENANCE</option>
-                      <option value="EMERGENCY">EMERGENCY ALERT</option>
+                      <option value="IMPORTANT">Important Notice</option>
+                      <option value="SECURITY_ADVISORY">Security Advisory</option>
+                      <option value="RELEASE">Product Release</option>
+                      <option value="MAINTENANCE">Maintenance</option>
+                      <option value="EMERGENCY">Emergency Notice</option>
                     </select>
                   </div>
                 </div>
 
-                {/* Title */}
-                <div>
-                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                    ANNOUNCEMENT HEADLINE
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Enter broadcast headline..."
-                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50 font-bold"
-                  />
+                {/* Title & Banner */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Announcement Title
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Title of broadcast..."
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Broadcast Body Content (Markdown Supported)
+                    </label>
+                    <textarea
+                      rows={5}
+                      required
+                      placeholder="Detailed announcement content..."
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      className="w-full p-3.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed shadow-2xs resize-y"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-[#344054] mb-1">
+                      Header Banner Image URL (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      value={bannerUrl}
+                      onChange={(e) => setBannerUrl(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                    />
+                  </div>
                 </div>
 
-                {/* Content */}
-                <div>
-                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                    BROADCAST BODY (MARKDOWN)
+                {/* Ping Controls */}
+                <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2.5">
+                  <label className="font-semibold text-[#344054] block">
+                    Ping & Audience Mention
                   </label>
-                  <textarea
-                    rows={6}
-                    required
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="Type official broadcast text..."
-                    className="w-full p-3 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50 resize-y leading-relaxed"
-                  />
-                </div>
-
-                {/* Banner Image URL */}
-                <div>
-                  <label className="block text-[11px] text-[#94A3B8] uppercase mb-1">
-                    BANNER IMAGE URL (OPTIONAL)
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://..."
-                    value={bannerUrl}
-                    onChange={(e) => setBannerUrl(e.target.value)}
-                    className="w-full px-3 py-2 rounded bg-[#070B10] border border-[#16202E] text-xs text-[#F1F5F9] placeholder-[#64748B] focus:outline-none focus:border-[#22D3EE]/50"
-                  />
-                </div>
-
-                {/* Mention Matrix */}
-                <div className="p-3 rounded bg-[#070B10] border border-[#16202E] space-y-2">
-                  <span className="text-[10px] font-bold text-[#64748B] uppercase">
-                    TARGET AUDIENCE MENTION
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {['NONE', 'HERE', 'EVERYONE', 'ROLE'].map((m) => (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(['NONE', 'EVERYONE', 'HERE', 'ROLE'] as const).map((m) => (
                       <button
                         key={m}
                         type="button"
-                        onClick={() => setMentionType(m as any)}
-                        className={`px-2 py-1.5 rounded border text-center transition-all ${
+                        onClick={() => setMentionType(m)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           mentionType === m
-                            ? 'bg-[#111823] border-[#22D3EE] text-[#22D3EE] font-bold'
-                            : 'bg-[#0A0F16] border-[#16202E] text-[#94A3B8] hover:border-[#1E2C3F]'
+                            ? 'bg-indigo-600 text-white font-semibold shadow-2xs'
+                            : 'bg-white border border-[#E5E7EB] text-[#475467] hover:bg-[#F3F5FA]'
                         }`}
                       >
-                        {m === 'NONE' && 'NO MENTION'}
-                        {m === 'HERE' && '@here'}
+                        {m === 'NONE' && 'None'}
                         {m === 'EVERYONE' && '@everyone'}
-                        {m === 'ROLE' && '@role'}
+                        {m === 'HERE' && '@here'}
+                        {m === 'ROLE' && 'Target Role'}
                       </button>
                     ))}
                   </div>
@@ -392,9 +389,9 @@ export default function AnnouncementsPage() {
                     <select
                       value={selectedRoleId}
                       onChange={(e) => setSelectedRoleId(e.target.value)}
-                      className="w-full mt-2 p-2 rounded bg-[#0A0F16] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
+                      className="w-full mt-2 px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     >
-                      <option value="">Select target role...</option>
+                      <option value="">Select target Discord role...</option>
                       {roles.map((r) => (
                         <option key={r.id} value={r.id}>
                           @{r.name}
@@ -404,44 +401,48 @@ export default function AnnouncementsPage() {
                   )}
                 </div>
 
-                {/* Scheduler Toggle */}
-                <div className="p-3 rounded bg-[#070B10] border border-[#16202E] space-y-2">
+                {/* Scheduling Controls */}
+                <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-[#64748B] uppercase">
-                      AUTOMATED DISPATCH SCHEDULER
-                    </span>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-[#94A3B8]">
+                    <label className="font-semibold text-[#344054] flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={isScheduled}
                         onChange={(e) => setIsScheduled(e.target.checked)}
-                        className="accent-[#22D3EE]"
+                        className="accent-indigo-600 rounded"
                       />
-                      <span>Schedule for later</span>
+                      <span>Schedule for Future Automated Dispatch</span>
                     </label>
+                    <Clock className="w-4 h-4 text-[#667085]" />
                   </div>
 
                   {isScheduled && (
-                    <input
-                      type="datetime-local"
-                      required={isScheduled}
-                      value={scheduledAt}
-                      onChange={(e) => setScheduledAt(e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#0A0F16] border border-[#16202E] text-xs text-[#F1F5F9] focus:outline-none focus:border-[#22D3EE]/50"
-                    />
+                    <div className="pt-2">
+                      <label className="block text-[11px] font-semibold text-[#667085] mb-1">
+                        Dispatch Date & Time
+                      </label>
+                      <input
+                        type="datetime-local"
+                        required={isScheduled}
+                        value={scheduledAt}
+                        onChange={(e) => setScheduledAt(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                      />
+                    </div>
                   )}
                 </div>
 
-                {/* Submit Button */}
+                {/* Submit Action */}
                 <div className="pt-2">
                   <Button
                     type="submit"
                     variant="primary"
+                    size="md"
                     isLoading={isSubmitting}
                     disabled={!selectedChannel || !title.trim() || !content.trim()}
-                    className="w-full font-mono font-bold tracking-wider uppercase text-xs py-2.5"
+                    className="w-full font-semibold text-xs py-2.5"
                   >
-                    {isScheduled ? 'QUEUE SCHEDULED BROADCAST' : 'DISPATCH BROADCAST NOW'}
+                    {isScheduled ? 'Queue Scheduled Announcement' : 'Broadcast Announcement Immediately'}
                   </Button>
                 </div>
               </div>
@@ -450,27 +451,24 @@ export default function AnnouncementsPage() {
 
           {/* Right Column: Live Discord Preview (5 cols) */}
           <div className="lg:col-span-5 space-y-4">
-            <Card className="bg-[#0A0F16] sticky top-20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Radio className="w-3.5 h-3.5 text-[#22D3EE]" />
-                  <span>DISCORD BROADCAST PREVIEW</span>
-                </CardTitle>
-              </CardHeader>
+            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs sticky top-20">
+              <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[#F1F3F9]">
+                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                  <span>Discord Broadcast Preview</span>
+                </h3>
+              </div>
 
-              <div className="p-1 space-y-2">
-                <div className="text-[10px] font-mono text-[#64748B] uppercase">
-                  Target: {selectedChannel ? `#${selectedChannel.name}` : 'No Channel Selected'}
+              <div className="space-y-3">
+                <div className="text-xs text-[#667085]">
+                  Target: <span className="font-semibold text-[#101828]">{selectedChannel ? `#${selectedChannel.name}` : 'None'}</span>
                 </div>
 
-                {mentionType === 'EVERYONE' && (
-                  <div className="text-xs font-mono text-[#EF4444] bg-red-950/20 px-2 py-1 rounded border border-red-500/20">
-                    @everyone
-                  </div>
-                )}
-                {mentionType === 'HERE' && (
-                  <div className="text-xs font-mono text-[#F59E0B] bg-amber-950/20 px-2 py-1 rounded border border-amber-500/20">
-                    @here
+                {mentionType !== 'NONE' && (
+                  <div className="text-xs font-semibold text-indigo-600">
+                    {mentionType === 'EVERYONE' && '@everyone'}
+                    {mentionType === 'HERE' && '@here'}
+                    {mentionType === 'ROLE' && selectedRoleId && `@${roles.find(r => r.id === selectedRoleId)?.name || 'Role'}`}
                   </div>
                 )}
 
