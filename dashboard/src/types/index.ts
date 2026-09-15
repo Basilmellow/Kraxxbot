@@ -13,10 +13,12 @@ declare module 'next-auth' {
       username: string;
       displayName: string;
       avatar: string | null;
-      isMember: boolean;
-      roleTier: number;
-      roleTierName: string;
-      roles: string[];
+      accessToken?: string;
+      isMember?: boolean;
+      roleTier?: number;
+      roleTierName?: string;
+      roles?: string[];
+      guildId?: string;
     };
   }
 }

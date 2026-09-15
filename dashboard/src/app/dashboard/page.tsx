@@ -30,6 +30,7 @@ import {
   Search,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ROLE_TIER_LABELS } from '@/lib/constants';
 
 export default function DashboardOverviewPage() {
@@ -76,6 +77,34 @@ export default function DashboardOverviewPage() {
       setIsRefreshing(false);
     }
   };
+
+  const router = useRouter();
+
+  useEffect(() => {
+    async function checkUserGuilds() {
+      try {
+        const res = await fetch('/api/guilds');
+        if (res.ok) {
+          const json = await res.json();
+          const guilds = json.guilds || [];
+          const installed = guilds.filter((g: any) => g.botInstalled);
+          if (installed.length === 1) {
+            router.replace(`/dashboard/${installed[0].id}`);
+            return;
+          } else if (installed.length > 1) {
+            router.replace('/dashboard/select-server');
+            return;
+          } else if (guilds.length > 0) {
+            router.replace('/dashboard/select-server');
+            return;
+          }
+        }
+      } catch {
+        // Fallback to local overview
+      }
+    }
+    checkUserGuilds();
+  }, [router]);
 
   useEffect(() => {
     fetchData();

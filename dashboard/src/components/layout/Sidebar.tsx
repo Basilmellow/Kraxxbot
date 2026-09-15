@@ -107,20 +107,33 @@ export function Sidebar() {
     loadNotifications();
   }, [pathname]);
 
+  // Detect active guild tenant from route: /dashboard/[guildId]/...
+  const guildMatch = pathname.match(/^\/dashboard\/(\d+)/);
+  const activeGuildId = guildMatch ? guildMatch[1] : '';
+
+  const getModuleHref = (baseHref: string) => {
+    if (!activeGuildId) return baseHref;
+    if (baseHref === '/dashboard') return `/dashboard/${activeGuildId}`;
+    return `/dashboard/${activeGuildId}${baseHref.replace('/dashboard', '')}`;
+  };
+
   const categories = ['COMMAND', 'COMMUNICATION', 'PEOPLE', 'OPERATIONS', 'COMMUNITY', 'SYSTEM'] as const;
 
   const NavContent = () => (
     <div className="flex flex-col h-full bg-white text-[#101828]">
       {/* Brand Header */}
       <div className="h-[60px] flex items-center justify-between px-4 border-b border-[#F1F3F9] flex-shrink-0">
-        <Link href="/dashboard" className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-sm shadow-xs flex-shrink-0">
+        <Link
+          href={activeGuildId ? `/dashboard/${activeGuildId}` : '/dashboard'}
+          className="flex items-center gap-3 min-w-0"
+        >
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 via-amber-600 to-amber-700 text-white flex items-center justify-center font-bold text-sm shadow-xs flex-shrink-0">
             K
           </div>
           <div className="min-w-0">
             <div className="text-xs font-bold text-[#101828] tracking-tight flex items-center gap-1.5 leading-none">
-              <span>KRAXX HQ</span>
-              <span className="text-[9px] font-semibold text-indigo-600 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-100">
+              <span>KRAXX</span>
+              <span className="text-[9px] font-semibold text-amber-700 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200">
                 PROD
               </span>
             </div>
@@ -144,31 +157,32 @@ export function Sidebar() {
               </div>
 
               {items.map((mod) => {
+                const targetHref = getModuleHref(mod.href);
                 const isActive =
-                  pathname === mod.href ||
-                  (mod.href !== '/dashboard' && pathname.startsWith(mod.href));
+                  pathname === targetHref ||
+                  (mod.href !== '/dashboard' && pathname.startsWith(targetHref));
                 const Icon = ICON_MAP[mod.icon] || LayoutDashboard;
                 const isNotifications = mod.id === 'notifications';
 
                 return (
                   <Link
                     key={mod.id}
-                    href={mod.href}
+                    href={targetHref}
                     className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                       isActive
-                        ? 'bg-indigo-50/90 text-indigo-700 font-semibold border border-indigo-100/60 shadow-2xs'
+                        ? 'bg-amber-50 text-amber-950 font-semibold border border-amber-200/60 shadow-2xs'
                         : 'text-[#475467] hover:text-[#101828] hover:bg-[#F8FAFC]'
                     }`}
                   >
                     <Icon
                       className={`w-4 h-4 flex-shrink-0 ${
-                        isActive ? 'text-indigo-600' : 'text-[#667085]'
+                        isActive ? 'text-amber-600' : 'text-[#667085]'
                       }`}
                     />
                     <span className="truncate flex-1">{mod.label}</span>
 
                     {isNotifications && unreadCount > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold shadow-2xs">
+                      <span className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-bold shadow-2xs">
                         {unreadCount}
                       </span>
                     )}

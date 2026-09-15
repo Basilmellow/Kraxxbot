@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanName = name.trim();
-    const existing = await prisma.embedTemplate.findUnique({
+    const existing = await prisma.embedTemplate.findFirst({
       where: { name: cleanName },
     });
 

@@ -7,6 +7,8 @@ import { StatusDot } from '@/components/ui/StatusDot';
 import { RefreshCw, Search, Bell, ShieldCheck } from 'lucide-react';
 import { ROLE_TIER_LABELS } from '@/lib/constants';
 
+import { ServerSelector } from '@/components/layout/ServerSelector';
+
 interface TopbarProps {
   title?: string;
   subtitle?: string;
@@ -31,8 +33,10 @@ export function Topbar({
 
   return (
     <header className="h-[58px] bg-white/90 backdrop-blur-md border-b border-[#E5E7EB] sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between flex-shrink-0">
-      {/* Left: Page Title & Subtitle */}
+      {/* Left: ServerSelector & Page Title */}
       <div className="flex items-center gap-3 min-w-0">
+        <ServerSelector />
+        <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-sm sm:text-base font-semibold text-[#101828] tracking-tight truncate">
@@ -40,7 +44,7 @@ export function Topbar({
             </h1>
           </div>
           {subtitle && (
-            <p className="text-xs text-[#667085] hidden sm:block truncate">
+            <p className="text-xs text-[#667085] hidden md:block truncate">
               {subtitle}
             </p>
           )}

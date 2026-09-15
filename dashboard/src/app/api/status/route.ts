@@ -1,46 +1,86 @@
-// KRAXX Operations Platform — Status API
-// Returns system health status for bot, database, and Discord
+// KRAXX Operations Platform — Real Telemetry Status API
+// Returns live telemetry from BotHeartbeat (45s staleness threshold), database, and Discord API
 
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { fetchBotUser } from '@/lib/discord';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireAuth } from '@/lib/permissions';
+
+const HEARTBEAT_STALE_THRESHOLD_MS = 45 * 1000; // 45 seconds
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
+  const auth = await requireAuth();
   if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error, code: 'TIER_UNAUTHORIZED' }, { status: auth.status });
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const status: Record<string, string> = {
-    bot: 'offline',
-    database: 'offline',
-    discord: 'offline',
-  };
+  let dbStatus: 'online' | 'offline' = 'offline';
+  let discordStatus: 'online' | 'offline' = 'offline';
+  let botStatus: 'online' | 'degraded' | 'offline' = 'offline';
+  let botDetails: Record<string, any> | null = null;
 
-  // Check database connectivity
+  // 1. Check Database Connectivity
   try {
     await prisma.$queryRaw`SELECT 1`;
-    status.database = 'online';
+    dbStatus = 'online';
   } catch {
-    status.database = 'offline';
+    dbStatus = 'offline';
   }
 
-  // Check Discord API connectivity (and bot token validity)
+  // 2. Check Discord REST API
   try {
-    await fetchBotUser();
-    status.bot = 'online';
-    status.discord = 'online';
+    const botUser = await fetchBotUser();
+    discordStatus = 'online';
+    botDetails = {
+      botId: botUser.id,
+      botUsername: botUser.username,
+      botAvatar: botUser.avatar,
+    };
   } catch {
-    status.bot = 'offline';
-    status.discord = 'offline';
+    discordStatus = 'offline';
+  }
+
+  // 3. Check Live Bot Heartbeat from Database
+  try {
+    const latestHeartbeat = await prisma.botHeartbeat.findFirst({
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (latestHeartbeat) {
+      const timeSinceBeat = Date.now() - new Date(latestHeartbeat.updatedAt).getTime();
+
+      if (timeSinceBeat <= HEARTBEAT_STALE_THRESHOLD_MS) {
+        botStatus = 'online';
+      } else if (timeSinceBeat <= HEARTBEAT_STALE_THRESHOLD_MS * 2) {
+        botStatus = 'degraded'; // Missed a couple heartbeats
+      } else {
+        botStatus = 'offline';
+      }
+
+      botDetails = {
+        ...botDetails,
+        ping: latestHeartbeat.ping,
+        uptime: latestHeartbeat.uptime,
+        guildCount: latestHeartbeat.guildCount,
+        gatewayStatus: latestHeartbeat.gatewayStatus,
+        schedulerStatus: latestHeartbeat.schedulerStatus,
+        version: latestHeartbeat.version,
+        lastHeartbeat: latestHeartbeat.lastHeartbeat.toISOString(),
+      };
+    } else {
+      // If no heartbeat record exists, fallback to Discord API status
+      botStatus = discordStatus === 'online' ? 'online' : 'offline';
+    }
+  } catch {
+    // If heartbeat query fails, fallback
+    botStatus = discordStatus === 'online' ? 'online' : 'offline';
   }
 
   return NextResponse.json({
-    ...status,
+    bot: botStatus,
+    database: dbStatus,
+    discord: discordStatus,
+    telemetry: botDetails,
     lastChecked: new Date().toISOString(),
   });
 }

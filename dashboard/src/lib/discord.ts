@@ -3,6 +3,10 @@
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 
+// Discord permission bit flags
+const ADMINISTRATOR = BigInt(0x8);
+const MANAGE_GUILD = BigInt(0x20);
+
 function getBotToken(): string {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) {
@@ -11,6 +15,7 @@ function getBotToken(): string {
   return token;
 }
 
+/** @deprecated Use explicit guildId parameter instead */
 function getGuildId(): string {
   const guildId = process.env.DISCORD_GUILD_ID;
   if (!guildId) {
@@ -49,6 +54,31 @@ export interface DiscordGuild {
   approximate_presence_count?: number;
 }
 
+/**
+ * Represents a guild from the /users/@me/guilds endpoint.
+ * Uses string permissions field (not BigInt) as returned by Discord API.
+ */
+export interface UserGuild {
+  id: string;
+  name: string;
+  icon: string | null;
+  owner: boolean;
+  permissions: string; // Numeric string of permission bits
+  features: string[];
+}
+
+/**
+ * Resolved guild with bot installation status.
+ */
+export interface ManagedGuild {
+  id: string;
+  name: string;
+  icon: string | null;
+  owner: boolean;
+  botInstalled: boolean;
+  inviteUrl: string;
+}
+
 export interface DiscordMember {
   user?: {
     id: string;
@@ -85,10 +115,51 @@ export interface DiscordUser {
 
 /**
  * Fetches guild information with live presence and member counts.
+ * Uses the bot token — parameterized by guildId.
+ */
+export async function fetchGuildById(guildId: string): Promise<DiscordGuild> {
+  return discordFetch<DiscordGuild>(`/guilds/${guildId}?with_counts=true`);
+}
+
+/**
+ * @deprecated Use fetchGuildById(guildId) instead.
+ * Fetches guild information for the env-configured guild.
  */
 export async function fetchGuild(): Promise<DiscordGuild> {
   const guildId = getGuildId();
   return discordFetch<DiscordGuild>(`/guilds/${guildId}?with_counts=true`);
+}
+
+/**
+ * Fetches the list of guilds where the authenticated user has MANAGE_GUILD or ADMINISTRATOR
+ * permissions (i.e., is an admin/owner). Uses the user's OAuth access token.
+ * Returns only guilds where the user can manage the server.
+ */
+export async function fetchUserGuilds(accessToken: string): Promise<UserGuild[]> {
+  const res = await fetch(`${DISCORD_API_BASE}/users/@me/guilds`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => '');
+    throw new Error(`Discord Guilds Fetch Error [${res.status}]: ${errorText || res.statusText}`);
+  }
+
+  const guilds: UserGuild[] = await res.json();
+
+  // Filter to only guilds where the user can manage (owner, admin, or manage_guild)
+  return guilds.filter(guild => {
+    if (guild.owner) return true;
+    try {
+      const perms = BigInt(guild.permissions);
+      return (perms & ADMINISTRATOR) === ADMINISTRATOR || (perms & MANAGE_GUILD) === MANAGE_GUILD;
+    } catch {
+      return false;
+    }
+  });
 }
 
 /**

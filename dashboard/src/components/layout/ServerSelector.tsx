@@ -1,0 +1,217 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { useRouter, usePathname, useParams } from 'next/navigation';
+import {
+  ChevronDown,
+  Check,
+  Plus,
+  Server,
+  ExternalLink,
+  Layers,
+  Loader2,
+} from 'lucide-react';
+import { ManagedGuild } from '@/lib/discord';
+
+export function ServerSelector() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useParams();
+  const currentGuildId = (params?.guildId as string) || '';
+
+  const [guilds, setGuilds] = useState<ManagedGuild[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadGuilds() {
+      try {
+        const res = await fetch('/api/guilds');
+        if (res.ok) {
+          const data = await res.json();
+          if (mounted) {
+            setGuilds(data.guilds || []);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load user guilds:', err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    loadGuilds();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const currentGuild = guilds.find((g) => g.id === currentGuildId);
+  const installedGuilds = guilds.filter((g) => g.botInstalled);
+  const uninstalledGuilds = guilds.filter((g) => !g.botInstalled);
+
+  const handleSelectGuild = (guildId: string) => {
+    setIsOpen(false);
+    // If on a subroute like /dashboard/[guildId]/modules, preserve the subroute
+    const match = pathname.match(/^\/dashboard\/[^/]+(\/.*)?$/);
+    const subRoute = match?.[1] || '';
+    router.push(`/dashboard/${guildId}${subRoute}`);
+  };
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] hover:border-amber-400/80 hover:bg-[#FDFBF7] text-xs text-[#101828] font-medium transition-all shadow-2xs group cursor-pointer"
+        aria-label="Select Server"
+        aria-expanded={isOpen}
+      >
+        {loading ? (
+          <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+        ) : currentGuild ? (
+          <>
+            {currentGuild.icon ? (
+              <img
+                src={`https://cdn.discordapp.com/icons/${currentGuild.id}/${currentGuild.icon}.png?size=64`}
+                alt={currentGuild.name}
+                className="w-5 h-5 rounded-md object-cover flex-shrink-0"
+              />
+            ) : (
+              <div className="w-5 h-5 rounded-md bg-gradient-to-tr from-amber-500 to-amber-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                {currentGuild.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="max-w-[120px] sm:max-w-[160px] truncate font-semibold">
+              {currentGuild.name}
+            </span>
+          </>
+        ) : (
+          <>
+            <Server className="w-4 h-4 text-amber-600" />
+            <span className="font-semibold text-[#475467]">Select Server</span>
+          </>
+        )}
+        <ChevronDown
+          className={`w-3.5 h-3.5 text-[#98A2B3] transition-transform duration-200 group-hover:text-[#101828] ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 mt-2 w-72 rounded-2xl bg-white border border-[#E5E7EB] shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+          <div className="p-2 border-b border-[#F1F3F9] bg-[#FAF9F5] flex items-center justify-between">
+            <span className="text-[10px] font-bold tracking-wider text-amber-800/80 uppercase px-2">
+              Connected Servers
+            </span>
+            <Link
+              href="/dashboard/select-server"
+              onClick={() => setIsOpen(false)}
+              className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:underline px-2"
+            >
+              All Servers
+            </Link>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
+            {installedGuilds.length > 0 ? (
+              installedGuilds.map((g) => {
+                const isSelected = g.id === currentGuildId;
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => handleSelectGuild(g.id)}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left text-xs transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-50 text-amber-950 font-semibold border border-amber-200/60'
+                        : 'text-[#101828] hover:bg-[#F9FAFB]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {g.icon ? (
+                        <img
+                          src={`https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64`}
+                          alt={g.name}
+                          className="w-6 h-6 rounded-lg object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                          {g.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="truncate">{g.name}</span>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-amber-600 flex-shrink-0" />}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="p-3 text-center text-xs text-[#667085]">
+                No servers currently have KRAXXBot installed.
+              </div>
+            )}
+
+            {uninstalledGuilds.length > 0 && (
+              <>
+                <div className="pt-2 pb-1 px-2.5 text-[10px] font-bold tracking-wider text-[#98A2B3] uppercase border-t border-[#F1F3F9] mt-1.5">
+                  Invite KRAXXBot
+                </div>
+                {uninstalledGuilds.slice(0, 5).map((g) => (
+                  <a
+                    key={g.id}
+                    href={g.inviteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left text-xs text-[#475467] hover:bg-[#F9FAFB] hover:text-[#101828] transition-colors group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {g.icon ? (
+                        <img
+                          src={`https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64`}
+                          alt={g.name}
+                          className="w-6 h-6 rounded-lg object-cover opacity-70 group-hover:opacity-100 flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 rounded-lg bg-gray-200 text-gray-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                          {g.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="truncate">{g.name}</span>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      <Plus className="w-3 h-3" /> Add
+                    </span>
+                  </a>
+                ))}
+              </>
+            )}
+          </div>
+
+          <div className="p-2 border-t border-[#F1F3F9] bg-[#FAF9F5]">
+            <Link
+              href="/dashboard/select-server"
+              onClick={() => setIsOpen(false)}
+              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold text-[#101828] hover:bg-white transition-colors border border-transparent hover:border-[#E5E7EB]"
+            >
+              <Layers className="w-3.5 h-3.5 text-amber-600" />
+              <span>Manage All Servers Hub</span>
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
