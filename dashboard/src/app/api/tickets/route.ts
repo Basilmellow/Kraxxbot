@@ -15,10 +15,12 @@ export async function GET(request: NextRequest) {
   const statusFilter = searchParams.get('status') || 'ALL'; // ALL | OPEN | CLAIMED | CLOSED | MY_TICKETS | UNASSIGNED
   const categoryFilter = searchParams.get('category') || '';
   const query = searchParams.get('q')?.toLowerCase() || '';
+  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
 
   try {
     const currentUserId = session!.user.discordId;
     let whereClause: any = {};
+    if (guildId) whereClause.guildId = guildId;
 
     if (statusFilter === 'OPEN') {
       whereClause.status = 'OPEN';
@@ -62,8 +64,11 @@ export async function GET(request: NextRequest) {
       if (t.closedById) userIds.add(t.closedById);
     });
 
-    const members = await prisma.member.findMany({
-      where: { discordId: { in: Array.from(userIds) } },
+    const members = await prisma.guildMember.findMany({
+      where: {
+        discordId: { in: Array.from(userIds) },
+        ...(guildId ? { guildId } : {}),
+      },
     });
     const memberMap = new Map(members.map((m) => [m.discordId, m]));
 

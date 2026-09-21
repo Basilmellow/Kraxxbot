@@ -2,8 +2,10 @@ import { prisma } from '../client';
 import { Ticket, TicketPanel } from '@prisma/client';
 
 export class TicketRepository {
-  // --- Ticket Panels ---
+  // ── Ticket Panels ──────────────────────────────────────────────
+
   static async createPanel(data: {
+    guildId: string;
     title: string;
     description: string;
     category?: string;
@@ -12,6 +14,7 @@ export class TicketRepository {
   }): Promise<TicketPanel> {
     return prisma.ticketPanel.create({
       data: {
+        guildId: data.guildId,
         title: data.title,
         description: data.description,
         category: data.category || 'GENERAL',
@@ -21,28 +24,37 @@ export class TicketRepository {
     });
   }
 
-  static async findPanelById(id: string): Promise<TicketPanel | null> {
-    return prisma.ticketPanel.findUnique({
-      where: { id },
+  static async findPanelById(id: string, guildId?: string): Promise<TicketPanel | null> {
+    return prisma.ticketPanel.findFirst({
+      where: {
+        id,
+        ...(guildId ? { guildId } : {}),
+      },
     });
   }
 
-  static async findAllPanels(): Promise<TicketPanel[]> {
+  static async findPanelsByGuild(guildId: string): Promise<TicketPanel[]> {
     return prisma.ticketPanel.findMany({
+      where: { guildId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  static async deletePanel(id: string): Promise<boolean> {
+  static async deletePanel(id: string, guildId?: string): Promise<boolean> {
     const res = await prisma.ticketPanel.deleteMany({
-      where: { id },
+      where: {
+        id,
+        ...(guildId ? { guildId } : {}),
+      },
     });
     return res.count > 0;
   }
 
-  // --- Tickets ---
-  static async getNextTicketNumber(): Promise<number> {
+  // ── Tickets ────────────────────────────────────────────────────
+
+  static async getNextTicketNumber(guildId: string): Promise<number> {
     const highest = await prisma.ticket.findFirst({
+      where: { guildId },
       orderBy: { ticketNumber: 'desc' },
       select: { ticketNumber: true },
     });
@@ -55,8 +67,9 @@ export class TicketRepository {
     openerId: string;
     category?: string;
     subject: string;
+    priority?: string;
   }): Promise<Ticket> {
-    const ticketNumber = await this.getNextTicketNumber();
+    const ticketNumber = await this.getNextTicketNumber(data.guildId);
 
     return prisma.ticket.create({
       data: {
@@ -66,6 +79,7 @@ export class TicketRepository {
         openerId: data.openerId,
         category: data.category || 'GENERAL',
         subject: data.subject,
+        priority: data.priority || 'MEDIUM',
         status: 'OPEN',
       },
     });
@@ -77,9 +91,35 @@ export class TicketRepository {
     });
   }
 
-  static async findById(id: string): Promise<Ticket | null> {
-    return prisma.ticket.findUnique({
-      where: { id },
+  static async findById(id: string, guildId?: string): Promise<Ticket | null> {
+    return prisma.ticket.findFirst({
+      where: {
+        id,
+        ...(guildId ? { guildId } : {}),
+      },
+    });
+  }
+
+  static async findManyByGuild(
+    guildId: string,
+    filters?: {
+      status?: string;
+      category?: string;
+      openerId?: string;
+      claimerId?: string;
+      limit?: number;
+    }
+  ): Promise<Ticket[]> {
+    return prisma.ticket.findMany({
+      where: {
+        guildId,
+        ...(filters?.status ? { status: filters.status } : {}),
+        ...(filters?.category ? { category: filters.category } : {}),
+        ...(filters?.openerId ? { openerId: filters.openerId } : {}),
+        ...(filters?.claimerId ? { claimerId: filters.claimerId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: filters?.limit || 100,
     });
   }
 
@@ -91,6 +131,7 @@ export class TicketRepository {
       closedById?: string | null;
       transcriptUrl?: string | null;
       reason?: string | null;
+      staffNotes?: string | null;
       closedAt?: Date | null;
     }
   ): Promise<Ticket> {
@@ -100,9 +141,12 @@ export class TicketRepository {
     });
   }
 
-  static async deleteTicket(channelId: string): Promise<boolean> {
+  static async deleteTicket(channelId: string, guildId?: string): Promise<boolean> {
     const res = await prisma.ticket.deleteMany({
-      where: { channelId },
+      where: {
+        channelId,
+        ...(guildId ? { guildId } : {}),
+      },
     });
     return res.count > 0;
   }

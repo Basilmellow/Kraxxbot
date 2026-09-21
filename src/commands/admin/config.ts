@@ -1,6 +1,5 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, PermissionFlagsBits } from 'discord.js';
 import { getChannelDiagnostics } from '../../config/channels';
-import { ORGANIZATIONAL_ROLES } from '../../config/roles';
 import { PermissionsService } from '../../services/permissions.service';
 import { KraxxEmbedBuilder } from '../../embeds/kraxxEmbedBuilder';
 import { prisma } from '../../database/client';
@@ -9,28 +8,6 @@ function safeString(val: unknown, fallback = 'N/A'): string {
   if (val === undefined || val === null) return fallback;
   const str = String(val).trim();
   return str.length > 0 ? str : fallback;
-}
-
-function chunkLines(lines: string[], maxChars = 1000): string[] {
-  const chunks: string[] = [];
-  let currentChunk = '';
-
-  for (const line of lines) {
-    if ((currentChunk + '\n' + line).length > maxChars) {
-      if (currentChunk.trim().length > 0) {
-        chunks.push(currentChunk.trim());
-      }
-      currentChunk = line;
-    } else {
-      currentChunk = currentChunk ? `${currentChunk}\n${line}` : line;
-    }
-  }
-
-  if (currentChunk.trim().length > 0) {
-    chunks.push(currentChunk.trim());
-  }
-
-  return chunks.length > 0 ? chunks : ['No items available.'];
 }
 
 export default {
@@ -57,6 +34,8 @@ export default {
     const subcommand = interaction.options.getSubcommand();
 
     if (subcommand === 'check') {
+      const guildId = interaction.guildId!;
+
       // 1. Database Connectivity Check
       let dbStatus = 'DISCONNECTED';
       try {
@@ -71,48 +50,40 @@ export default {
       const guildName = interaction.guild?.name ? safeString(interaction.guild.name) : 'DM / NO_GUILD';
       const guildStatus = interaction.guild ? `CONNECTED (${guildName})` : 'NOT_IN_GUILD';
 
-      // 3. Roles Status Assessment
-      const roleEntries = Object.values(ORGANIZATIONAL_ROLES);
-      const totalRoles = roleEntries.length;
-      const configuredRolesCount = roleEntries.filter(r => Boolean(r.id && r.id.trim().length > 0)).length;
-      const missingRoles = roleEntries.filter(r => !r.id || r.id.trim().length === 0);
+      // 3. Guild Settings from DB
+      let settingsStatus = 'NOT CONFIGURED';
+      let rolesSummary = 'N/A';
+      let channelsSummary = 'N/A';
+      try {
+        const guildSettings = await prisma.guildSettings.findUnique({ where: { guildId } });
+        if (guildSettings) {
+          settingsStatus = guildSettings.setupCompleted ? 'SETUP COMPLETE' : 'SETUP INCOMPLETE';
+          const configuredRoles = [
+            guildSettings.adminRoleId,
+            guildSettings.modRoleId,
+            guildSettings.supportRoleId,
+            guildSettings.staffRoleId,
+          ].filter(Boolean).length;
+          rolesSummary = `${configuredRoles}/4 roles configured`;
 
-      const roleLines = roleEntries.map(
-        r => `• **${safeString(r.name)}** (\`${safeString(r.key)}\`): ${r.id && r.id.trim() ? `\`${r.id.trim()}\`` : '❌ `NOT_SET`'}`
-      );
+          const configuredChannels = [
+            guildSettings.logChannelId,
+            guildSettings.modLogChannelId,
+            guildSettings.welcomeChannelId,
+            guildSettings.announcementChannelId,
+            guildSettings.ticketLogsChannelId,
+          ].filter(Boolean).length;
+          channelsSummary = `${configuredChannels}/5 channels configured`;
+        }
+      } catch (err) {
+        settingsStatus = 'DB_ERROR';
+      }
 
-      // 4. Channels Status Assessment
+      // 4. Channels diagnostic (keys only, no env vars)
       const channelDiag = getChannelDiagnostics();
-      const totalChannels = channelDiag.length;
-      const configuredChannelsCount = channelDiag.filter(c => c.configured).length;
-      const missingChannels = channelDiag.filter(c => !c.configured);
 
-      const channelLines = channelDiag.map(
-        c => `• **${safeString(c.name)}** (\`${safeString(c.key)}\`): ${c.configured ? `\`${safeString(c.id)}\`` : '❌ `NOT_SET`'}`
-      );
-
-      // 5. Ticket System Specific Readiness
-      const founderConfigured = Boolean(ORGANIZATIONAL_ROLES.FOUNDER?.id && ORGANIZATIONAL_ROLES.FOUNDER.id.trim().length > 0);
-      const cofounderConfigured = Boolean(ORGANIZATIONAL_ROLES.COFOUNDER?.id && ORGANIZATIONAL_ROLES.COFOUNDER.id.trim().length > 0);
-      const managementConfigured = Boolean(ORGANIZATIONAL_ROLES.MANAGEMENT_HEAD?.id && ORGANIZATIONAL_ROLES.MANAGEMENT_HEAD.id.trim().length > 0);
-
-      const logsDiag = channelDiag.find(c => c.key === 'TICKET_LOGS');
-      const transcriptsDiag = channelDiag.find(c => c.key === 'TICKET_TRANSCRIPTS');
-
-      const ticketDiagLines = [
-        `• Founder Role: ${founderConfigured ? `\`${ORGANIZATIONAL_ROLES.FOUNDER.id}\`` : '⚙️ `FALLBACK / TIER 100`'}`,
-        `• Co-Founder Role: ${cofounderConfigured ? `\`${ORGANIZATIONAL_ROLES.COFOUNDER.id}\`` : '⚙️ `FALLBACK / TIER 90`'}`,
-        `• Management Head Role: ${managementConfigured ? `\`${ORGANIZATIONAL_ROLES.MANAGEMENT_HEAD.id}\`` : '⚙️ `FALLBACK / TIER 80`'}`,
-        `• Ticket Logs Channel: ${logsDiag?.configured ? `\`${logsDiag.id}\`` : '⚙️ `AUTO-CREATE (#ticket-logs)`'}`,
-        `• Ticket Transcripts Channel: ${transcriptsDiag?.configured ? `\`${transcriptsDiag.id}\`` : '⚙️ `AUTO-CREATE (#ticket-transcripts)`'}`,
-      ];
-
-      // 6. Overall Status Determination
-      const isFullyConfigured = missingRoles.length === 0 && missingChannels.length === 0;
-      const overallStatus = isFullyConfigured ? 'READY' : 'INCOMPLETE / DEGRADED';
-
-      // 7. Build Embed
-      const embed = KraxxEmbedBuilder.createHeader('KRAXX HQ DIAGNOSTIC OVERVIEW', 'CONFIGURATION');
+      // 5. Build Embed
+      const embed = KraxxEmbedBuilder.createHeader('DIAGNOSTIC OVERVIEW', 'CONFIGURATION');
 
       embed.addFields(
         {
@@ -121,59 +92,18 @@ export default {
           inline: true,
         },
         {
-          name: 'ROLES',
-          value: `Configured: \`${configuredRolesCount}/${totalRoles}\`\nStatus: \`${missingRoles.length === 0 ? 'COMPLETE' : 'INCOMPLETE'}\``,
+          name: 'GUILD SETTINGS',
+          value: `Status: \`${settingsStatus}\`\nRoles: \`${rolesSummary}\`\nChannels: \`${channelsSummary}\``,
           inline: true,
         },
         {
-          name: 'CHANNELS',
-          value: `Configured: \`${configuredChannelsCount}/${totalChannels}\`\nStatus: \`${missingChannels.length === 0 ? 'COMPLETE' : 'INCOMPLETE'}\``,
-          inline: true,
-        },
-        {
-          name: 'TICKET SYSTEM READINESS',
-          value: ticketDiagLines.join('\n'),
-          inline: false,
-        },
-        {
-          name: 'STATUS',
-          value: `\`${safeString(overallStatus)}\` ${isFullyConfigured ? '🟢' : '⚠️'}`,
+          name: 'CHANNEL KEYS',
+          value: channelDiag.map(c => `• \`${c.key}\``).join('\n'),
           inline: false,
         }
       );
-
-      // Add Missing Configuration Summary if any
-      if (!isFullyConfigured) {
-        const missingSummaryParts: string[] = [];
-        if (missingRoles.length > 0) {
-          missingSummaryParts.push(`**Missing Roles (${missingRoles.length}):** ${missingRoles.map(r => `\`${r.key}\``).join(', ')}`);
-        }
-        if (missingChannels.length > 0) {
-          missingSummaryParts.push(`**Missing Channels (${missingChannels.length}):** ${missingChannels.map(c => `\`${c.key}\``).join(', ')}`);
-        }
-        embed.addFields({
-          name: 'MISSING CONFIGURATION',
-          value: missingSummaryParts.join('\n\n'),
-          inline: false,
-        });
-      }
-
-      // Add Roles Breakdown
-      const roleChunks = chunkLines(roleLines, 1000);
-      roleChunks.forEach((chunk, index) => {
-        const title = roleChunks.length > 1 ? `Organizational Roles Status (${index + 1}/${roleChunks.length})` : 'Organizational Roles Status';
-        embed.addFields({ name: title, value: safeString(chunk), inline: false });
-      });
-
-      // Add Channels Breakdown
-      const channelChunks = chunkLines(channelLines, 1000);
-      channelChunks.forEach((chunk, index) => {
-        const title = channelChunks.length > 1 ? `Channel Mappings Status (${index + 1}/${channelChunks.length})` : 'Channel Mappings Status';
-        embed.addFields({ name: title, value: safeString(chunk), inline: false });
-      });
 
       await interaction.reply({ embeds: [embed], ephemeral: true });
     }
   },
 };
-

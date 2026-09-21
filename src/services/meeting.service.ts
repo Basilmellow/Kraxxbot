@@ -16,6 +16,7 @@ export class MeetingService {
 
     try {
       const meeting = await MeetingRepository.create({
+        guildId: interaction.guildId!,
         title,
         agenda,
         department,
@@ -53,7 +54,7 @@ export class MeetingService {
 
   static async listMeetings(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
-      const upcoming = await MeetingRepository.listUpcoming();
+      const upcoming = await MeetingRepository.listUpcomingByGuild(interaction.guildId!);
 
       if (upcoming.length === 0) {
         await interaction.reply({
@@ -67,7 +68,7 @@ export class MeetingService {
       embed.setDescription(
         upcoming
           .map(
-            m =>
+            (m: any) =>
               `• **${m.title}** (\`${m.department}\`)\n  <t:${Math.floor(m.startTime.getTime() / 1000)}:F> | Organizer: <@${m.organizerId}>\n  Agenda: ${m.agenda}`
           )
           .join('\n\n')

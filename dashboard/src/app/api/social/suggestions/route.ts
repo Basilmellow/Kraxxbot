@@ -14,9 +14,11 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get('status') || '';
+  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
 
   try {
     const whereClause: any = {};
+    if (guildId) whereClause.guildId = guildId;
     if (statusFilter && statusFilter !== 'ALL') whereClause.status = statusFilter;
 
     const suggestions = await prisma.suggestion.findMany({
@@ -41,7 +43,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title, content } = body;
+    const { title, content, guildId: bodyGuildId } = body;
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content are required.' }, { status: 400 });
@@ -51,6 +58,7 @@ export async function POST(request: NextRequest) {
 
     const suggestion = await prisma.suggestion.create({
       data: {
+        guildId,
         title: title.trim(),
         content: content.trim(),
         authorId: currentUserId,
@@ -59,6 +67,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'SUGGESTION_CREATE',
       executorId: currentUserId,
       targetId: suggestion.id,

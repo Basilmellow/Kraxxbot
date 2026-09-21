@@ -2,7 +2,17 @@ import { prisma } from '../client';
 import { Task } from '@prisma/client';
 
 export class TaskRepository {
+  static async getNextTaskNumber(guildId: string): Promise<number> {
+    const highest = await prisma.task.findFirst({
+      where: { guildId },
+      orderBy: { taskNumber: 'desc' },
+      select: { taskNumber: true },
+    });
+    return (highest?.taskNumber || 0) + 1;
+  }
+
   static async create(data: {
+    guildId: string;
     title: string;
     description: string;
     department?: string;
@@ -11,10 +21,12 @@ export class TaskRepository {
     assigneeId?: string;
     dueDate?: Date;
   }): Promise<Task> {
-    const taskCount = await prisma.task.count();
+    const taskNumber = await this.getNextTaskNumber(data.guildId);
+
     return prisma.task.create({
       data: {
-        taskNumber: taskCount + 1,
+        taskNumber,
+        guildId: data.guildId,
         title: data.title,
         description: data.description,
         department: data.department || 'GENERAL',
@@ -26,19 +38,29 @@ export class TaskRepository {
     });
   }
 
-  static async findById(id: string): Promise<Task | null> {
-    return prisma.task.findUnique({
-      where: { id },
-    });
-  }
-
-  static async findByTaskNumber(taskNumber: number): Promise<Task | null> {
+  static async findById(id: string, guildId?: string): Promise<Task | null> {
     return prisma.task.findFirst({
-      where: { taskNumber },
+      where: {
+        id,
+        ...(guildId ? { guildId } : {}),
+      },
     });
   }
 
-  static async updateStatus(id: string, status: string): Promise<Task> {
+  static async findByTaskNumber(guildId: string, taskNumber: number): Promise<Task | null> {
+    return prisma.task.findUnique({
+      where: {
+        guildId_taskNumber: { guildId, taskNumber },
+      },
+    });
+  }
+
+  static async updateStatus(id: string, status: string, guildId?: string): Promise<Task> {
+    const task = await prisma.task.findFirst({
+      where: { id, ...(guildId ? { guildId } : {}) },
+    });
+    if (!task) throw new Error('Task not found');
+
     return prisma.task.update({
       where: { id },
       data: {
@@ -48,11 +70,20 @@ export class TaskRepository {
     });
   }
 
-  static async listByDepartment(department?: string, status?: string): Promise<Task[]> {
+  static async listByGuild(
+    guildId: string,
+    filters?: {
+      department?: string;
+      status?: string;
+      assigneeId?: string;
+    }
+  ): Promise<Task[]> {
     return prisma.task.findMany({
       where: {
-        ...(department ? { department } : {}),
-        ...(status ? { status } : {}),
+        guildId,
+        ...(filters?.department ? { department: filters.department } : {}),
+        ...(filters?.status ? { status: filters.status } : {}),
+        ...(filters?.assigneeId ? { assigneeId: filters.assigneeId } : {}),
       },
       orderBy: { createdAt: 'desc' },
     });

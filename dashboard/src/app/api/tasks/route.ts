@@ -17,9 +17,11 @@ export async function GET(request: NextRequest) {
   const departmentFilter = searchParams.get('department') || '';
   const priorityFilter = searchParams.get('priority') || '';
   const query = searchParams.get('q')?.toLowerCase() || '';
+  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
 
   try {
     const whereClause: any = {};
+    if (guildId) whereClause.guildId = guildId;
     if (statusFilter && statusFilter !== 'ALL') whereClause.status = statusFilter;
     if (departmentFilter && departmentFilter !== 'ALL') whereClause.department = departmentFilter;
     if (priorityFilter && priorityFilter !== 'ALL') whereClause.priority = priorityFilter;
@@ -47,8 +49,11 @@ export async function GET(request: NextRequest) {
       if (t.creatorId) userIds.add(t.creatorId);
     });
 
-    const members = await prisma.member.findMany({
-      where: { discordId: { in: Array.from(userIds) } },
+    const members = await prisma.guildMember.findMany({
+      where: {
+        discordId: { in: Array.from(userIds) },
+        ...(guildId ? { guildId } : {}),
+      },
     });
     const memberMap = new Map(members.map((m) => [m.discordId, m]));
 
@@ -74,7 +79,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title, description, department = 'GENERAL', priority = 'MEDIUM', assigneeId, dueDate } = body;
+    const { title, description, department = 'GENERAL', priority = 'MEDIUM', assigneeId, dueDate, guildId: bodyGuildId } = body;
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     if (!title || !description) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
@@ -82,14 +92,16 @@ export async function POST(request: NextRequest) {
 
     const currentUserId = session!.user.discordId;
 
-    // Get highest taskNumber
+    // Get highest taskNumber for this guild
     const lastTask = await prisma.task.findFirst({
+      where: { guildId },
       orderBy: { taskNumber: 'desc' },
     });
     const nextNumber = (lastTask?.taskNumber || 0) + 1;
 
     const task = await prisma.task.create({
       data: {
+        guildId,
         taskNumber: nextNumber,
         title: title.trim(),
         description: description.trim(),
@@ -103,6 +115,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'TASK_CREATE',
       executorId: currentUserId,
       targetId: task.id,

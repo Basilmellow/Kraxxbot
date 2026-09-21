@@ -1,175 +1,101 @@
-import { GuildMember } from 'discord.js';
-import { env } from './environment';
+import { GuildMember, PermissionFlagsBits, Role } from 'discord.js';
+import { GuildSettings } from '@prisma/client';
 
-export enum RoleTier {
-  FOUNDER = 100,
-  COFOUNDER = 90,
-  MANAGEMENT_HEAD = 80,
-  TEAM_LEAD = 70,
-  PARTNER = 60,
-  DIVISION_STAFF = 50,
-  CLIENT = 20,
-  USER = 10,
+export enum PermissionTier {
+  ADMINISTRATOR = 100,
+  MANAGER = 80,
+  MODERATOR = 60,
+  SUPPORT = 40,
+  MEMBER = 10,
   NONE = 0,
 }
 
-export interface RoleConfig {
-  key: string;
-  name: string;
-  id: string;
-  priority: RoleTier;
-  description: string;
-}
-
-export const ORGANIZATIONAL_ROLES: Record<string, RoleConfig> = {
-  FOUNDER: {
-    key: 'FOUNDER',
-    name: 'Founder',
-    id: env.FOUNDER_ROLE_ID,
-    priority: RoleTier.FOUNDER,
-    description: 'Executive Organization Founder',
-  },
-  COFOUNDER: {
-    key: 'COFOUNDER',
-    name: 'Co-Founder',
-    id: env.COFOUNDER_ROLE_ID,
-    priority: RoleTier.COFOUNDER,
-    description: 'Executive Co-Founder',
-  },
-  MANAGEMENT_HEAD: {
-    key: 'MANAGEMENT_HEAD',
-    name: 'Management Head',
-    id: env.MANAGEMENT_ROLE_ID,
-    priority: RoleTier.MANAGEMENT_HEAD,
-    description: 'Department & Operational Management',
-  },
-  TEAM_LEAD: {
-    key: 'TEAM_LEAD',
-    name: 'Team Lead',
-    id: env.TEAM_LEAD_ROLE_ID,
-    priority: RoleTier.TEAM_LEAD,
-    description: 'Project & Operations Team Lead',
-  },
-  PARTNER: {
-    key: 'PARTNER',
-    name: 'Partner',
-    id: env.PARTNER_ROLE_ID,
-    priority: RoleTier.PARTNER,
-    description: 'External Strategic Partner',
-  },
-  KRAXXSEC: {
-    key: 'KRAXXSEC',
-    name: 'Team KRAXXSEC',
-    id: env.KRAXXSEC_ROLE_ID,
-    priority: RoleTier.DIVISION_STAFF,
-    description: 'Cybersecurity & Security Engineering Team',
-  },
-  KRAXXSTUDIO: {
-    key: 'KRAXXSTUDIO',
-    name: 'Team KRAXX STUDIO',
-    id: env.KRAXXSTUDIO_ROLE_ID,
-    priority: RoleTier.DIVISION_STAFF,
-    description: 'Digital Creative & Technology Services Team',
-  },
-  CLIENT: {
-    key: 'CLIENT',
-    name: 'Client',
-    id: env.CLIENT_ROLE_ID,
-    priority: RoleTier.CLIENT,
-    description: 'KRAXX Client / Customer',
-  },
-  USER: {
-    key: 'USER',
-    name: 'User',
-    id: env.USER_ROLE_ID,
-    priority: RoleTier.USER,
-    description: 'Verified KRAXX HQ Base Member',
-  },
-  BOT: {
-    key: 'BOT',
-    name: 'KRAXX Bot',
-    id: env.KRAXX_BOT_ROLE_ID,
-    priority: RoleTier.FOUNDER,
-    description: 'Internal Operations Automation Bot',
-  },
-};
-
 /**
- * Resolves the highest organizational role tier for a given GuildMember.
+ * Resolves the member's permission tier in the active guild.
+ * Checks native Discord permissions first, then configured GuildSettings role IDs.
  */
-export function getMemberHighestTier(member: GuildMember): RoleTier {
-  let maxTier = RoleTier.NONE;
+export function getMemberPermissionTier(
+  member: GuildMember,
+  settings?: GuildSettings | null
+): PermissionTier {
+  if (!member) return PermissionTier.NONE;
 
-  for (const roleConfig of Object.values(ORGANIZATIONAL_ROLES)) {
-    if (roleConfig.id && member.roles.cache.has(roleConfig.id)) {
-      if (roleConfig.priority > maxTier) {
-        maxTier = roleConfig.priority;
-      }
-    }
-  }
-
-  // Fallback: If user has Administrator permission, grant Founder tier
-  if (member.permissions.has('Administrator')) {
-    return RoleTier.FOUNDER;
-  }
-
-  return maxTier;
-}
-
-/**
- * Checks if a member possesses management authority (Management Head or higher).
- */
-export function isManagement(member: GuildMember): boolean {
-  return getMemberHighestTier(member) >= RoleTier.MANAGEMENT_HEAD;
-}
-
-/**
- * Checks if a member is authorized for ticket management.
- * Strictly limited to: Founder, Co-Founder, and Management Head roles.
- */
-export function isTicketManager(member: GuildMember): boolean {
-  if (!member || !member.roles) return false;
-
-  // Direct role ID checks from configured environment variables
+  // Server Owner or Administrator permission
   if (
-    (env.FOUNDER_ROLE_ID && env.FOUNDER_ROLE_ID.trim() !== '' && member.roles.cache.has(env.FOUNDER_ROLE_ID)) ||
-    (env.COFOUNDER_ROLE_ID && env.COFOUNDER_ROLE_ID.trim() !== '' && member.roles.cache.has(env.COFOUNDER_ROLE_ID)) ||
-    (env.MANAGEMENT_ROLE_ID && env.MANAGEMENT_ROLE_ID.trim() !== '' && member.roles.cache.has(env.MANAGEMENT_ROLE_ID))
+    member.id === member.guild.ownerId ||
+    member.permissions.has(PermissionFlagsBits.Administrator)
   ) {
-    return true;
+    return PermissionTier.ADMINISTRATOR;
   }
 
-  // Role tier check (FOUNDER = 100, COFOUNDER = 90, MANAGEMENT_HEAD = 80)
-  const highestTier = getMemberHighestTier(member);
-  if (highestTier >= RoleTier.MANAGEMENT_HEAD) {
-    return true;
+  // Manage Guild permission or configured Admin role
+  if (member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    return PermissionTier.MANAGER;
+  }
+  if (settings?.adminRoleId && member.roles.cache.has(settings.adminRoleId)) {
+    return PermissionTier.ADMINISTRATOR;
   }
 
-  return false;
+  // Moderation permissions or configured Mod role
+  if (
+    member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+    member.permissions.has(PermissionFlagsBits.BanMembers) ||
+    member.permissions.has(PermissionFlagsBits.KickMembers) ||
+    member.permissions.has(PermissionFlagsBits.ManageMessages)
+  ) {
+    return PermissionTier.MODERATOR;
+  }
+  if (settings?.modRoleId && member.roles.cache.has(settings.modRoleId)) {
+    return PermissionTier.MODERATOR;
+  }
+
+  // Support or staff role configured in GuildSettings
+  if (
+    (settings?.supportRoleId && member.roles.cache.has(settings.supportRoleId)) ||
+    (settings?.staffRoleId && member.roles.cache.has(settings.staffRoleId))
+  ) {
+    return PermissionTier.SUPPORT;
+  }
+
+  return PermissionTier.MEMBER;
 }
 
 /**
- * Checks if a member has Team Lead authority or higher.
+ * Checks whether a member has ticket manager / support privileges in the guild.
  */
-export function isTeamLeadOrAbove(member: GuildMember): boolean {
-  return getMemberHighestTier(member) >= RoleTier.TEAM_LEAD;
+export function isTicketManager(
+  member: GuildMember,
+  settings?: GuildSettings | null
+): boolean {
+  return getMemberPermissionTier(member, settings) >= PermissionTier.SUPPORT;
 }
 
 /**
- * Evaluates whether an executor can assign or remove a specific target role.
- * Enforces organizational hierarchy: An executor can only manage roles strictly lower than their tier.
+ * Checks whether an executor can assign or manage a target role based on Discord hierarchy.
  */
-export function canManageRole(executor: GuildMember, targetRoleId: string): { allowed: boolean; reason?: string } {
-  const executorTier = getMemberHighestTier(executor);
+export function canManageDiscordRole(
+  executor: GuildMember,
+  targetRole: Role
+): { allowed: boolean; reason?: string } {
+  // Guild owner can manage any role below the bot
+  if (executor.id === executor.guild.ownerId) {
+    return { allowed: true };
+  }
 
-  // Target role configuration lookup
-  const targetConfig = Object.values(ORGANIZATIONAL_ROLES).find(r => r.id === targetRoleId);
-  const targetPriority = targetConfig ? targetConfig.priority : RoleTier.NONE;
-
-  if (executorTier <= targetPriority) {
+  // Discord hierarchy check: executor's highest role must be above the target role
+  if (executor.roles.highest.position <= targetRole.position) {
     return {
       allowed: false,
-      reason: `Insufficient authority. Your tier (${executorTier}) must be strictly higher than the target role tier (${targetPriority}).`,
+      reason: `You cannot manage the role <@&${targetRole.id}> because it is positioned equal to or higher than your highest role.`,
+    };
+  }
+
+  // Bot hierarchy check: bot's highest role must be above the target role
+  const botMember = executor.guild.members.me;
+  if (botMember && botMember.roles.highest.position <= targetRole.position) {
+    return {
+      allowed: false,
+      reason: `KRAXXBot cannot manage <@&${targetRole.id}> because the role is higher than KRAXXBot's highest role in server hierarchy.`,
     };
   }
 

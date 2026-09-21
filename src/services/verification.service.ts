@@ -1,7 +1,6 @@
 import { ButtonInteraction, ChatInputCommandInteraction, GuildMember } from 'discord.js';
 import { MemberRepository } from '../database/repositories/member.repository';
 import { AuditService } from './audit.service';
-import { env } from '../config/environment';
 import { KraxxEmbedBuilder } from '../embeds/kraxxEmbedBuilder';
 import { logger } from '../utils/logger';
 
@@ -13,9 +12,10 @@ export class VerificationService {
     interaction: ButtonInteraction | ChatInputCommandInteraction
   ): Promise<void> {
     const member = interaction.member as GuildMember | null;
+    const guild = interaction.guild;
 
-    if (!member) {
-      const errorEmbed = KraxxEmbedBuilder.error('Verification Failed', 'Could not resolve member context.');
+    if (!member || !guild) {
+      const errorEmbed = KraxxEmbedBuilder.error('Verification Failed', 'Could not resolve server or member context.');
       await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
       return;
     }
@@ -23,32 +23,49 @@ export class VerificationService {
     try {
       // 1. Ensure member entry exists in database
       const dbMember = await MemberRepository.upsertMember({
+        guildId: guild.id,
         discordId: member.id,
         username: member.user.username,
         displayName: member.displayName,
+        avatar: member.user.avatarURL(),
       });
 
       // 2. Check idempotent verification status
       if (dbMember.isVerified) {
-        await MemberRepository.logVerificationAttempt(member.id, 'ALREADY_VERIFIED', 'User clicked verify when already verified');
+        await MemberRepository.logVerificationAttempt(
+          guild.id,
+          member.id,
+          'ALREADY_VERIFIED',
+          'User clicked verify when already verified'
+        );
         const alreadyEmbed = KraxxEmbedBuilder.success(
-          'Verification Active',
-          'Your KRAXX HQ membership is already verified. Access has been established.'
+          'Already Verified',
+          `Your membership in **${guild.name}** is already verified.`
         );
         await interaction.reply({ embeds: [alreadyEmbed], ephemeral: true });
         return;
       }
 
       // 3. Update database verification status
-      await MemberRepository.markVerified(member.id);
-      await MemberRepository.logVerificationAttempt(member.id, 'SUCCESS', 'Membership verified successfully');
+      await MemberRepository.markVerified(guild.id, member.id);
+      await MemberRepository.logVerificationAttempt(
+        guild.id,
+        member.id,
+        'SUCCESS',
+        'Membership verified successfully'
+      );
 
-      // 4. Assign base User role if missing
-      if (env.USER_ROLE_ID && env.USER_ROLE_ID.trim().length > 0) {
-        const userRole = member.guild.roles.cache.get(env.USER_ROLE_ID);
-        if (userRole && !member.roles.cache.has(userRole.id)) {
-          await member.roles.add(userRole).catch(err => {
-            logger.warn({ err, discordId: member.id }, 'Failed to assign @User role during verification');
+      // 4. Assign configured auto-role or verified role if configured in WelcomeConfig
+      const welcomeConfig = await (await import('../database/client')).prisma.welcomeConfig.findUnique({
+        where: { guildId: guild.id },
+      });
+
+      const targetRoleId = welcomeConfig?.roleId;
+      if (targetRoleId) {
+        const role = guild.roles.cache.get(targetRoleId);
+        if (role && !member.roles.cache.has(role.id)) {
+          await member.roles.add(role).catch(err => {
+            logger.warn({ err, discordId: member.id, guildId: guild.id }, 'Failed to assign verified role');
           });
         }
       }
@@ -56,25 +73,25 @@ export class VerificationService {
       // 5. Send clean ephemeral response
       const successEmbed = KraxxEmbedBuilder.success(
         'Verification Complete',
-        'Your membership has been successfully verified. Welcome to KRAXX HQ.'
+        `Your membership has been successfully verified. Welcome to **${guild.name}**!`
       );
       await interaction.reply({ embeds: [successEmbed], ephemeral: true });
 
       // 6. Log audit event
       await AuditService.logEvent(
-        member.guild,
+        guild,
         'MEMBER_VERIFIED',
         member.id,
         member.id,
-        `Member ${member.user.tag} successfully completed verification.`
+        `Member ${member.user.tag} completed verification in ${guild.name}.`
       );
     } catch (error) {
-      logger.error({ err: error, discordId: member.id }, 'Verification process encountered an exception');
-      await MemberRepository.logVerificationAttempt(member.id, 'FAILED', String(error)).catch(() => {});
+      logger.error({ err: error, discordId: member.id, guildId: guild.id }, 'Verification process encountered an exception');
+      await MemberRepository.logVerificationAttempt(guild.id, member.id, 'FAILED', String(error)).catch(() => {});
 
       const errorEmbed = KraxxEmbedBuilder.error(
         'Verification Error',
-        'An error occurred while processing your verification. Please try again or contact management.'
+        'An error occurred while processing your verification. Please try again or contact server staff.'
       );
 
       if (interaction.replied || interaction.deferred) {

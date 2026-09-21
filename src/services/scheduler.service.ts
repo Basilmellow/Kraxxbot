@@ -120,6 +120,7 @@ export class SchedulerService {
             if (sa.title || sa.content) {
               await prisma.announcement.create({
                 data: {
+                  guildId: sa.guildId,
                   title: sa.title || 'Scheduled Announcement',
                   content: sa.content || (parsedEmbeds[0]?.description) || 'Announcement',
                   department: sa.department,

@@ -3,6 +3,7 @@ import { Meeting } from '@prisma/client';
 
 export class MeetingRepository {
   static async create(data: {
+    guildId: string;
     title: string;
     agenda: string;
     department?: string;
@@ -14,6 +15,7 @@ export class MeetingRepository {
   }): Promise<Meeting> {
     return prisma.meeting.create({
       data: {
+        guildId: data.guildId,
         title: data.title,
         agenda: data.agenda,
         department: data.department || 'GENERAL',
@@ -26,9 +28,10 @@ export class MeetingRepository {
     });
   }
 
-  static async listUpcoming(): Promise<Meeting[]> {
+  static async listUpcomingByGuild(guildId: string): Promise<Meeting[]> {
     return prisma.meeting.findMany({
       where: {
+        guildId,
         status: 'SCHEDULED',
         startTime: { gte: new Date() },
       },

@@ -76,10 +76,10 @@ export const GuildRepository = {
   /**
    * Fetches a guild with its settings.
    */
-  async findById(guildId: string): Promise<(Guild & { settings: GuildSettings | null }) | null> {
+  async findById(guildId: string) {
     return prisma.guild.findUnique({
       where: { id: guildId },
-      include: { settings: true },
+      include: { settings: true, welcomeConfig: true },
     });
   },
 

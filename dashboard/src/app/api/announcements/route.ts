@@ -54,7 +54,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const guildId = process.env.DISCORD_GUILD_ID || '';
+    const guildId = body.guildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || process.env.DISCORD_GUILD_ID || '';
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     // CASE 1: SCHEDULED ANNOUNCEMENT
     if (isScheduled) {
@@ -117,6 +120,7 @@ export async function POST(request: NextRequest) {
     // Save history to Announcement model
     const announcementRecord = await prisma.announcement.create({
       data: {
+        guildId,
         title: title || 'HQ Announcement',
         content: content || (embeds && embeds[0]?.description) || 'Announcement',
         department: (department || 'GENERAL').toUpperCase(),
@@ -130,6 +134,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'ANNOUNCEMENT_SEND',
       executorId: session.user.discordId,
       targetId: channelId,

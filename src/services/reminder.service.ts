@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 export class ReminderService {
   static async setReminder(interaction: ChatInputCommandInteraction): Promise<void> {
     const member = interaction.member as GuildMember;
+    const guildId = interaction.guildId!;
     const title = interaction.options.getString('title', true);
     const message = interaction.options.getString('message', true);
     const minutes = interaction.options.getInteger('minutes', true);
@@ -15,6 +16,7 @@ export class ReminderService {
 
     try {
       const reminder = await ReminderRepository.create({
+        guildId,
         title,
         message,
         targetType: 'USER',
@@ -47,9 +49,10 @@ export class ReminderService {
 
   static async listReminders(interaction: ChatInputCommandInteraction): Promise<void> {
     const member = interaction.member as GuildMember;
+    const guildId = interaction.guildId!;
 
     try {
-      const reminders = await ReminderRepository.listByUser(member.id);
+      const reminders = await ReminderRepository.listByGuildAndUser(guildId, member.id);
 
       if (reminders.length === 0) {
         await interaction.reply({
@@ -63,7 +66,7 @@ export class ReminderService {
       embed.setDescription(
         reminders
           .map(
-            r =>
+            (r) =>
               `• **${r.title}**: ${r.message} (<t:${Math.floor((r.triggerAt?.getTime() || 0) / 1000)}:R>)`
           )
           .join('\n')

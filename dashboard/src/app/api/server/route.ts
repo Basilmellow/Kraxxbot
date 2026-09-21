@@ -45,7 +45,7 @@ export async function GET() {
       }),
       prisma.meeting.count(),
       prisma.announcement.count(),
-      prisma.member.count(),
+      prisma.guildMember.count(),
       prisma.auditLog.findMany({
         orderBy: { timestamp: 'desc' },
         take: 20,

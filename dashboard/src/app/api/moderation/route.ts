@@ -12,8 +12,6 @@ import {
 import { requireTier, RoleTier, resolveRoleTier } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
-const DEFAULT_GUILD_ID = process.env.DISCORD_GUILD_ID || 'default';
-
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
@@ -24,13 +22,15 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const actionFilter = searchParams.get('action') || '';
   const targetId = searchParams.get('targetId') || '';
+  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
 
   try {
     const whereClause: any = {};
+    if (guildId) whereClause.guildId = guildId;
     if (actionFilter && actionFilter !== 'ALL') whereClause.action = actionFilter;
     if (targetId) whereClause.targetId = targetId;
 
-    const logs = await prisma.moderationLog.findMany({
+    const logs = await prisma.moderationCase.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
       take: 100,
@@ -52,7 +52,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { targetId, action, reason, durationSeconds = 3600 } = body; // action: 'WARN' | 'TIMEOUT' | 'KICK' | 'BAN' | 'UNBAN'
+    const { targetId, action, reason, durationSeconds = 3600, guildId: bodyGuildId } = body; // action: 'WARN' | 'TIMEOUT' | 'KICK' | 'BAN' | 'UNBAN'
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     if (!targetId || !action) {
       return NextResponse.json({ error: 'Target user ID and moderation action are required.' }, { status: 400 });
@@ -63,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Safety check: Fetch target member to ensure hierarchy protection
     if (action !== 'UNBAN') {
-      const targetMember = await fetchGuildMember(targetId).catch(() => null);
+      const targetMember = await fetchGuildMember(guildId, targetId).catch(() => null);
       if (targetMember) {
         const targetTier = resolveRoleTier(targetMember.roles);
         if (targetTier >= currentUserTier) {
@@ -80,19 +85,19 @@ export async function POST(request: NextRequest) {
     // Execute Discord REST Action
     switch (action) {
       case 'TIMEOUT': {
-        await timeoutGuildMember(targetId, durationSeconds, auditReason);
+        await timeoutGuildMember(guildId, targetId, durationSeconds, auditReason);
         break;
       }
       case 'KICK': {
-        await kickGuildMember(targetId, auditReason);
+        await kickGuildMember(guildId, targetId, auditReason);
         break;
       }
       case 'BAN': {
-        await banGuildMember(targetId, auditReason, 0);
+        await banGuildMember(guildId, targetId, auditReason, 0);
         break;
       }
       case 'UNBAN': {
-        await unbanGuildMember(targetId, auditReason);
+        await unbanGuildMember(guildId, targetId, auditReason);
         break;
       }
       case 'WARN': {
@@ -103,24 +108,34 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Unsupported moderation action: ${action}` }, { status: 400 });
     }
 
-    // Record Moderation Log
-    const modLog = await prisma.moderationLog.create({
+    // Get next case number for this guild
+    const lastCase = await prisma.moderationCase.findFirst({
+      where: { guildId },
+      orderBy: { caseNumber: 'desc' },
+    });
+    const nextCaseNumber = (lastCase?.caseNumber || 0) + 1;
+
+    // Record Moderation Case
+    const modLog = await prisma.moderationCase.create({
       data: {
-        guildId: DEFAULT_GUILD_ID,
+        caseNumber: nextCaseNumber,
+        guildId,
         targetId,
         moderatorId: currentUserId,
+        moderatorTag: session!.user.name || null,
         action,
         reason: reason || null,
-        duration: action === 'TIMEOUT' ? durationSeconds : null,
+        durationSeconds: action === 'TIMEOUT' ? durationSeconds : null,
       },
     });
 
     await logDashboardAction({
+      guildId,
       action: `MODERATION_${action}`,
       executorId: currentUserId,
       targetId,
       targetType: 'USER',
-      details: { action, reason, durationSeconds },
+      details: { action, reason, durationSeconds, caseNumber: nextCaseNumber },
     });
 
     return NextResponse.json({ success: true, log: modLog });

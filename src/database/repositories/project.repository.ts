@@ -1,8 +1,11 @@
-import { prisma } from '../client';
-import { Project } from '@prisma/client';
+// NOTE: The 'Project' model does not exist in the current Prisma schema.
+// This repository is a placeholder for future implementation.
+// When a GuildProject model is added to schema.prisma, update this file accordingly.
 
 export class ProjectRepository {
-  static async create(data: {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  static async create(_data: {
+    guildId: string;
     code: string;
     name: string;
     description: string;
@@ -10,29 +13,15 @@ export class ProjectRepository {
     department?: string;
     leadId?: string;
     channelId?: string;
-  }): Promise<Project> {
-    return prisma.project.create({
-      data: {
-        code: data.code.toUpperCase(),
-        name: data.name,
-        description: data.description,
-        clientName: data.clientName,
-        department: data.department || 'KRAXXSEC',
-        leadId: data.leadId,
-        channelId: data.channelId,
-      },
-    });
+  }): Promise<Record<string, unknown>> {
+    throw new Error('ProjectRepository: Project model not yet available in schema.');
   }
 
-  static async findByCode(code: string): Promise<Project | null> {
-    return prisma.project.findUnique({
-      where: { code: code.toUpperCase() },
-    });
+  static async findByCode(_guildId: string, _code: string): Promise<Record<string, unknown> | null> {
+    return null;
   }
 
-  static async listAll(): Promise<Project[]> {
-    return prisma.project.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
+  static async listByGuild(_guildId: string): Promise<Record<string, unknown>[]> {
+    return [];
   }
 }

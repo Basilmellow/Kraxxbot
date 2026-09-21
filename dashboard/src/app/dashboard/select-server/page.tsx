@@ -4,19 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import {
-  Server,
-  ShieldCheck,
-  Plus,
-  ArrowRight,
-  Search,
-  ExternalLink,
-  Crown,
-  Loader2,
-  RefreshCw,
-  Sparkles,
-} from 'lucide-react';
-import { ManagedGuild } from '@/lib/discord';
+import { Server, ShieldCheck, Plus, ArrowRight, Search, ExternalLink, Crown, RefreshCw } from 'lucide-react';
+import { ManagedGuild, getBotInviteUrl } from '@/lib/discord';
 
 export default function SelectServerPage() {
   const router = useRouter();
@@ -50,190 +39,440 @@ export default function SelectServerPage() {
     }
   }, [authStatus]);
 
-  const filtered = guilds.filter((g) =>
+  const filtered = guilds.filter(g =>
     g.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const installed = filtered.filter((g) => g.botInstalled);
-  const uninstalled = filtered.filter((g) => !g.botInstalled);
+  const installed = filtered.filter(g => g.botInstalled);
+  const uninstalled = filtered.filter(g => !g.botInstalled);
+
+  const S: Record<string, React.CSSProperties> = {
+    root: {
+      minHeight: '100vh',
+      background: '#090908',
+      color: '#F3F0E9',
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      WebkitFontSmoothing: 'antialiased',
+    },
+    inner: {
+      maxWidth: '900px',
+      margin: '0 auto',
+      padding: '3rem 1.5rem 4rem',
+    },
+    pageHeader: {
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: '1rem',
+      marginBottom: '2rem',
+      flexWrap: 'wrap' as const,
+    },
+    badge: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.375rem',
+      padding: '0.25rem 0.625rem',
+      borderRadius: '9999px',
+      background: 'rgba(201, 166, 107, 0.08)',
+      border: '1px solid rgba(201, 166, 107, 0.2)',
+      fontSize: '0.6875rem',
+      fontWeight: 700,
+      color: '#C9A66B',
+      letterSpacing: '0.05em',
+      textTransform: 'uppercase' as const,
+      marginBottom: '0.625rem',
+    },
+    title: {
+      fontSize: '1.5rem',
+      fontWeight: 800,
+      color: '#F3F0E9',
+      letterSpacing: '-0.02em',
+      marginBottom: '0.25rem',
+    },
+    subtitle: {
+      fontSize: '0.875rem',
+      color: '#716D65',
+    },
+    refreshBtn: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.375rem',
+      padding: '0.5rem 0.875rem',
+      borderRadius: '8px',
+      background: '#161614',
+      border: '1px solid #2A2925',
+      color: '#A8A49B',
+      fontSize: '0.8125rem',
+      fontWeight: 600,
+      cursor: 'pointer',
+      transition: 'all 0.12s',
+      fontFamily: 'inherit',
+    },
+    searchWrap: {
+      position: 'relative' as const,
+      marginBottom: '2.5rem',
+    },
+    searchInput: {
+      width: '100%',
+      padding: '0.625rem 0.875rem 0.625rem 2.375rem',
+      background: '#161614',
+      border: '1px solid #2A2925',
+      borderRadius: '10px',
+      color: '#F3F0E9',
+      fontSize: '0.875rem',
+      fontFamily: 'inherit',
+      outline: 'none',
+      transition: 'border-color 0.12s',
+    },
+    searchIcon: {
+      position: 'absolute' as const,
+      left: '0.75rem',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      color: '#716D65',
+      pointerEvents: 'none' as const,
+    },
+    sectionLabel: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      fontSize: '0.875rem',
+      fontWeight: 700,
+      color: '#A8A49B',
+      marginBottom: '1rem',
+    },
+    grid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+      gap: '0.75rem',
+    },
+    guildCardInstalled: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      background: '#161614',
+      border: '1px solid #2A2925',
+      borderRadius: '12px',
+      padding: '1.25rem',
+      textDecoration: 'none',
+      color: 'inherit',
+      transition: 'all 0.12s',
+      cursor: 'pointer',
+    },
+    guildCardUninstalled: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      background: '#0F0F0E',
+      border: '1px solid #1D1C19',
+      borderRadius: '12px',
+      padding: '1.25rem',
+    },
+    guildAvatar: {
+      width: '44px',
+      height: '44px',
+      borderRadius: '10px',
+      objectFit: 'cover' as const,
+      flexShrink: 0,
+    },
+    guildAvatarFallback: {
+      width: '44px',
+      height: '44px',
+      borderRadius: '10px',
+      background: 'rgba(201, 166, 107, 0.12)',
+      border: '1px solid rgba(201, 166, 107, 0.2)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '1.125rem',
+      fontWeight: 800,
+      color: '#C9A66B',
+      flexShrink: 0,
+    },
+    guildAvatarFallbackDim: {
+      width: '44px',
+      height: '44px',
+      borderRadius: '10px',
+      background: '#1D1C19',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '1.125rem',
+      fontWeight: 800,
+      color: '#4A4742',
+      flexShrink: 0,
+    },
+    guildName: {
+      fontSize: '0.9375rem',
+      fontWeight: 700,
+      color: '#F3F0E9',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap' as const,
+    },
+    guildNameDim: {
+      fontSize: '0.9375rem',
+      fontWeight: 600,
+      color: '#716D65',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap' as const,
+    },
+    divider: {
+      height: '1px',
+      background: '#1D1C19',
+      margin: '1rem 0 0',
+    },
+    cardFooterInstalled: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: '0.875rem',
+      fontSize: '0.8125rem',
+      fontWeight: 700,
+      color: '#C9A66B',
+    },
+    addBtn: {
+      width: '100%',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.375rem',
+      padding: '0.5rem',
+      borderRadius: '8px',
+      background: 'transparent',
+      border: '1px solid #2A2925',
+      color: '#716D65',
+      fontSize: '0.8125rem',
+      fontWeight: 600,
+      textDecoration: 'none',
+      marginTop: '0.875rem',
+      transition: 'all 0.12s',
+    },
+    emptyState: {
+      padding: '3rem 1rem',
+      borderRadius: '12px',
+      border: '1px dashed #2A2925',
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      justifyContent: 'center',
+      textAlign: 'center' as const,
+      gap: '0.5rem',
+    },
+    sectionDivider: {
+      height: '1px',
+      background: '#1D1C19',
+      margin: '2.5rem 0',
+    },
+    spinner: {
+      width: '28px',
+      height: '28px',
+      border: '2px solid #2A2925',
+      borderTopColor: '#C9A66B',
+      borderRadius: '50%',
+      animation: 'spin 0.75s linear infinite',
+      margin: '0 auto 1rem',
+    },
+  };
 
   return (
-    <div className="min-h-screen bg-[#FAF9F5] text-[#101828] py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto space-y-8">
-        {/* Header Banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EADFC7] pb-6">
+    <div style={S.root}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={S.inner}>
+        {/* Header */}
+        <div style={S.pageHeader}>
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold uppercase tracking-wider mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>Multi-Tenant Operations</span>
+            <div style={S.badge}>
+              <ShieldCheck style={{ width: '11px', height: '11px' }} />
+              Server Selection
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#101828]">
-              Select Server
-            </h1>
-            <p className="text-sm text-[#667085] mt-1">
-              Choose a Discord server to manage, or invite KRAXXBot to a new community.
+            <h1 style={S.title}>Your Servers</h1>
+            <p style={S.subtitle}>
+              Select a server to manage, or invite KRAXXBot to a new community.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={fetchGuilds}
-              disabled={isRefreshing}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] hover:bg-[#F3F4F6] text-xs font-medium text-[#475467] transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-600' : ''}`} />
-              <span>Refresh</span>
-            </button>
-          </div>
+          <button
+            onClick={fetchGuilds}
+            disabled={isRefreshing}
+            style={S.refreshBtn}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#1D1C19';
+              e.currentTarget.style.color = '#F3F0E9';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#161614';
+              e.currentTarget.style.color = '#A8A49B';
+            }}
+          >
+            <RefreshCw style={{ width: '13px', height: '13px', ...(isRefreshing ? { animation: 'spin 0.75s linear infinite' } : {}) }} />
+            <span>Refresh</span>
+          </button>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-[#98A2B3] absolute left-3.5 top-1/2 -translate-y-1/2" />
+        {/* Search */}
+        <div style={S.searchWrap}>
+          <Search style={{ width: '15px', height: '15px', ...S.searchIcon }} />
           <input
             type="text"
-            placeholder="Search servers by name..."
+            placeholder="Search servers..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#E5E7EB] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm text-[#101828] placeholder-[#98A2B3] transition-all outline-none shadow-2xs"
+            onChange={e => setSearchQuery(e.target.value)}
+            style={S.searchInput}
+            onFocus={e => { e.currentTarget.style.borderColor = '#C9A66B'; }}
+            onBlur={e => { e.currentTarget.style.borderColor = '#2A2925'; }}
           />
         </div>
 
-        {/* Loading State */}
+        {/* Loading */}
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center text-center">
-            <Loader2 className="w-8 h-8 text-amber-600 animate-spin mb-3" />
-            <p className="text-sm font-medium text-[#475467]">Loading your Discord servers...</p>
+          <div style={{ padding: '4rem 0', textAlign: 'center' }}>
+            <div style={S.spinner} />
+            <p style={{ fontSize: '0.875rem', color: '#716D65' }}>Loading your servers...</p>
           </div>
         ) : (
-          <div className="space-y-10">
-            {/* Active Installed Servers */}
-            <section className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-[#101828] flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                  <span>KRAXXBot Enabled Servers ({installed.length})</span>
-                </h2>
+          <>
+            {/* Installed Servers */}
+            <div style={{ marginBottom: '0.75rem' }}>
+              <div style={S.sectionLabel}>
+                <ShieldCheck style={{ width: '15px', height: '15px', color: '#22C55E' }} />
+                <span>KRAXXBot Installed</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.125rem 0.5rem', borderRadius: '9999px', background: 'rgba(34, 197, 94, 0.08)', border: '1px solid rgba(34, 197, 94, 0.2)', color: '#22C55E' }}>
+                  {installed.length}
+                </span>
               </div>
 
               {installed.length === 0 ? (
-                <div className="p-8 rounded-2xl bg-white border border-dashed border-[#D1D5DB] text-center">
-                  <Server className="w-8 h-8 text-[#98A2B3] mx-auto mb-2" />
-                  <p className="text-sm font-medium text-[#101828]">No active servers found</p>
-                  <p className="text-xs text-[#667085] mt-1">
-                    Invite KRAXXBot to any of your manageable servers below to get started.
+                <div style={S.emptyState}>
+                  <Server style={{ width: '28px', height: '28px', color: '#4A4742', marginBottom: '0.25rem' }} />
+                  <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#A8A49B' }}>No active servers found</p>
+                  <p style={{ fontSize: '0.8125rem', color: '#716D65' }}>
+                    Add KRAXXBot to one of your servers below to get started.
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {installed.map((guild) => (
+                <div style={S.grid}>
+                  {installed.map(guild => (
                     <Link
                       key={guild.id}
                       href={`/dashboard/${guild.id}`}
-                      className="group p-5 rounded-2xl bg-white border border-[#EADFC7]/70 hover:border-amber-400 hover:shadow-md transition-all flex flex-col justify-between cursor-pointer relative overflow-hidden"
+                      style={S.guildCardInstalled}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = 'rgba(201, 166, 107, 0.4)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = '#2A2925';
+                        e.currentTarget.style.transform = 'none';
+                      }}
                     >
-                      <div className="flex items-start gap-3.5">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         {guild.icon ? (
                           <img
                             src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=96`}
                             alt={guild.name}
-                            className="w-12 h-12 rounded-xl object-cover border border-[#E5E7EB] flex-shrink-0"
+                            style={S.guildAvatar}
                           />
                         ) : (
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-700 text-white font-bold text-lg flex items-center justify-center flex-shrink-0">
+                          <div style={S.guildAvatarFallback}>
                             {guild.name.charAt(0).toUpperCase()}
                           </div>
                         )}
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-bold text-[#101828] truncate group-hover:text-amber-800 transition-colors">
-                            {guild.name}
-                          </h3>
-                          <div className="flex items-center gap-2 mt-1">
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={S.guildName}>{guild.name}</div>
+                          <div style={{ display: 'flex', gap: '0.375rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
                             {guild.owner && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                <Crown className="w-3 h-3 text-amber-600" /> Owner
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.6875rem', fontWeight: 700, color: '#C9A66B', background: 'rgba(201, 166, 107, 0.08)', padding: '0.125rem 0.375rem', borderRadius: '9999px', border: '1px solid rgba(201, 166, 107, 0.2)' }}>
+                                <Crown style={{ width: '10px', height: '10px' }} />
+                                Owner
                               </span>
                             )}
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.6875rem', fontWeight: 700, color: '#22C55E', background: 'rgba(34, 197, 94, 0.08)', padding: '0.125rem 0.375rem', borderRadius: '9999px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                              <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22C55E', display: 'inline-block' }} />
+                              Active
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-5 pt-3 border-t border-[#F1F3F9] flex items-center justify-between text-xs font-semibold text-amber-700 group-hover:text-amber-800">
+                      <div style={S.cardFooterInstalled}>
                         <span>Open Dashboard</span>
-                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                        <ArrowRight style={{ width: '15px', height: '15px' }} />
                       </div>
                     </Link>
                   ))}
                 </div>
               )}
-            </section>
+            </div>
 
             {/* Uninstalled Servers */}
             {uninstalled.length > 0 && (
-              <section className="space-y-4 pt-4 border-t border-[#EADFC7]/60">
+              <>
+                <div style={S.sectionDivider} />
                 <div>
-                  <h2 className="text-base font-bold text-[#101828] flex items-center gap-2">
-                    <Plus className="w-5 h-5 text-amber-600" />
-                    <span>Invite to Other Servers ({uninstalled.length})</span>
-                  </h2>
-                  <p className="text-xs text-[#667085] mt-0.5">
-                    Servers where you have Admin or Manage Server rights, but KRAXXBot has not been added yet.
+                  <div style={S.sectionLabel}>
+                    <Plus style={{ width: '15px', height: '15px', color: '#716D65' }} />
+                    <span>Add to Server</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.125rem 0.5rem', borderRadius: '9999px', background: '#161614', border: '1px solid #2A2925', color: '#716D65' }}>
+                      {uninstalled.length}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.8125rem', color: '#716D65', marginBottom: '1rem' }}>
+                    Servers where you have Admin or Manage Server rights, but KRAXXBot hasn't been added yet.
                   </p>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {uninstalled.map((guild) => (
-                    <div
-                      key={guild.id}
-                      className="p-5 rounded-2xl bg-white border border-[#E5E7EB] hover:border-[#D1D5DB] transition-all flex flex-col justify-between"
-                    >
-                      <div className="flex items-start gap-3.5">
-                        {guild.icon ? (
-                          <img
-                            src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=96`}
-                            alt={guild.name}
-                            className="w-12 h-12 rounded-xl object-cover opacity-80 border border-[#E5E7EB] flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-xl bg-gray-200 text-gray-700 font-bold text-lg flex items-center justify-center flex-shrink-0">
-                            {guild.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-semibold text-[#101828] truncate">
-                            {guild.name}
-                          </h3>
-                          <div className="flex items-center gap-2 mt-1">
+                  <div style={S.grid}>
+                    {uninstalled.map(guild => (
+                      <div key={guild.id} style={S.guildCardUninstalled}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          {guild.icon ? (
+                            <img
+                              src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=96`}
+                              alt={guild.name}
+                              style={{ ...S.guildAvatar, opacity: 0.5 }}
+                            />
+                          ) : (
+                            <div style={S.guildAvatarFallbackDim}>
+                              {guild.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={S.guildNameDim}>{guild.name}</div>
                             {guild.owner && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#475467] bg-gray-100 px-2 py-0.5 rounded-full">
-                                <Crown className="w-3 h-3 text-amber-600" /> Owner
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.6875rem', fontWeight: 600, color: '#716D65', marginTop: '0.25rem' }}>
+                                <Crown style={{ width: '10px', height: '10px' }} />
+                                Owner
                               </span>
                             )}
                           </div>
                         </div>
-                      </div>
 
-                      <div className="mt-5 pt-3 border-t border-[#F1F3F9]">
                         <a
-                          href={guild.inviteUrl}
+                          href={getBotInviteUrl(guild.id)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200 text-amber-900 text-xs font-semibold transition-colors"
+                          style={S.addBtn}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = 'rgba(201, 166, 107, 0.08)';
+                            e.currentTarget.style.borderColor = 'rgba(201, 166, 107, 0.3)';
+                            e.currentTarget.style.color = '#C9A66B';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.borderColor = '#2A2925';
+                            e.currentTarget.style.color = '#716D65';
+                          }}
                         >
-                          <Plus className="w-3.5 h-3.5" />
+                          <Plus style={{ width: '13px', height: '13px' }} />
                           <span>Add KRAXXBot</span>
-                          <ExternalLink className="w-3 h-3 text-amber-700" />
+                          <ExternalLink style={{ width: '11px', height: '11px' }} />
                         </a>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </section>
+              </>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>

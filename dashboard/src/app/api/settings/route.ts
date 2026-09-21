@@ -13,13 +13,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const configs = await prisma.botConfig.findMany();
-    const configMap: Record<string, string> = {};
-    configs.forEach((c) => {
-      configMap[c.key] = c.value;
+    const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+    if (!guildId) {
+      return NextResponse.json({ settings: {} });
+    }
+
+    const settings = await prisma.guildSettings.findUnique({
+      where: { guildId },
     });
 
-    return NextResponse.json({ configs: configMap });
+    return NextResponse.json({ settings: settings || {} });
   } catch (error: any) {
     console.error('Failed to fetch settings:', error);
     return NextResponse.json({ error: error.message || 'Failed to fetch settings' }, { status: 500 });
@@ -35,28 +38,33 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { settings = {} } = body;
+    const { settings = {}, guildId: bodyGuildId } = body;
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     const currentUserId = session!.user.discordId;
 
-    for (const [key, val] of Object.entries(settings)) {
-      if (typeof val === 'string') {
-        await prisma.botConfig.upsert({
-          where: { key },
-          update: { value: val },
-          create: { key, value: val },
-        });
-      }
-    }
+    const updated = await prisma.guildSettings.upsert({
+      where: { guildId },
+      update: settings,
+      create: {
+        guildId,
+        ...settings,
+      },
+    });
 
     await logDashboardAction({
+      guildId,
       action: 'CONFIG_CHANGED',
       executorId: currentUserId,
       targetType: 'SYSTEM',
       details: { changedKeys: Object.keys(settings) },
     });
 
-    return NextResponse.json({ success: true, message: 'Settings saved successfully.' });
+    return NextResponse.json({ success: true, settings: updated, message: 'Settings saved successfully.' });
   } catch (error: any) {
     console.error('Failed to save settings:', error);
     return NextResponse.json({ error: error.message || 'Failed to save settings' }, { status: 500 });

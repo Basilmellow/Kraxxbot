@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 export class TaskService {
   static async createTask(interaction: ChatInputCommandInteraction): Promise<void> {
     const creator = interaction.member as GuildMember;
+    const guildId = interaction.guildId!;
     const title = interaction.options.getString('title', true);
     const description = interaction.options.getString('description', true);
     const department = interaction.options.getString('department') || 'GENERAL';
@@ -15,6 +16,7 @@ export class TaskService {
 
     try {
       const task = await TaskRepository.create({
+        guildId,
         title,
         description,
         department,
@@ -52,11 +54,12 @@ export class TaskService {
   }
 
   static async listTasks(interaction: ChatInputCommandInteraction): Promise<void> {
+    const guildId = interaction.guildId!;
     const department = interaction.options.getString('department') || undefined;
     const status = interaction.options.getString('status') || undefined;
 
     try {
-      const tasks = await TaskRepository.listByDepartment(department, status);
+      const tasks = await TaskRepository.listByGuild(guildId, { department, status });
 
       if (tasks.length === 0) {
         await interaction.reply({
@@ -66,12 +69,12 @@ export class TaskService {
         return;
       }
 
-      const embed = KraxxEmbedBuilder.createHeader('OPERATIONAL TASKS LIST', department || 'HQ ALL');
+      const embed = KraxxEmbedBuilder.createHeader('OPERATIONAL TASKS LIST', department || 'ALL');
       embed.setDescription(
         tasks
           .slice(0, 15)
           .map(
-            t =>
+            (t) =>
               `• **#${t.taskNumber}** | \`[${t.status}]\` | \`[${t.priority}]\` **${t.title}** (${t.assigneeId ? `<@${t.assigneeId}>` : 'Unassigned'})`
           )
           .join('\n')
@@ -91,9 +94,10 @@ export class TaskService {
     const taskNumber = interaction.options.getInteger('number', true);
     const status = interaction.options.getString('status', true);
     const member = interaction.member as GuildMember;
+    const guildId = interaction.guildId!;
 
     try {
-      const existing = await TaskRepository.findByTaskNumber(taskNumber);
+      const existing = await TaskRepository.findByTaskNumber(guildId, taskNumber);
       if (!existing) {
         await interaction.reply({
           embeds: [KraxxEmbedBuilder.error('Not Found', `Task #${taskNumber} does not exist.`)],

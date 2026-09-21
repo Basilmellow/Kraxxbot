@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+    const guildFilter = guildId ? { guildId } : {};
+
     const [
       totalTickets,
       openTickets,
@@ -25,22 +28,22 @@ export async function GET(request: NextRequest) {
       modLogs,
       activeReminders,
     ] = await Promise.all([
-      prisma.ticket.count(),
-      prisma.ticket.count({ where: { status: 'OPEN' } }),
-      prisma.ticket.count({ where: { status: 'CLAIMED' } }),
-      prisma.ticket.count({ where: { status: 'CLOSED' } }),
-      prisma.task.count(),
-      prisma.task.count({ where: { status: 'COMPLETED' } }),
-      prisma.task.count({ where: { status: 'IN_PROGRESS' } }),
-      prisma.meeting.count(),
-      prisma.dashboardAuditLog.count(),
-      prisma.moderationLog.findMany({ take: 100 }),
-      prisma.reminder.count({ where: { status: 'ACTIVE' } }),
+      prisma.ticket.count({ where: guildFilter }),
+      prisma.ticket.count({ where: { ...guildFilter, status: 'OPEN' } }),
+      prisma.ticket.count({ where: { ...guildFilter, status: 'CLAIMED' } }),
+      prisma.ticket.count({ where: { ...guildFilter, status: 'CLOSED' } }),
+      prisma.task.count({ where: guildFilter }),
+      prisma.task.count({ where: { ...guildFilter, status: 'COMPLETED' } }),
+      prisma.task.count({ where: { ...guildFilter, status: 'IN_PROGRESS' } }),
+      prisma.meeting.count({ where: guildFilter }),
+      prisma.dashboardAuditLog.count({ where: guildFilter }),
+      prisma.moderationCase.findMany({ where: guildFilter, take: 100 }),
+      prisma.reminder.count({ where: { ...guildFilter, status: 'ACTIVE' } }),
     ]);
 
     // Breakdown moderation actions
     const modBreakdown: Record<string, number> = { WARN: 0, TIMEOUT: 0, KICK: 0, BAN: 0, UNBAN: 0 };
-    modLogs.forEach((l) => {
+    modLogs.forEach((l: { action: string }) => {
       if (modBreakdown[l.action] !== undefined) modBreakdown[l.action]++;
     });
 

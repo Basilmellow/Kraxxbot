@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, GuildMember, Role } from 'discord.js';
-import { canManageRole, ORGANIZATIONAL_ROLES } from '../config/roles';
+import { canManageDiscordRole } from '../config/roles';
 import { AuditService } from './audit.service';
 import { KraxxEmbedBuilder } from '../embeds/kraxxEmbedBuilder';
 import { logger } from '../utils/logger';
@@ -20,7 +20,7 @@ export class RoleService {
     }
 
     // Check authority bounds
-    const authCheck = canManageRole(executor, role.id);
+    const authCheck = canManageDiscordRole(executor, role);
     if (!authCheck.allowed) {
       const errEmbed = KraxxEmbedBuilder.error('Access Denied', authCheck.reason || 'Hierarchy check failed.');
       await interaction.reply({ embeds: [errEmbed], ephemeral: true });
@@ -70,7 +70,7 @@ export class RoleService {
       return;
     }
 
-    const authCheck = canManageRole(executor, role.id);
+    const authCheck = canManageDiscordRole(executor, role);
     if (!authCheck.allowed) {
       const errEmbed = KraxxEmbedBuilder.error('Access Denied', authCheck.reason || 'Hierarchy check failed.');
       await interaction.reply({ embeds: [errEmbed], ephemeral: true });
@@ -118,21 +118,14 @@ export class RoleService {
       return;
     }
 
-    const knownConfig = Object.values(ORGANIZATIONAL_ROLES).find(r => r.id === role.id);
-
     const embed = KraxxEmbedBuilder.createHeader(role.name, 'ROLE SPECIFICATION');
     embed.addFields(
       { name: 'Role ID', value: `\`${role.id}\``, inline: true },
       { name: 'Color Hex', value: `\`${role.hexColor}\``, inline: true },
       { name: 'Position', value: `\`${role.position}\``, inline: true },
       { name: 'Members Count', value: `\`${role.members.size}\``, inline: true },
-      { name: 'Organizational Tier', value: `\`${knownConfig ? knownConfig.priority : 'Custom/Unmapped'}\``, inline: true },
       { name: 'Hoisted / Mentionable', value: `Hoisted: \`${role.hoist}\` | Mentionable: \`${role.mentionable}\``, inline: false }
     );
-
-    if (knownConfig) {
-      embed.addFields({ name: 'Description', value: knownConfig.description, inline: false });
-    }
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
   }

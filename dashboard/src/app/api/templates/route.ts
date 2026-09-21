@@ -13,9 +13,13 @@ export async function GET(request: NextRequest) {
   }
 
   const category = request.nextUrl.searchParams.get('category');
+  const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
 
   try {
     const where: Record<string, unknown> = {};
+    if (guildId) {
+      where.guildId = guildId;
+    }
     if (category && category !== 'ALL') {
       where.category = category.toUpperCase();
     }
@@ -62,7 +66,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, category, description, title, embedData } = body;
+    const { name, category, description, title, embedData, guildId: bodyGuildId } = body;
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     if (!name || !embedData) {
       return NextResponse.json({ error: 'Template name and embedData required' }, { status: 400 });
@@ -70,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     const cleanName = name.trim();
     const existing = await prisma.embedTemplate.findFirst({
-      where: { name: cleanName },
+      where: { guildId, name: cleanName },
     });
 
     if (existing) {
@@ -82,6 +91,7 @@ export async function POST(request: NextRequest) {
 
     const template = await prisma.embedTemplate.create({
       data: {
+        guildId,
         name: cleanName,
         category: (category || 'CUSTOM').toUpperCase(),
         description: description?.trim() || null,
@@ -92,6 +102,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'TEMPLATE_CREATE',
       executorId: session.user.discordId,
       targetId: template.id,

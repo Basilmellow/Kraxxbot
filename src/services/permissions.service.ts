@@ -1,104 +1,133 @@
 import { GuildMember, PermissionFlagsBits } from 'discord.js';
 import { GuildSettings } from '@prisma/client';
-import { isManagement, isTicketManager, isTeamLeadOrAbove, getMemberHighestTier, RoleTier } from '../config/roles';
 
 export class PermissionsService {
-  // ─────────────────────────────────────────────────────────
-  // Multi-Tenant Guild Permission Checks
-  // ─────────────────────────────────────────────────────────
-
   /**
-   * Checks if a member can administer the guild (server manager / admin).
-   * Works across ALL guilds via Discord-native permissions.
+   * Checks if a member has administrator privileges in their guild.
    */
-  static isGuildAdmin(member: GuildMember): boolean {
-    return (
-      member.permissions.has(PermissionFlagsBits.Administrator) ||
-      member.permissions.has(PermissionFlagsBits.ManageGuild)
-    );
+  static isGuildAdmin(member: GuildMember, settings?: GuildSettings | null): boolean {
+    if (!member) return false;
+    if (member.id === member.guild.ownerId) return true;
+    if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+    if (settings?.adminRoleId && member.roles.cache.has(settings.adminRoleId)) return true;
+    return false;
   }
 
   /**
-   * Checks if a member can moderate in a given guild.
-   * Checks Discord permissions first, then falls back to configured GuildSettings roles.
+   * Checks if a member can manage server operations (Manage Guild or Admin).
+   */
+  static isGuildManager(member: GuildMember, settings?: GuildSettings | null): boolean {
+    if (this.isGuildAdmin(member, settings)) return true;
+    if (member.permissions.has(PermissionFlagsBits.ManageGuild)) return true;
+    return false;
+  }
+
+  /**
+   * Checks if a member can moderate the guild (moderate/kick/ban/manage messages).
    */
   static isModerator(member: GuildMember, settings?: GuildSettings | null): boolean {
+    if (this.isGuildManager(member, settings)) return true;
     if (
-      member.permissions.has(PermissionFlagsBits.Administrator) ||
-      member.permissions.has(PermissionFlagsBits.ManageGuild) ||
       member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+      member.permissions.has(PermissionFlagsBits.KickMembers) ||
       member.permissions.has(PermissionFlagsBits.BanMembers) ||
-      member.permissions.has(PermissionFlagsBits.KickMembers)
+      member.permissions.has(PermissionFlagsBits.ManageMessages)
     ) {
       return true;
     }
-
-    if (settings) {
-      const roles = [settings.adminRoleId, settings.modRoleId].filter(Boolean) as string[];
-      return roles.some(roleId => member.roles.cache.has(roleId));
-    }
-
+    if (settings?.modRoleId && member.roles.cache.has(settings.modRoleId)) return true;
     return false;
   }
 
   /**
-   * Checks if a member can manage support tickets in a given guild.
-   * Checks Discord permissions first, then support/staff roles from GuildSettings.
+   * Checks if a member can manage or support tickets.
    */
   static isTicketSupport(member: GuildMember, settings?: GuildSettings | null): boolean {
-    if (PermissionsService.isModerator(member, settings)) return true;
-
-    if (settings) {
-      const roles = [settings.supportRoleId, settings.staffRoleId].filter(Boolean) as string[];
-      return roles.some(roleId => member.roles.cache.has(roleId));
+    if (this.isModerator(member, settings)) return true;
+    if (
+      (settings?.supportRoleId && member.roles.cache.has(settings.supportRoleId)) ||
+      (settings?.staffRoleId && member.roles.cache.has(settings.staffRoleId))
+    ) {
+      return true;
     }
-
     return false;
   }
 
-  // ─────────────────────────────────────────────────────────
-  // Legacy KRAXX HQ Role Checks (for KRAXX HQ guild only)
-  // These still work for HQ but should not be used in other guilds.
-  // ─────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────
+  // Authorization Guards for Command Execution
+  // ─────────────────────────────────────────────────────────────────
 
-  static requireTicketManager(member: GuildMember): { authorized: boolean; reason?: string } {
-    if (!isTicketManager(member)) {
+  static requireAdmin(
+    member: GuildMember,
+    settings?: GuildSettings | null
+  ): { authorized: boolean; reason?: string } {
+    if (!this.isGuildAdmin(member, settings)) {
       return {
         authorized: false,
-        reason: 'This action is restricted to KRAXX Management (Founder, Co-Founder, Management Head).',
+        reason: 'This operation requires Server Administrator permission.',
       };
     }
     return { authorized: true };
   }
 
-  static requireManagement(member: GuildMember): { authorized: boolean; reason?: string } {
-    if (!isManagement(member)) {
+  static requireManager(
+    member: GuildMember,
+    settings?: GuildSettings | null
+  ): { authorized: boolean; reason?: string } {
+    if (!this.isGuildManager(member, settings)) {
       return {
         authorized: false,
-        reason: 'This operation requires Management Head, Co-Founder, or Founder authorization.',
+        reason: 'This operation requires Manage Server (or Administrator) permission.',
       };
     }
     return { authorized: true };
   }
 
-  static requireTeamLead(member: GuildMember): { authorized: boolean; reason?: string } {
-    if (!isTeamLeadOrAbove(member)) {
+  static requireModerator(
+    member: GuildMember,
+    settings?: GuildSettings | null
+  ): { authorized: boolean; reason?: string } {
+    if (!this.isModerator(member, settings)) {
       return {
         authorized: false,
-        reason: 'This operation requires Team Lead level authorization or higher.',
+        reason: 'This operation requires Server Moderator permission.',
       };
     }
     return { authorized: true };
   }
 
-  static requireTier(member: GuildMember, minTier: RoleTier): { authorized: boolean; reason?: string } {
-    const tier = getMemberHighestTier(member);
-    if (tier < minTier) {
+  static requireTicketSupport(
+    member: GuildMember,
+    settings?: GuildSettings | null
+  ): { authorized: boolean; reason?: string } {
+    if (!this.isTicketSupport(member, settings)) {
       return {
         authorized: false,
-        reason: `Insufficient authority. Required tier: ${minTier}, your tier: ${tier}.`,
+        reason: 'This action is restricted to Server Staff & Support.',
       };
     }
     return { authorized: true };
+  }
+
+  // Compatible aliases for existing command routes
+  static requireManagement(
+    member: GuildMember,
+    settings?: GuildSettings | null
+  ): { authorized: boolean; reason?: string } {
+    return this.requireManager(member, settings);
+  }
+
+  static requireTeamLead(
+    member: GuildMember,
+    settings?: GuildSettings | null
+  ): { authorized: boolean; reason?: string } {
+    return this.requireModerator(member, settings);
+  }
+
+  static requireTicketManager(
+    member: GuildMember,
+    settings?: GuildSettings | null
+  ): { authorized: boolean; reason?: string } {
+    return this.requireTicketSupport(member, settings);
   }
 }

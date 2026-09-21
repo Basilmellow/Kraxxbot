@@ -1,28 +1,21 @@
-import { prisma } from '../client';
-import { Client } from '@prisma/client';
+// NOTE: The 'Client' model does not exist in the current Prisma schema.
+// This repository is a placeholder for future implementation.
+// When a GuildClient model is added to schema.prisma, update this file accordingly.
 
 export class ClientRepository {
-  static async create(data: {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  static async create(_data: {
+    guildId: string;
     name: string;
     company: string;
     contactEmail?: string;
     division?: string;
     notes?: string;
-  }): Promise<Client> {
-    return prisma.client.create({
-      data: {
-        name: data.name,
-        company: data.company,
-        contactEmail: data.contactEmail,
-        division: data.division || 'KRAXXSEC',
-        notes: data.notes,
-      },
-    });
+  }): Promise<Record<string, unknown>> {
+    throw new Error('ClientRepository: Client model not yet available in schema.');
   }
 
-  static async listAll(): Promise<Client[]> {
-    return prisma.client.findMany({
-      orderBy: { company: 'asc' },
-    });
+  static async listAll(_guildId: string): Promise<Record<string, unknown>[]> {
+    return [];
   }
 }

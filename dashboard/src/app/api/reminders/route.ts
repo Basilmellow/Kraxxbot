@@ -14,9 +14,11 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get('status') || '';
+  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
 
   try {
     const whereClause: any = {};
+    if (guildId) whereClause.guildId = guildId;
     if (statusFilter && statusFilter !== 'ALL') whereClause.status = statusFilter;
 
     const reminders = await prisma.reminder.findMany({
@@ -41,7 +43,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title, message, targetType = 'CHANNEL', targetId, triggerAt, recurrence = 'NONE' } = body;
+    const { title, message, targetType = 'CHANNEL', targetId, triggerAt, recurrence = 'NONE', guildId: bodyGuildId } = body;
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     if (!title || !message || !targetId || !triggerAt) {
       return NextResponse.json({ error: 'Title, message, target ID, and trigger time are required.' }, { status: 400 });
@@ -55,6 +62,7 @@ export async function POST(request: NextRequest) {
 
     const reminder = await prisma.reminder.create({
       data: {
+        guildId,
         title: title.trim(),
         message: message.trim(),
         targetType,
@@ -68,6 +76,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'REMINDER_CREATE',
       executorId: currentUserId,
       targetId: reminder.id,

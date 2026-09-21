@@ -30,11 +30,11 @@ function initRoleTierMap() {
 export function resolveRoleTier(roleIds: string[]): RoleTier {
   initRoleTierMap();
 
-  let highestTier = RoleTier.USER;
+  let highestTier: RoleTier = RoleTier.USER;
 
   for (const roleId of roleIds) {
     const tier = ROLE_TIER_MAP[roleId];
-    if (tier !== undefined && tier > highestTier) {
+    if (tier !== undefined && (tier as number) > (highestTier as number)) {
       highestTier = tier;
     }
   }

@@ -16,24 +16,34 @@ export async function GET(
   }
 
   const { id: userId } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
 
   try {
     const [discordMember, dbMember, discordRoles, tickets, tasks, moderationLogs] = await Promise.all([
-      fetchGuildMember(userId).catch(() => null),
-      prisma.member.findUnique({ where: { discordId: userId } }),
-      fetchGuildRoles().catch(() => []),
+      guildId ? fetchGuildMember(guildId, userId).catch(() => null) : Promise.resolve(null),
+      prisma.guildMember.findFirst({ where: { discordId: userId, ...(guildId ? { guildId } : {}) } }),
+      fetchGuildRoles(guildId).catch(() => []),
       prisma.ticket.findMany({
-        where: { OR: [{ openerId: userId }, { claimerId: userId }] },
+        where: {
+          OR: [{ openerId: userId }, { claimerId: userId }],
+          ...(guildId ? { guildId } : {}),
+        },
         orderBy: { createdAt: 'desc' },
         take: 20,
       }),
       prisma.task.findMany({
-        where: { OR: [{ assigneeId: userId }, { creatorId: userId }] },
+        where: {
+          OR: [{ assigneeId: userId }, { creatorId: userId }],
+          ...(guildId ? { guildId } : {}),
+        },
         orderBy: { createdAt: 'desc' },
         take: 20,
       }),
-      prisma.moderationLog.findMany({
-        where: { targetId: userId },
+      prisma.moderationCase.findMany({
+        where: {
+          targetId: userId,
+          ...(guildId ? { guildId } : {}),
+        },
         orderBy: { createdAt: 'desc' },
       }),
     ]);
@@ -52,19 +62,18 @@ export async function GET(
         id: userId,
         username: discordMember?.user?.username || dbMember?.username || 'Unknown',
         displayName: discordMember?.nick || dbMember?.displayName || discordMember?.user?.username || 'Unknown',
-        avatar: discordMember?.user?.avatar || null,
+        avatar: discordMember?.user?.avatar || dbMember?.avatar || null,
         joinedAt: discordMember?.joined_at || dbMember?.joinedAt,
         roles: memberRoles,
         roleIds: discordMember?.roles || [],
         isVerified: dbMember?.isVerified ?? false,
         verifiedAt: dbMember?.verifiedAt || null,
-        department: dbMember?.department || null,
         roleTier: dbMember?.roleTier || 'USER',
       },
       tickets,
       tasks,
       moderationLogs,
-      allRoles: discordRoles.sort((a, b) => b.position - a.position),
+      allRoles: discordRoles.sort((a: any, b: any) => b.position - a.position),
     });
   } catch (error: any) {
     console.error('Failed to fetch member details:', error);

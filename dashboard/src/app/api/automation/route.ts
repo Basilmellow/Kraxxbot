@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
     const rules = await prisma.automationRule.findMany({
+      where: guildId ? { guildId } : undefined,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -33,7 +35,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, trigger, action, config, enabled = true } = body;
+    const { name, trigger, action, config, enabled = true, guildId: bodyGuildId } = body;
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     if (!name || !trigger || !action) {
       return NextResponse.json({ error: 'Name, trigger, and action are required.' }, { status: 400 });
@@ -43,6 +50,7 @@ export async function POST(request: NextRequest) {
 
     const rule = await prisma.automationRule.create({
       data: {
+        guildId,
         name: name.trim(),
         trigger,
         action,
@@ -53,6 +61,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'AUTOMATION_CREATE',
       executorId: currentUserId,
       targetId: rule.id,

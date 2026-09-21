@@ -23,7 +23,8 @@ export class SelfRoleService {
     emoji?: string,
     description?: string
   ): Promise<void> {
-    const existing = await SelfRoleRepository.findByRoleId(role.id);
+    const guildId = interaction.guildId!;
+    const existing = await SelfRoleRepository.findByRoleId(guildId, role.id);
     if (existing) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Already Exists', `Role ${role} is already configured as a self-role.`)],
@@ -33,6 +34,7 @@ export class SelfRoleService {
     }
 
     await SelfRoleRepository.create({
+      guildId,
       roleId: role.id,
       name: displayName,
       emoji: emoji || undefined,
@@ -59,7 +61,8 @@ export class SelfRoleService {
     interaction: ChatInputCommandInteraction,
     role: Role
   ): Promise<void> {
-    const removed = await SelfRoleRepository.deleteByRoleId(role.id);
+    const guildId = interaction.guildId!;
+    const removed = await SelfRoleRepository.delete(guildId, role.id);
     if (!removed) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Not Found', `Role ${role} is not configured as a self-role.`)],
@@ -77,25 +80,26 @@ export class SelfRoleService {
   }
 
   /**
-   * Lists all configured self-assignable roles.
+   * Lists all configured self-assignable roles for this guild.
    */
   static async listSelfRoles(interaction: ChatInputCommandInteraction): Promise<void> {
-    const roles = await SelfRoleRepository.findAll();
+    const guildId = interaction.guildId!;
+    const roles = await SelfRoleRepository.listByGuild(guildId);
 
     if (roles.length === 0) {
       await interaction.reply({
         embeds: [
-          KraxxEmbedBuilder.createHeader('KRAXX HQ │ SELF-ROLES', 'ROLES')
-            .setDescription('No self-assignable roles are currently configured in KRAXX HQ.'),
+          KraxxEmbedBuilder.createHeader('SELF-ROLES', 'ROLES')
+            .setDescription('No self-assignable roles are currently configured.'),
         ],
         ephemeral: true,
       });
       return;
     }
 
-    const embed = KraxxEmbedBuilder.createHeader('KRAXX HQ │ SELF-ASSIGNABLE ROLES', 'ROLES');
+    const embed = KraxxEmbedBuilder.createHeader('SELF-ASSIGNABLE ROLES', 'ROLES');
     const lines = roles.map(
-      r => `• ${r.emoji ? `${r.emoji} ` : ''}**${r.name}** (<@&${r.roleId}>)${r.description ? `\n  *${r.description}*` : ''}`
+      (r) => `• ${r.emoji ? `${r.emoji} ` : ''}**${r.name}** (<@&${r.roleId}>)${r.description ? `\n  *${r.description}*` : ''}`
     );
     embed.setDescription(lines.join('\n\n'));
 
@@ -110,8 +114,9 @@ export class SelfRoleService {
     targetChannel?: TextChannel,
     customTitle?: string
   ): Promise<void> {
+    const guildId = interaction.guildId!;
     const channel = (targetChannel || interaction.channel) as TextChannel;
-    const roles = await SelfRoleRepository.findAll();
+    const roles = await SelfRoleRepository.listByGuild(guildId);
 
     if (roles.length === 0) {
       await interaction.reply({
@@ -123,13 +128,13 @@ export class SelfRoleService {
 
     const embed = new KraxxEmbedBuilder();
     embed.setColor(KRAXX_COLORS.BRAND);
-    embed.setTitle(`KRAXX HQ │ ${customTitle || 'SELF-ROLE SELECTION'}`);
+    embed.setTitle(`${customTitle || 'SELF-ROLE SELECTION'}`);
     embed.setDescription(
       `Select roles from the dropdown menu below to assign or remove them from your profile.\n\n` +
       `You can select multiple roles or update your choices at any time.`
     );
 
-    const options = roles.slice(0, 25).map(r => {
+    const options = roles.slice(0, 25).map((r) => {
       const opt = new StringSelectMenuOptionBuilder()
         .setLabel(r.name)
         .setValue(r.roleId)
@@ -165,6 +170,8 @@ export class SelfRoleService {
    */
   static async handleRoleSelection(interaction: StringSelectMenuInteraction): Promise<void> {
     const member = interaction.member as GuildMember;
+    const guildId = interaction.guildId!;
+
     if (!member) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Error', 'Member context could not be resolved.')],
@@ -173,9 +180,9 @@ export class SelfRoleService {
       return;
     }
 
-    const selectedRoleIds = interaction.values; // Array of selected role IDs
-    const configuredSelfRoles = await SelfRoleRepository.findAll();
-    const selfRoleMap = new Map(configuredSelfRoles.map(r => [r.roleId, r]));
+    const selectedRoleIds = interaction.values;
+    const configuredSelfRoles = await SelfRoleRepository.listByGuild(guildId);
+    const selfRoleMap = new Map(configuredSelfRoles.map((r) => [r.roleId, r]));
 
     const added: string[] = [];
     const removed: string[] = [];

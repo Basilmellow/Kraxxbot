@@ -30,7 +30,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const existingConfigs = await prisma.moduleConfig.findMany();
+    const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+    if (!guildId) {
+      return NextResponse.json({ modules: DEFAULT_MODULES, total: DEFAULT_MODULES.length });
+    }
+
+    const existingConfigs = await prisma.guildModule.findMany({
+      where: { guildId },
+    });
     const configMap = new Map(existingConfigs.map((c) => [c.module, c]));
 
     const merged = DEFAULT_MODULES.map((dm) => {
@@ -59,7 +66,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { module: moduleKey, enabled } = body;
+    const { module: moduleKey, enabled, guildId: bodyGuildId } = body;
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     if (!moduleKey || enabled === undefined) {
       return NextResponse.json({ error: 'Module key and enabled boolean are required.' }, { status: 400 });
@@ -67,13 +79,19 @@ export async function POST(request: NextRequest) {
 
     const currentUserId = session!.user.discordId;
 
-    const updated = await prisma.moduleConfig.upsert({
-      where: { module: moduleKey },
+    const updated = await prisma.guildModule.upsert({
+      where: {
+        guildId_module: {
+          guildId,
+          module: moduleKey,
+        },
+      },
       update: {
         enabled: Boolean(enabled),
         updatedBy: currentUserId,
       },
       create: {
+        guildId,
         module: moduleKey,
         enabled: Boolean(enabled),
         updatedBy: currentUserId,
@@ -81,6 +99,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: enabled ? 'MODULE_ENABLE' : 'MODULE_DISABLE',
       executorId: currentUserId,
       targetId: moduleKey,

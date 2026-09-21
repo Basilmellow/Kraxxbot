@@ -1,62 +1,93 @@
 'use client';
 
 import React, { useEffect, useState, use } from 'react';
-import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Topbar } from '@/components/layout/Topbar';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
 import {
-  Users,
-  Ticket,
-  AlarmClock,
-  Megaphone,
-  Boxes,
-  Settings,
-  ShieldCheck,
-  ShieldAlert,
-  Activity,
-  ArrowRight,
-  ExternalLink,
-  Sparkles,
-  RefreshCw,
-  Wrench,
-  CheckCircle2,
-  XCircle,
-  Loader2,
+  Users, Ticket, AlarmClock, Shield, Settings, Boxes, ShieldAlert,
+  ArrowRight, RefreshCw, CheckCircle2, XCircle,
 } from 'lucide-react';
 
 interface PageProps {
   params: Promise<{ guildId: string }>;
 }
 
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  href,
+  linkLabel,
+}: {
+  label: string;
+  value: number | string;
+  icon: React.ElementType;
+  href: string;
+  linkLabel: string;
+}) {
+  return (
+    <div style={{
+      background: '#161614',
+      border: '1px solid #2A2925',
+      borderRadius: '12px',
+      padding: '1.25rem',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+        <span style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#716D65' }}>
+          {label}
+        </span>
+        <div style={{
+          width: '32px', height: '32px', borderRadius: '8px',
+          background: 'rgba(201, 166, 107, 0.08)',
+          border: '1px solid rgba(201, 166, 107, 0.15)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#C9A66B',
+        }}>
+          <Icon style={{ width: '15px', height: '15px' }} />
+        </div>
+      </div>
+      <div style={{ fontSize: '1.875rem', fontWeight: 800, color: '#F3F0E9', letterSpacing: '-0.02em', lineHeight: 1, marginBottom: '0.875rem' }}>
+        {value}
+      </div>
+      <div style={{ height: '1px', background: '#1D1C19', marginBottom: '0.875rem' }} />
+      <Link
+        href={href}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          fontSize: '0.75rem', fontWeight: 700, color: '#C9A66B', textDecoration: 'none',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.color = '#D8B77D'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = '#C9A66B'; }}
+      >
+        <span>{linkLabel}</span>
+        <ArrowRight style={{ width: '13px', height: '13px', transition: 'transform 0.12s' }} />
+      </Link>
+    </div>
+  );
+}
+
 export default function GuildDashboardPage({ params }: PageProps) {
   const { guildId } = use(params);
   const router = useRouter();
-  const { data: session } = useSession();
-
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchGuildStatus = async () => {
+  const fetchData = async () => {
     try {
       setIsRefreshing(true);
       const res = await fetch(`/api/guilds/${guildId}/status`);
-      if (res.status === 401) {
-        router.push('/login');
-        return;
-      }
+      if (res.status === 401) { router.push('/login'); return; }
       if (res.status === 403 || res.status === 404) {
         const errData = await res.json();
-        setError(errData.error || errData.reason || 'Unauthorized access to this server');
+        setError(errData.error || 'Unauthorized access to this server');
         return;
       }
       if (res.ok) {
-        const json = await res.json();
-        setData(json);
+        setData(await res.json());
         setError(null);
       } else {
         setError('Failed to load server details');
@@ -70,303 +101,284 @@ export default function GuildDashboardPage({ params }: PageProps) {
   };
 
   useEffect(() => {
-    fetchGuildStatus();
-    const timer = setInterval(fetchGuildStatus, 20000);
+    fetchData();
+    const timer = setInterval(fetchData, 30000);
     return () => clearInterval(timer);
   }, [guildId]);
 
+  const base: React.CSSProperties = {
+    flex: 1,
+    background: '#090908',
+    color: '#F3F0E9',
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+    WebkitFontSmoothing: 'antialiased',
+  };
+
+  // ── Loading ──────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 text-amber-600 animate-spin mb-3" />
-        <p className="text-sm text-[#475467] font-medium">Loading server command center...</p>
+      <div style={{ ...base, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '28px', height: '28px',
+            border: '2px solid #2A2925',
+            borderTopColor: '#C9A66B',
+            borderRadius: '50%',
+            animation: 'spin 0.75s linear infinite',
+            margin: '0 auto 0.875rem',
+          }} />
+          <p style={{ fontSize: '0.875rem', color: '#716D65' }}>Loading server dashboard...</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
       </div>
     );
   }
 
+  // ── Error ────────────────────────────────────────────────────
   if (error) {
     return (
-      <div className="flex-1 p-6 max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center mb-4">
-          <ShieldAlert className="w-6 h-6" />
+      <div style={{ ...base, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{ textAlign: 'center', maxWidth: '400px', padding: '0 1.5rem' }}>
+          <div style={{
+            width: '48px', height: '48px', borderRadius: '12px',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 1rem', color: '#EF4444',
+          }}>
+            <ShieldAlert style={{ width: '22px', height: '22px' }} />
+          </div>
+          <h2 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#F3F0E9', marginBottom: '0.5rem' }}>
+            Access Error
+          </h2>
+          <p style={{ fontSize: '0.875rem', color: '#716D65', marginBottom: '1.5rem' }}>{error}</p>
+          <Link
+            href="/dashboard/select-server"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+              padding: '0.5rem 1.125rem', borderRadius: '8px',
+              background: '#C9A66B', color: '#090908',
+              fontSize: '0.875rem', fontWeight: 700, textDecoration: 'none',
+            }}
+          >
+            Select a Server
+            <ArrowRight style={{ width: '14px', height: '14px' }} />
+          </Link>
         </div>
-        <h2 className="text-lg font-bold text-[#101828] mb-1">Server Access Error</h2>
-        <p className="text-sm text-[#667085] mb-6">{error}</p>
-        <Link
-          href="/dashboard/select-server"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm transition-colors"
-        >
-          <span>Return to Server Selection</span>
-          <ArrowRight className="w-4 h-4" />
-        </Link>
       </div>
     );
   }
 
-  const { guild, bot, modules = [], stats } = data || {};
-  const enabledModulesCount = modules.filter((m: any) => m.enabled).length;
+  const { guild, modules = [], stats } = data || {};
+  const enabledCount = modules.filter((m: any) => m.enabled).length;
 
   return (
-    <div className="flex-1 flex flex-col bg-[#FAF9F5]">
-      <Topbar
-        title={guild?.name || 'Server Overview'}
-        subtitle="Multi-tenant server operations & bot diagnostics"
-        onRefresh={fetchGuildStatus}
-        isRefreshing={isRefreshing}
-      />
-
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full">
-        {/* Server Hero Banner */}
-        <div className="relative overflow-hidden rounded-3xl bg-white border border-[#EADFC7]/80 p-6 sm:p-8 shadow-xs">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-amber-200/30 via-transparent to-transparent rounded-full -mr-20 -mt-20 pointer-events-none" />
-
-          <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              {guild?.icon ? (
-                <img
-                  src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`}
-                  alt={guild.name}
-                  className="w-16 h-16 rounded-2xl object-cover border border-[#E5E7EB] shadow-xs"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-700 text-white text-2xl font-bold flex items-center justify-center shadow-xs">
-                  {guild?.name?.charAt(0).toUpperCase()}
-                </div>
-              )}
-
-              <div>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-xl sm:text-2xl font-bold text-[#101828] tracking-tight">
-                    {guild?.name}
-                  </h1>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    KRAXXBot Installed
-                  </span>
-                </div>
-                <p className="text-xs text-[#667085] mt-1 font-mono">
-                  SERVER ID: {guild?.id}
-                </p>
+    <div style={base}>
+      {/* Page Header */}
+      <div style={{
+        padding: '1.5rem 1.5rem 0',
+        borderBottom: '1px solid #1D1C19',
+        marginBottom: '0',
+      }}>
+        <div style={{
+          maxWidth: '1100px', margin: '0 auto',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+          gap: '1rem', flexWrap: 'wrap', paddingBottom: '1.25rem',
+        }}>
+          {/* Guild identity */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {guild?.icon ? (
+              <img
+                src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`}
+                alt={guild.name}
+                style={{ width: '52px', height: '52px', borderRadius: '12px', objectFit: 'cover', border: '1px solid #2A2925', flexShrink: 0 }}
+              />
+            ) : (
+              <div style={{
+                width: '52px', height: '52px', borderRadius: '12px',
+                background: 'rgba(201, 166, 107, 0.12)',
+                border: '1px solid rgba(201, 166, 107, 0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1.25rem', fontWeight: 800, color: '#C9A66B', flexShrink: 0,
+              }}>
+                {guild?.name?.charAt(0).toUpperCase() ?? 'G'}
               </div>
+            )}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+                <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#F3F0E9', letterSpacing: '-0.02em' }}>
+                  {guild?.name ?? 'Server Dashboard'}
+                </h1>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                  fontSize: '0.6875rem', fontWeight: 700,
+                  color: '#22C55E', background: 'rgba(34, 197, 94, 0.08)',
+                  border: '1px solid rgba(34, 197, 94, 0.2)',
+                  padding: '0.1875rem 0.5rem', borderRadius: '9999px',
+                }}>
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#22C55E', display: 'inline-block' }} />
+                  KRAXXBot Active
+                </span>
+              </div>
+              <p style={{ fontSize: '0.6875rem', color: '#4A4742', fontFamily: 'monospace', marginTop: '0.25rem' }}>
+                ID: {guild?.id ?? guildId}
+              </p>
             </div>
+          </div>
 
-            <div className="flex items-center gap-3">
-              <Link
-                href={`/dashboard/${guildId}/settings`}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] hover:bg-[#F3F4F6] text-xs font-semibold text-[#344054] transition-colors shadow-2xs"
-              >
-                <Settings className="w-4 h-4 text-[#667085]" />
-                <span>Configure Server</span>
-              </Link>
+          {/* Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexShrink: 0 }}>
+            <button
+              onClick={fetchData}
+              disabled={isRefreshing}
+              title="Refresh"
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: '36px', height: '36px', borderRadius: '8px',
+                background: '#161614', border: '1px solid #2A2925',
+                color: '#716D65', cursor: 'pointer', transition: 'all 0.12s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#3A3832'; e.currentTarget.style.color = '#A8A49B'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#2A2925'; e.currentTarget.style.color = '#716D65'; }}
+            >
+              <RefreshCw style={{ width: '14px', height: '14px', ...(isRefreshing ? { animation: 'spin 0.75s linear infinite' } : {}) }} />
+            </button>
+            <Link
+              href={`/dashboard/${guildId}/settings`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+                padding: '0.4375rem 0.875rem', borderRadius: '8px',
+                background: '#161614', border: '1px solid #2A2925',
+                color: '#A8A49B', fontSize: '0.8125rem', fontWeight: 600,
+                textDecoration: 'none', transition: 'all 0.12s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#F3F0E9'; e.currentTarget.style.borderColor = '#3A3832'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#A8A49B'; e.currentTarget.style.borderColor = '#2A2925'; }}
+            >
+              <Settings style={{ width: '13px', height: '13px' }} />
+              <span>Settings</span>
+            </Link>
+            <Link
+              href={`/dashboard/${guildId}/modules`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+                padding: '0.4375rem 0.875rem', borderRadius: '8px',
+                background: '#C9A66B', color: '#090908',
+                fontSize: '0.8125rem', fontWeight: 700,
+                textDecoration: 'none', transition: 'background 0.12s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#D8B77D'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#C9A66B'; }}
+            >
+              <Boxes style={{ width: '13px', height: '13px' }} />
+              <span>Modules</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: '1.5rem', maxWidth: '1100px', margin: '0 auto' }}>
+        {/* Stat Cards */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+          gap: '0.75rem',
+          marginBottom: '1.5rem',
+        }}>
+          <StatCard label="Active Tickets" value={stats?.activeTickets ?? 0} icon={Ticket} href={`/dashboard/${guildId}/tickets`} linkLabel="View Tickets" />
+          <StatCard label="Total Members" value={stats?.memberCount ?? guild?.approximate_member_count ?? '—'} icon={Users} href={`/dashboard/${guildId}/members`} linkLabel="View Members" />
+          <StatCard label="Pending Reminders" value={stats?.pendingReminders ?? 0} icon={AlarmClock} href={`/dashboard/${guildId}/reminders`} linkLabel="View Reminders" />
+          <StatCard label="Active Modules" value={enabledCount} icon={Boxes} href={`/dashboard/${guildId}/modules`} linkLabel="Manage Modules" />
+        </div>
+
+        {/* Two Column Layout */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '0.75rem' }}>
+          {/* Module Status */}
+          <div style={{ background: '#161614', border: '1px solid #2A2925', borderRadius: '12px', padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#F3F0E9' }}>Module Status</h2>
               <Link
                 href={`/dashboard/${guildId}/modules`}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs transition-colors"
+                style={{ fontSize: '0.75rem', fontWeight: 600, color: '#C9A66B', textDecoration: 'none' }}
               >
-                <Boxes className="w-4 h-4" />
-                <span>Manage Modules</span>
+                Manage →
               </Link>
+            </div>
+
+            {modules.length === 0 ? (
+              <p style={{ fontSize: '0.8125rem', color: '#716D65' }}>No modules configured yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {modules.slice(0, 8).map((mod: any) => (
+                  <div key={mod.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '0.5rem 0.75rem', borderRadius: '8px',
+                    background: '#0F0F0E', border: '1px solid #1D1C19',
+                  }}>
+                    <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: mod.enabled ? '#A8A49B' : '#4A4742' }}>
+                      {mod.name || mod.id}
+                    </span>
+                    {mod.enabled ? (
+                      <CheckCircle2 style={{ width: '14px', height: '14px', color: '#22C55E', flexShrink: 0 }} />
+                    ) : (
+                      <XCircle style={{ width: '14px', height: '14px', color: '#4A4742', flexShrink: 0 }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Actions */}
+          <div style={{ background: '#161614', border: '1px solid #2A2925', borderRadius: '12px', padding: '1.25rem' }}>
+            <h2 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#F3F0E9', marginBottom: '1rem' }}>Quick Actions</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {[
+                { label: 'View Moderation Logs', href: `/dashboard/${guildId}/moderation`, icon: Shield },
+                { label: 'Manage Support Tickets', href: `/dashboard/${guildId}/tickets`, icon: Ticket },
+                { label: 'Configure Welcome System', href: `/dashboard/${guildId}/welcome`, icon: Users },
+                { label: 'Audit Logs', href: `/dashboard/${guildId}/audit`, icon: ShieldAlert },
+                { label: 'Bot Settings', href: `/dashboard/${guildId}/settings`, icon: Settings },
+              ].map(action => {
+                const Icon = action.icon;
+                return (
+                  <Link
+                    key={action.href}
+                    href={action.href}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      gap: '0.625rem', padding: '0.625rem 0.75rem', borderRadius: '8px',
+                      background: '#0F0F0E', border: '1px solid #1D1C19',
+                      textDecoration: 'none', color: '#A8A49B',
+                      fontSize: '0.8125rem', fontWeight: 500,
+                      transition: 'all 0.12s',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = '#2A2925';
+                      e.currentTarget.style.background = '#161614';
+                      e.currentTarget.style.color = '#F3F0E9';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = '#1D1C19';
+                      e.currentTarget.style.background = '#0F0F0E';
+                      e.currentTarget.style.color = '#A8A49B';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Icon style={{ width: '14px', height: '14px', flexShrink: 0, color: '#C9A66B' }} />
+                      <span>{action.label}</span>
+                    </div>
+                    <ArrowRight style={{ width: '12px', height: '12px', flexShrink: 0 }} />
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>
-
-        {/* Quick Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-5 bg-white border border-[#EADFC7]/60">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#667085] uppercase tracking-wider">
-                Active Tickets
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
-                <Ticket className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#101828]">
-                {stats?.activeTickets ?? 0}
-              </span>
-              <span className="text-xs text-[#667085]">open</span>
-            </div>
-            <div className="mt-4 pt-3 border-t border-[#F1F3F9]">
-              <Link
-                href={`/dashboard/${guildId}/tickets`}
-                className="text-xs font-semibold text-amber-700 hover:text-amber-800 flex items-center justify-between group"
-              >
-                <span>View Tickets</span>
-                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </div>
-          </Card>
-
-          <Card className="p-5 bg-white border border-[#EADFC7]/60">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#667085] uppercase tracking-wider">
-                Pending Reminders
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
-                <AlarmClock className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#101828]">
-                {stats?.pendingReminders ?? 0}
-              </span>
-              <span className="text-xs text-[#667085]">scheduled</span>
-            </div>
-            <div className="mt-4 pt-3 border-t border-[#F1F3F9]">
-              <Link
-                href={`/dashboard/${guildId}/reminders`}
-                className="text-xs font-semibold text-blue-700 hover:text-blue-800 flex items-center justify-between group"
-              >
-                <span>View Reminders</span>
-                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </div>
-          </Card>
-
-          <Card className="p-5 bg-white border border-[#EADFC7]/60">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#667085] uppercase tracking-wider">
-                Announcements
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
-                <Megaphone className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#101828]">
-                {stats?.pendingAnnouncements ?? 0}
-              </span>
-              <span className="text-xs text-[#667085]">in queue</span>
-            </div>
-            <div className="mt-4 pt-3 border-t border-[#F1F3F9]">
-              <Link
-                href={`/dashboard/${guildId}/announcements`}
-                className="text-xs font-semibold text-purple-700 hover:text-purple-800 flex items-center justify-between group"
-              >
-                <span>Broadcast Hub</span>
-                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </div>
-          </Card>
-
-          <Card className="p-5 bg-white border border-[#EADFC7]/60">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#667085] uppercase tracking-wider">
-                Enabled Modules
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                <Boxes className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-[#101828]">
-                {enabledModulesCount}
-              </span>
-              <span className="text-xs text-[#667085]">of {modules.length}</span>
-            </div>
-            <div className="mt-4 pt-3 border-t border-[#F1F3F9]">
-              <Link
-                href={`/dashboard/${guildId}/modules`}
-                className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center justify-between group"
-              >
-                <span>Configure Modules</span>
-                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </div>
-          </Card>
-        </div>
-
-        {/* Live Bot Telemetry Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="p-6 bg-white border border-[#EADFC7]/60 lg:col-span-1">
-            <h2 className="text-sm font-bold text-[#101828] flex items-center gap-2 mb-4">
-              <Activity className="w-4 h-4 text-amber-600" />
-              <span>Bot Telemetry</span>
-            </h2>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF9F5] border border-[#EADFC7]/40">
-                <span className="text-xs text-[#667085]">Engine Status</span>
-                <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    bot?.status === 'online'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}
-                >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      bot?.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'
-                    }`}
-                  />
-                  {bot?.status === 'online' ? 'Active & Live' : 'Disconnected'}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF9F5] border border-[#EADFC7]/40">
-                <span className="text-xs text-[#667085]">Gateway Latency</span>
-                <span className="text-xs font-mono font-semibold text-[#101828]">
-                  {bot?.ping ? `${bot.ping}ms` : '—'}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF9F5] border border-[#EADFC7]/40">
-                <span className="text-xs text-[#667085]">Engine Uptime</span>
-                <span className="text-xs font-mono font-semibold text-[#101828]">
-                  {bot?.uptime
-                    ? `${Math.floor(bot.uptime / 3600)}h ${Math.floor((bot.uptime % 3600) / 60)}m`
-                    : '—'}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF9F5] border border-[#EADFC7]/40">
-                <span className="text-xs text-[#667085]">Members</span>
-                <span className="text-xs font-mono font-semibold text-[#101828]">
-                  {guild?.memberCount ? guild.memberCount.toLocaleString() : 'N/A'}
-                </span>
-              </div>
-            </div>
-          </Card>
-
-          {/* Active Modules Overview */}
-          <Card className="p-6 bg-white border border-[#EADFC7]/60 lg:col-span-2">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-[#101828] flex items-center gap-2">
-                <Boxes className="w-4 h-4 text-amber-600" />
-                <span>Installed Modules Status</span>
-              </h2>
-              <Link
-                href={`/dashboard/${guildId}/modules`}
-                className="text-xs font-semibold text-amber-700 hover:text-amber-800"
-              >
-                Configure All
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {modules.map((m: any) => (
-                <div
-                  key={m.module}
-                  className={`p-3 rounded-xl border flex items-center justify-between transition-colors ${
-                    m.enabled
-                      ? 'bg-amber-50/40 border-amber-200/80 text-[#101828]'
-                      : 'bg-[#F9FAFB] border-[#E5E7EB] text-[#98A2B3]'
-                  }`}
-                >
-                  <span className="text-xs font-medium capitalize">
-                    {m.module.toLowerCase()}
-                  </span>
-                  {m.enabled ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-[#98A2B3] flex-shrink-0" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

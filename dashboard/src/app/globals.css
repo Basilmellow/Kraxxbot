@@ -1,101 +1,99 @@
 /* ═══════════════════════════════════════════════════════════════
-   KRAXX HQ — DIGITAL OPERATIONS PLATFORM
-   Design System & Tokens (Light Mode First)
+   KRAXXBot — Design System & Tokens
+   Dark-first palette. Champagne gold accent.
    ═══════════════════════════════════════════════════════════════ */
 
 @import "tailwindcss";
 
 :root {
   /* ── Core Background & Surfaces ──────────────────────────────── */
-  --kraxx-bg: #F7F8FC;
-  --surface-base: #F7F8FC;
-  --surface-0: #FFFFFF;
-  --surface-1: #FFFFFF;
-  --surface-2: #F3F5FA;
-  --surface-3: #EDF0F7;
-  --surface-4: #E2E7F1;
-  --surface-5: #D0D7E5;
+  --bg: #090908;
+  --bg-secondary: #0C0C0B;
+  --surface-0: #10100F;
+  --surface-1: #161614;
+  --surface-2: #1D1C19;
+  --surface-3: #252420;
+  --surface-4: #2A2925;
 
-  /* ── Borders & Outlines ──────────────────────────────────────── */
-  --border-subtle: #F1F3F9;
-  --border-primary: #E5E7EB;
-  --border-secondary: #D1D5DB;
-  --border-hover: #CBD5E1;
-  --border-accent: rgba(79, 70, 229, 0.25);
-  --border-accent-strong: rgba(79, 70, 229, 0.5);
+  /* ── Borders ─────────────────────────────────────────────────── */
+  --border-subtle: #1D1C19;
+  --border-base: #2A2925;
+  --border-hover: #3A3832;
+  --border-accent: rgba(201, 166, 107, 0.3);
+  --border-accent-strong: rgba(201, 166, 107, 0.6);
 
-  /* ── Brand & Division Accents ────────────────────────────────── */
-  --kraxx-primary: #4F46E5;
-  --kraxx-primary-hover: #4338CA;
-  --kraxx-primary-light: #EEF2FF;
-  --kraxx-cyan: #06B6D4;
-  --kraxx-cyan-dim: #0891B2;
-  --kraxx-cyan-light: #ECFEFF;
-  --kraxx-indigo: #6366F1;
-  --kraxx-studio: #8B5CF6;
-  --kraxx-studio-light: #F5F3FF;
-  --kraxx-security: #10B981;
-  --kraxx-security-light: #ECFDF5;
-  
-  /* ── Status & Telemetry ──────────────────────────────────────── */
-  --kraxx-success: #10B981;
-  --kraxx-success-bg: #ECFDF5;
-  --kraxx-warning: #F59E0B;
-  --kraxx-warning-bg: #FFFBEB;
-  --kraxx-danger: #EF4444;
-  --kraxx-danger-bg: #FEF2F2;
-  --kraxx-info: #8B5CF6;
-  --kraxx-info-bg: #F5F3FF;
+  /* ── Typography ──────────────────────────────────────────────── */
+  --text-primary: #F3F0E9;
+  --text-secondary: #A8A49B;
+  --text-muted: #716D65;
+  --text-dim: #4A4742;
+  --text-inverse: #090908;
 
-  /* ── Typography & Text Hierarchy ─────────────────────────────── */
-  --text-primary: #101828;
-  --text-secondary: #475467;
-  --text-muted: #667085;
-  --text-dim: #98A2B3;
-  --text-inverse: #FFFFFF;
+  /* ── Brand / Accent ──────────────────────────────────────────── */
+  --accent: #C9A66B;
+  --accent-hover: #D8B77D;
+  --accent-dim: rgba(201, 166, 107, 0.12);
+  --accent-border: rgba(201, 166, 107, 0.25);
+  --discord-blue: #5865F2;
 
+  /* ── Status ──────────────────────────────────────────────────── */
+  --success: #22C55E;
+  --success-bg: rgba(34, 197, 94, 0.08);
+  --success-border: rgba(34, 197, 94, 0.2);
+  --warning: #F59E0B;
+  --warning-bg: rgba(245, 158, 11, 0.08);
+  --warning-border: rgba(245, 158, 11, 0.2);
+  --danger: #EF4444;
+  --danger-bg: rgba(239, 68, 68, 0.08);
+  --danger-border: rgba(239, 68, 68, 0.2);
+  --info: #60A5FA;
+  --info-bg: rgba(96, 165, 250, 0.08);
+  --info-border: rgba(96, 165, 250, 0.2);
+
+  /* ── Typography Families ─────────────────────────────────────── */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', 'Geist Mono', 'Fira Code', monospace;
 
-  /* ── Spacing & Layout Tokens ─────────────────────────────────── */
-  --sidebar-width: 250px;
-  --sidebar-collapsed-width: 68px;
-  --topbar-height: 58px;
+  /* ── Layout ──────────────────────────────────────────────────── */
+  --sidebar-width: 240px;
+  --topbar-height: 56px;
 
-  /* ── Transitions & Radii ─────────────────────────────────────── */
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 220ms cubic-bezier(0.4, 0, 0.2, 1);
-  
-  --radius-xs: 4px;
+  /* ── Transitions ─────────────────────────────────────────────── */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 120ms var(--ease);
+  --transition-base: 200ms var(--ease);
+
+  /* ── Radii ───────────────────────────────────────────────────── */
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
 
   /* ── Shadows ─────────────────────────────────────────────────── */
-  --shadow-xs: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
-  --shadow-sm: 0 1px 3px 0 rgba(16, 24, 40, 0.08), 0 1px 2px -1px rgba(16, 24, 40, 0.04);
-  --shadow-md: 0 4px 6px -1px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(16, 24, 40, 0.08), 0 4px 6px -4px rgba(16, 24, 40, 0.03);
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.25);
+  --shadow-accent: 0 0 20px rgba(201, 166, 107, 0.15);
 }
 
-/* ── Base Styles ────────────────────────────────────────────────── */
-* {
+/* ── Reset & Base ────────────────────────────────────────────── */
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
 html {
-  color-scheme: light;
+  color-scheme: dark;
   scroll-behavior: smooth;
-  background-color: var(--kraxx-bg);
+  background-color: var(--bg);
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: var(--kraxx-bg);
+  background-color: var(--bg);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -103,114 +101,62 @@ body {
   overflow-x: hidden;
 }
 
-/* ── Custom Scrollbar ───────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+/* ── Scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: var(--surface-4);
   border-radius: 9999px;
 }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
-}
-
-.kraxx-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.kraxx-scrollbar::-webkit-scrollbar-thumb {
-  background: #E2E8F0;
-  border-radius: 9999px;
-}
-
-.kraxx-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #CBD5E1;
-}
-
-/* ── Focus Rings & Selection ────────────────────────────────────── */
+/* ── Focus & Selection ──────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--kraxx-primary);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: rgba(79, 70, 229, 0.15);
-  color: #101828;
+  background: rgba(201, 166, 107, 0.2);
+  color: var(--text-primary);
 }
 
-/* ── SaaS Background Overlays ───────────────────────────────────── */
-.kraxx-grid-bg {
-  background-image: 
-    linear-gradient(to right, rgba(229, 231, 235, 0.5) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(229, 231, 235, 0.5) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
+/* ── Utility: Font Mono ──────────────────────────────────────── */
+.font-mono { font-family: var(--font-mono); }
 
-.kraxx-dots-bg {
-  background-image: radial-gradient(rgba(152, 162, 179, 0.25) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
-/* ── Card Styles ────────────────────────────────────────────────── */
+/* ── Cards ───────────────────────────────────────────────────── */
 .kraxx-card {
-  background-color: #FFFFFF;
-  border: 1px solid var(--border-primary);
+  background: var(--surface-1);
+  border: 1px solid var(--border-base);
   border-radius: var(--radius-xl);
   padding: 1.25rem;
-  box-shadow: var(--shadow-xs);
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-fast);
 }
 
-.kraxx-card:hover {
-  border-color: #D1D5DB;
-  box-shadow: var(--shadow-sm);
-}
+.kraxx-card:hover { border-color: var(--border-hover); }
 
 .kraxx-card-interactive {
-  background-color: #FFFFFF;
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-xl);
   padding: 1rem;
-  box-shadow: var(--shadow-xs);
-  transition: all var(--transition-fast);
   cursor: pointer;
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .kraxx-card-interactive:hover {
-  border-color: var(--kraxx-primary);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
 }
 
-/* ── Monospace Utilities ────────────────────────────────────────── */
-.font-mono {
-  font-family: var(--font-mono);
-}
-
-.telemetry-tag {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-
-/* ── Sidebar Navigation Styles ──────────────────────────────────── */
+/* ── Sidebar Navigation ──────────────────────────────────────── */
 .sidebar-nav-item {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4375rem 0.75rem;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -219,13 +165,13 @@ body {
 }
 
 .sidebar-nav-item:hover {
-  background-color: var(--surface-2);
-  color: var(--text-primary);
+  background: var(--surface-2);
+  color: var(--text-secondary);
 }
 
 .sidebar-nav-item.active {
-  background-color: #EEF2FF;
-  color: #4F46E5;
+  background: var(--accent-dim);
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -236,11 +182,11 @@ body {
   top: 6px;
   bottom: 6px;
   width: 3px;
-  background-color: #4F46E5;
-  border-radius: 0 4px 4px 0;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
 }
 
-/* ── Status Dots ────────────────────────────────────────────────── */
+/* ── Status Indicators ───────────────────────────────────────── */
 .status-dot {
   width: 7px;
   height: 7px;
@@ -250,139 +196,140 @@ body {
 }
 
 .status-dot-online {
-  background-color: var(--kraxx-success);
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  background: var(--success);
+  box-shadow: 0 0 0 2px var(--success-bg);
 }
 
 .status-dot-offline {
-  background-color: var(--kraxx-danger);
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger-bg);
 }
 
 .status-dot-degraded {
-  background-color: var(--kraxx-warning);
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+  background: var(--warning);
+  box-shadow: 0 0 0 2px var(--warning-bg);
 }
 
-.status-dot-neutral {
-  background-color: var(--text-dim);
-}
+.status-dot-neutral { background: var(--text-dim); }
 
-/* ── Badges ─────────────────────────────────────────────────────── */
+/* ── Badges ──────────────────────────────────────────────────── */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.3125rem;
-  padding: 0.125rem 0.5rem;
+  gap: 0.3rem;
+  padding: 0.1875rem 0.5rem;
   border-radius: var(--radius-sm);
   font-size: 0.6875rem;
   font-weight: 600;
-  font-family: var(--font-sans);
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
-.badge-brand {
-  background: #EEF2FF;
-  color: #4F46E5;
-  border: 1px solid rgba(79, 70, 229, 0.2);
-}
-
-.badge-cyan {
-  background: #ECFEFF;
-  color: #0891B2;
-  border: 1px solid rgba(6, 182, 212, 0.2);
+.badge-accent {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
 }
 
 .badge-success {
-  background: #ECFDF5;
-  color: #059669;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success-border);
 }
 
 .badge-warning {
-  background: #FFFBEB;
-  color: #D97706;
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid var(--warning-border);
 }
 
 .badge-danger {
-  background: #FEF2F2;
-  color: #DC2626;
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+}
+
+.badge-info {
+  background: var(--info-bg);
+  color: var(--info);
+  border: 1px solid var(--info-border);
 }
 
 .badge-neutral {
-  background: #F3F4F6;
-  color: #4B5563;
-  border: 1px solid #E5E7EB;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border-base);
 }
 
-.badge-studio {
-  background: #F5F3FF;
-  color: #7C3AED;
-  border: 1px solid rgba(139, 92, 246, 0.2);
-}
-
-/* ── Buttons ────────────────────────────────────────────────────── */
+/* ── Buttons ─────────────────────────────────────────────────── */
 .kraxx-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.375rem;
-  padding: 0.5rem 0.875rem;
+  padding: 0.4375rem 0.875rem;
   border-radius: var(--radius-md);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
   transition: all var(--transition-fast);
   text-decoration: none;
   white-space: nowrap;
   font-family: var(--font-sans);
+  line-height: 1.4;
 }
 
 .kraxx-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .kraxx-btn-primary {
-  background-color: #4F46E5;
-  color: #FFFFFF;
-  font-weight: 600;
-  box-shadow: 0 1px 2px 0 rgba(79, 70, 229, 0.2);
+  background: var(--accent);
+  color: var(--text-inverse);
 }
 
 .kraxx-btn-primary:hover:not(:disabled) {
-  background-color: #4338CA;
-  box-shadow: 0 2px 4px 0 rgba(79, 70, 229, 0.3);
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.kraxx-btn-secondary {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border-color: var(--border-base);
+}
+
+.kraxx-btn-secondary:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
 }
 
 .kraxx-btn-ghost {
-  background-color: #FFFFFF;
-  color: var(--text-secondary);
-  border-color: var(--border-primary);
-  box-shadow: var(--shadow-xs);
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border-base);
 }
 
 .kraxx-btn-ghost:hover:not(:disabled) {
-  background-color: var(--surface-2);
-  color: var(--text-primary);
-  border-color: #D1D5DB;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border-color: var(--border-hover);
 }
 
 .kraxx-btn-danger {
-  background-color: #FEF2F2;
-  color: #DC2626;
-  border-color: rgba(239, 68, 68, 0.25);
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger-border);
 }
 
 .kraxx-btn-danger:hover:not(:disabled) {
-  background-color: #FEE2E2;
+  background: rgba(239, 68, 68, 0.15);
 }
 
-/* ── Tables ─────────────────────────────────────────────────────── */
+/* ── Tables ──────────────────────────────────────────────────── */
 .kraxx-table {
   width: 100%;
   border-collapse: collapse;
@@ -391,37 +338,84 @@ body {
 
 .kraxx-table th {
   text-align: left;
-  padding: 0.75rem 1rem;
+  padding: 0.625rem 1rem;
   color: var(--text-muted);
   font-weight: 600;
   font-size: 0.6875rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--border-primary);
-  background-color: #F8FAFC;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-base);
+  background: var(--surface-1);
 }
 
 .kraxx-table td {
-  padding: 0.875rem 1rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-secondary);
 }
 
 .kraxx-table tr:hover td {
-  background-color: #F8FAFC;
+  background: var(--surface-2);
   color: var(--text-primary);
 }
 
-.kraxx-table tr:last-child td {
-  border-bottom: none;
-}
+.kraxx-table tr:last-child td { border-bottom: none; }
 
-/* ── Skeleton Pulse ─────────────────────────────────────────────── */
+/* ── Skeleton Loading ────────────────────────────────────────── */
 @keyframes pulse-subtle {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.85; }
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
 }
 
 .animate-pulse-subtle {
-  animation: pulse-subtle 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: pulse-subtle 1.8s var(--ease) infinite;
 }
+
+.skeleton {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  animation: pulse-subtle 1.8s var(--ease) infinite;
+}
+
+/* ── Input Fields ────────────────────────────────────────────── */
+.kraxx-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  outline: none;
+}
+
+.kraxx-input:focus {
+  border-color: var(--accent);
+  background: var(--surface-1);
+}
+
+.kraxx-input::placeholder { color: var(--text-dim); }
+
+.kraxx-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition-fast);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'%3E%3Cpath stroke='%23716D65' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 16px;
+}
+
+.kraxx-select:focus { border-color: var(--accent); }

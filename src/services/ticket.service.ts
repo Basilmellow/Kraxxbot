@@ -14,8 +14,8 @@ import {
   Guild,
 } from 'discord.js';
 import { TicketRepository } from '../database/repositories/ticket.repository';
+import { GuildRepository } from '../database/repositories/guild.repository';
 import { KraxxEmbedBuilder, KRAXX_COLORS } from '../embeds/kraxxEmbedBuilder';
-import { env } from '../config/environment';
 import { isTicketManager } from '../config/roles';
 import { logger } from '../utils/logger';
 
@@ -124,6 +124,7 @@ export class TicketService {
     const message = await channel.send({ embeds: [embed], components: [row] });
 
     await TicketRepository.createPanel({
+      guildId: interaction.guildId!,
       title: panelTitle,
       description: panelDesc,
       category: category || 'GENERAL',
@@ -223,7 +224,7 @@ export class TicketService {
       return;
     }
 
-    const panels = await TicketRepository.findAllPanels();
+    const panels = await TicketRepository.findPanelsByGuild(interaction.guildId!);
 
     if (panels.length === 0) {
       await interaction.reply({
@@ -235,7 +236,7 @@ export class TicketService {
 
     const embed = KraxxEmbedBuilder.createHeader('ACTIVE TICKET PANELS', 'TICKETS');
     const lines = panels.map(
-      p => `• **ID:** \`${p.id}\` │ **Title:** ${p.title} │ **Channel:** <#${p.channelId}> │ **Category:** \`${p.category}\``
+      (p: any) => `• **ID:** \`${p.id}\` │ **Title:** ${p.title} │ **Channel:** <#${p.channelId}> │ **Category:** \`${p.category}\``
     );
     embed.setDescription(lines.join('\n\n'));
 
@@ -324,9 +325,12 @@ export class TicketService {
    * Finds or creates the dedicated management-only TICKET-TRANSCRIPTS category and #ticket-transcripts channel.
    */
   private static async getOrCreateTranscriptChannel(guild: Guild): Promise<TextChannel | null> {
-    // 1. Check if TICKET_TRANSCRIPTS_CHANNEL_ID is set and exists
-    if (env.TICKET_TRANSCRIPTS_CHANNEL_ID && env.TICKET_TRANSCRIPTS_CHANNEL_ID.trim().length > 0) {
-      const existing = guild.channels.cache.get(env.TICKET_TRANSCRIPTS_CHANNEL_ID.trim()) as TextChannel | undefined;
+    const guildData = await GuildRepository.findById(guild.id);
+    const transcriptChannelId = guildData?.settings?.ticketTranscriptsChannelId;
+
+    // 1. Check if ticketTranscriptsChannelId is set and exists
+    if (transcriptChannelId && transcriptChannelId.trim().length > 0) {
+      const existing = guild.channels.cache.get(transcriptChannelId.trim()) as TextChannel | undefined;
       if (existing && existing.isTextBased()) return existing;
     }
 
@@ -335,9 +339,11 @@ export class TicketService {
       c => c.type === ChannelType.GuildCategory && c.name.toUpperCase() === 'TICKET-TRANSCRIPTS'
     ) as CategoryChannel | undefined;
 
-    const mgmtRoles = [env.FOUNDER_ROLE_ID, env.COFOUNDER_ROLE_ID, env.MANAGEMENT_ROLE_ID].filter(
-      id => Boolean(id && id.trim().length > 0)
-    );
+    const mgmtRoles = [
+      guildData?.settings?.adminRoleId,
+      guildData?.settings?.modRoleId,
+      guildData?.settings?.supportRoleId,
+    ].filter((id): id is string => Boolean(id && id.trim().length > 0));
 
     const categoryOverwrites: any[] = [
       {
@@ -410,13 +416,11 @@ export class TicketService {
    * Finds or creates the dedicated management-only TICKET-LOGS channel.
    */
   private static async getOrCreateTicketLogChannel(guild: Guild): Promise<TextChannel | null> {
-    if (env.TICKET_LOGS_CHANNEL_ID && env.TICKET_LOGS_CHANNEL_ID.trim().length > 0) {
-      const existing = guild.channels.cache.get(env.TICKET_LOGS_CHANNEL_ID.trim()) as TextChannel | undefined;
-      if (existing && existing.isTextBased()) return existing;
-    }
+    const guildData = await GuildRepository.findById(guild.id);
+    const ticketLogId = guildData?.settings?.ticketLogsChannelId || guildData?.settings?.logChannelId;
 
-    if (env.BOT_LOG_CHANNEL_ID && env.BOT_LOG_CHANNEL_ID.trim().length > 0) {
-      const existing = guild.channels.cache.get(env.BOT_LOG_CHANNEL_ID.trim()) as TextChannel | undefined;
+    if (ticketLogId && ticketLogId.trim().length > 0) {
+      const existing = guild.channels.cache.get(ticketLogId.trim()) as TextChannel | undefined;
       if (existing && existing.isTextBased()) return existing;
     }
 
@@ -424,9 +428,11 @@ export class TicketService {
       c => c.type === ChannelType.GuildCategory && c.name.toUpperCase() === 'TICKET-LOGS'
     ) as CategoryChannel | undefined;
 
-    const mgmtRoles = [env.FOUNDER_ROLE_ID, env.COFOUNDER_ROLE_ID, env.MANAGEMENT_ROLE_ID].filter(
-      id => Boolean(id && id.trim().length > 0)
-    );
+    const mgmtRoles = [
+      guildData?.settings?.adminRoleId,
+      guildData?.settings?.modRoleId,
+      guildData?.settings?.supportRoleId,
+    ].filter((id): id is string => Boolean(id && id.trim().length > 0));
 
     const categoryOverwrites: any[] = [
       {
@@ -523,7 +529,7 @@ export class TicketService {
     await interaction.deferReply({ ephemeral: true });
 
     try {
-      const nextNum = await TicketRepository.getNextTicketNumber();
+      const nextNum = await TicketRepository.getNextTicketNumber(guild.id);
       const numStr = String(nextNum).padStart(4, '0');
       const channelName = `ticket-${numStr}`;
 
@@ -561,9 +567,13 @@ export class TicketService {
         });
       }
 
-      const mgmtRoleIds = [env.FOUNDER_ROLE_ID, env.COFOUNDER_ROLE_ID, env.MANAGEMENT_ROLE_ID].filter(
-        id => Boolean(id && id.trim().length > 0)
-      );
+      const guildData = await GuildRepository.findById(guild.id);
+      const mgmtRoleIds = [
+        guildData?.settings?.adminRoleId,
+        guildData?.settings?.modRoleId,
+        guildData?.settings?.supportRoleId,
+        guildData?.settings?.staffRoleId,
+      ].filter((id): id is string => Boolean(id && id.trim().length > 0));
 
       for (const rId of mgmtRoleIds) {
         overwrites.push({

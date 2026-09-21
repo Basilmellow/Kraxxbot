@@ -1,15 +1,17 @@
 import { GuildMember, PartialGuildMember } from 'discord.js';
-import { AuditService } from '../services/audit.service';
-import { logger } from '../utils/logger';
+import { OnboardingService } from '../services/onboarding.service';
 
 export async function onGuildMemberRemove(member: GuildMember | PartialGuildMember): Promise<void> {
-  logger.info({ discordId: member.id, user: member.user.tag }, 'Member departed KRAXX HQ');
+  if (member.partial) {
+    // Partial member — fetch if possible, then delegate
+    try {
+      const full = await member.fetch();
+      await OnboardingService.handleMemberRemove(full);
+    } catch {
+      // Member data unavailable (left before fetch) — silently skip
+    }
+    return;
+  }
 
-  await AuditService.logEvent(
-    member.guild,
-    'MEMBER_LEAVE',
-    member.id,
-    member.id,
-    `Member ${member.user.tag} departed from KRAXX HQ.`
-  );
+  await OnboardingService.handleMemberRemove(member as GuildMember);
 }

@@ -14,7 +14,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
     const polls = await prisma.poll.findMany({
+      where: guildId ? { guildId } : undefined,
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
@@ -35,7 +37,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { question, options = [], channelId, isAnonymous = false, durationHours = 24 } = body;
+    const { question, options = [], channelId, isAnonymous = false, durationHours = 24, guildId: bodyGuildId } = body;
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     if (!question || options.length < 2 || !channelId) {
       return NextResponse.json({ error: 'Question, at least 2 options, and channel are required.' }, { status: 400 });
@@ -58,6 +65,7 @@ export async function POST(request: NextRequest) {
 
     const poll = await prisma.poll.create({
       data: {
+        guildId,
         question: question.trim(),
         options: JSON.stringify(options.map((opt: string) => ({ text: opt, votes: 0 }))),
         channelId,
@@ -70,6 +78,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'POLL_CREATE',
       executorId: currentUserId,
       targetId: poll.id,

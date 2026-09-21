@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 export class EventService {
   static async createEvent(interaction: ChatInputCommandInteraction): Promise<void> {
     const organizer = interaction.member as GuildMember;
+    const guildId = interaction.guildId!;
     const title = interaction.options.getString('title', true);
     const description = interaction.options.getString('description', true);
     const type = interaction.options.getString('type') || 'INTERNAL';
@@ -17,6 +18,7 @@ export class EventService {
 
     try {
       const event = await EventRepository.create({
+        guildId,
         title,
         description,
         type,
@@ -31,7 +33,7 @@ export class EventService {
         event.type,
         event.department,
         `<t:${Math.floor(startTime.getTime() / 1000)}:F> (<t:${Math.floor(startTime.getTime() / 1000)}:R>)`,
-        'KRAXX HQ'
+        'Event'
       );
 
       await interaction.reply({ embeds: [embed] });
@@ -53,22 +55,24 @@ export class EventService {
   }
 
   static async listEvents(interaction: ChatInputCommandInteraction): Promise<void> {
+    const guildId = interaction.guildId!;
+
     try {
-      const events = await EventRepository.listUpcoming();
+      const events = await EventRepository.listUpcomingByGuild(guildId);
 
       if (events.length === 0) {
         await interaction.reply({
-          embeds: [KraxxEmbedBuilder.success('Events Calendar', 'No upcoming organizational events.')],
+          embeds: [KraxxEmbedBuilder.success('Events Calendar', 'No upcoming events scheduled.')],
           ephemeral: true,
         });
         return;
       }
 
-      const embed = KraxxEmbedBuilder.createHeader('ORGANIZATIONAL EVENTS', 'CALENDAR');
+      const embed = KraxxEmbedBuilder.createHeader('UPCOMING EVENTS', 'CALENDAR');
       embed.setDescription(
         events
           .map(
-            e =>
+            (e) =>
               `• **${e.title}** [\`${e.type}\` / \`${e.department}\`]\n  Starts: <t:${Math.floor(e.startTime.getTime() / 1000)}:F>\n  ${e.description}`
           )
           .join('\n\n')

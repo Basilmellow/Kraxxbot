@@ -15,9 +15,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get('status') || '';
   const departmentFilter = searchParams.get('department') || '';
+  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
 
   try {
     const whereClause: any = {};
+    if (guildId) whereClause.guildId = guildId;
     if (statusFilter && statusFilter !== 'ALL') whereClause.status = statusFilter;
     if (departmentFilter && departmentFilter !== 'ALL') whereClause.department = departmentFilter;
 
@@ -51,7 +53,13 @@ export async function POST(request: NextRequest) {
       durationMinutes = 60,
       locationChannelId,
       attendees = [],
+      guildId: bodyGuildId,
     } = body;
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
 
     if (!title || !agenda || !startTime) {
       return NextResponse.json({ error: 'Title, agenda, and start time are required.' }, { status: 400 });
@@ -67,6 +75,7 @@ export async function POST(request: NextRequest) {
 
     const meeting = await prisma.meeting.create({
       data: {
+        guildId,
         title: title.trim(),
         agenda: agenda.trim(),
         department,
@@ -80,6 +89,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'MEETING_CREATE',
       executorId: currentUserId,
       targetId: meeting.id,
