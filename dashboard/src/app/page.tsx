@@ -1,6 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getBotInviteUrl } from '@/lib/discord';
+import {
+  KRAXXBOT_SUPPORT_SERVER_URL,
+  KRAXX_STUDIO_URL,
+  KRAXXSEC_URL,
+} from '@/lib/constants';
 
 export const metadata: Metadata = {
   title: 'KRAXXBot — Professional Discord Bot for Communities',
@@ -71,14 +76,14 @@ const ECOSYSTEM = [
     tagline: 'Security Intelligence',
     desc: 'Cybersecurity research and threat intelligence platform.',
     color: '#22C55E',
-    href: 'https://kraxxsec.com',
+    href: KRAXXSEC_URL,
   },
   {
     name: 'KRAXX STUDIO',
     tagline: 'Creative Production',
     desc: 'Professional digital media production and design studio.',
     color: '#A78BFA',
-    href: '#',
+    href: KRAXX_STUDIO_URL,
   },
   {
     name: 'KRAXXBot',
@@ -108,7 +113,7 @@ export default function HomePage() {
           <div className="nav-links">
             <a href="#features" className="nav-link">Features</a>
             <a href="#how-it-works" className="nav-link">How It Works</a>
-            <a href="https://discord.gg/kraxx" target="_blank" rel="noopener noreferrer" className="nav-link">Support</a>
+            <a href={KRAXXBOT_SUPPORT_SERVER_URL} target="_blank" rel="noopener noreferrer" className="nav-link">Support</a>
           </div>
           <div className="nav-actions">
             <Link href="/login" className="btn-secondary">Sign In</Link>
@@ -247,8 +252,8 @@ export default function HomePage() {
           <div className="footer-links">
             <Link href="/privacy" className="footer-link">Privacy Policy</Link>
             <Link href="/terms" className="footer-link">Terms of Service</Link>
-            <a href="https://discord.gg/kraxx" target="_blank" rel="noopener noreferrer" className="footer-link">Support Server</a>
-            <a href="https://kraxxsec.com" target="_blank" rel="noopener noreferrer" className="footer-link">KRAXX</a>
+            <a href={KRAXXBOT_SUPPORT_SERVER_URL} target="_blank" rel="noopener noreferrer" className="footer-link">Support Server</a>
+            <a href={KRAXXSEC_URL} target="_blank" rel="noopener noreferrer" className="footer-link">KRAXX</a>
           </div>
           <div className="footer-copy">
             © {new Date().getFullYear()} KRAXX. All rights reserved.

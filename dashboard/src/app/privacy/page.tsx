@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { KRAXXBOT_SUPPORT_SERVER_URL } from '@/lib/constants';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
@@ -11,7 +12,7 @@ function LegalNavigation() {
     <nav className="legal-nav" aria-label="Public navigation">
       <div className="legal-nav-inner">
         <Link href="/" className="legal-brand" aria-label="KRAXXBot home"><span className="legal-brand-mark" aria-hidden="true">K</span>KRAXXBot</Link>
-        <div className="legal-nav-links"><Link href="/terms" className="legal-link">Terms of Service</Link><a href="https://discord.gg/kraxx" target="_blank" rel="noopener noreferrer" className="legal-link">Support</a></div>
+        <div className="legal-nav-links"><Link href="/terms" className="legal-link">Terms of Service</Link><a href={KRAXXBOT_SUPPORT_SERVER_URL} target="_blank" rel="noopener noreferrer" className="legal-link">Support</a></div>
       </div>
     </nav>
   );
@@ -19,7 +20,7 @@ function LegalNavigation() {
 
 function LegalFooter() {
   return (
-    <footer className="legal-footer"><div className="legal-footer-inner"><div className="legal-footer-links"><Link href="/terms" className="legal-link">Terms of Service</Link><Link href="/privacy" className="legal-link">Privacy Policy</Link><a href="https://discord.gg/kraxx" target="_blank" rel="noopener noreferrer" className="legal-link">Support Server</a></div><p className="legal-footer-copy">© {new Date().getFullYear()} KRAXX. All rights reserved.</p></div></footer>
+    <footer className="legal-footer"><div className="legal-footer-inner"><div className="legal-footer-links"><Link href="/terms" className="legal-link">Terms of Service</Link><Link href="/privacy" className="legal-link">Privacy Policy</Link><a href={KRAXXBOT_SUPPORT_SERVER_URL} target="_blank" rel="noopener noreferrer" className="legal-link">Support Server</a></div><p className="legal-footer-copy">© {new Date().getFullYear()} KRAXX. All rights reserved.</p></div></footer>
   );
 }
 
@@ -40,13 +41,13 @@ export default function PrivacyPage() {
         <section className="legal-section"><h2>5. Message and User Content</h2><p>KRAXXBot does not maintain a general database of Discord message content. However, its ticket transcript feature fetches up to 100 messages from a ticket channel when a transcript is generated or archived. The generated transcript can include message text, author tags and IDs, and timestamps; it is posted as a file to the relevant server&apos;s ticket-transcript channel, and the database may retain the transcript&apos;s Discord attachment URL.</p><p>Other feature records can include content that administrators or users provide, such as ticket subjects, reasons, staff notes, announcement content, embed data, welcome messages, task descriptions, reminders, meeting agendas, poll questions, and suggestions.</p></section>
         <section className="legal-section"><h2>6. Multi-Server Data Isolation</h2><p>KRAXXBot is designed as a multi-tenant application. Guild-specific configuration and records are associated with the relevant Discord guild, and dashboard access checks are performed in the context of that guild. One server&apos;s configuration is not intended to be available to another server.</p></section>
         <section className="legal-section"><h2>7. Data Retention</h2><p>KRAXXBot retains information for as long as reasonably necessary to provide the relevant feature, maintain security, meet legal obligations, resolve disputes, or support legitimate operational needs. The current implementation does not define universal fixed retention periods for all categories of data.</p></section>
-        <section className="legal-section"><h2>8. Data Deletion</h2><p>There is no automated self-service deletion workflow for all KRAXXBot data. To request deletion of applicable data, contact us through the <a href="https://discord.gg/kraxx" target="_blank" rel="noopener noreferrer">KRAXX support server</a> and provide enough information to identify the relevant Discord account or server. We will review requests in light of the data involved and legitimate operational, legal, and security needs.</p></section>
+        <section className="legal-section"><h2>8. Data Deletion</h2><p>There is no automated self-service deletion workflow for all KRAXXBot data. To request deletion of applicable data, contact us through the <a href={KRAXXBOT_SUPPORT_SERVER_URL} target="_blank" rel="noopener noreferrer">KRAXX support server</a> and provide enough information to identify the relevant Discord account or server. We will review requests in light of the data involved and legitimate operational, legal, and security needs.</p></section>
         <section className="legal-section"><h2>9. Security</h2><p>We use reasonable technical and organizational measures appropriate to the service to help protect information. No method of transmission, storage, or operation is completely secure, and we cannot guarantee absolute security.</p></section>
         <section className="legal-section"><h2>10. Third-Party Services</h2><p>KRAXXBot uses Discord and Discord&apos;s APIs to provide its bot and OAuth sign-in functionality. The deployed service uses hosted PostgreSQL storage and web and bot hosting infrastructure. Those services process information as necessary to operate their respective services.</p></section>
         <section className="legal-section"><h2>11. International Processing</h2><p>Information may be processed in locations where Discord and the infrastructure used to operate KRAXXBot provide their services. Those locations may differ from your own. We do not make a representation in this policy about processing in any specific country.</p></section>
         <section className="legal-section"><h2>12. Children&apos;s Privacy</h2><p>KRAXXBot is not directed to children in violation of applicable law. If you believe a child has provided personal information through KRAXXBot, please contact us through the support server so we can review the concern.</p></section>
         <section className="legal-section"><h2>13. Changes to This Policy</h2><p>We may update this Privacy Policy from time to time. The latest version will be posted here with its “Last updated” date.</p></section>
-        <section className="legal-section"><h2>14. Contact</h2><p>For privacy questions or requests concerning KRAXXBot, contact us through the <a href="https://discord.gg/kraxx" target="_blank" rel="noopener noreferrer">KRAXX support server</a>.</p></section>
+        <section className="legal-section"><h2>14. Contact</h2><p>For privacy questions or requests concerning KRAXXBot, contact us through the <a href={KRAXXBOT_SUPPORT_SERVER_URL} target="_blank" rel="noopener noreferrer">KRAXX support server</a>.</p></section>
       </main>
       <LegalFooter />
     </div>

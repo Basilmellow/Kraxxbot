@@ -22,6 +22,11 @@ export const KRAXXBOT_COLORS = {
 
 export const KRAXX_COLORS = KRAXXBOT_COLORS;
 
+// Public KRAXX ecosystem destinations. Reuse these for public site links.
+export const KRAXXBOT_SUPPORT_SERVER_URL = 'https://discord.gg/uyKjpQy9JZ';
+export const KRAXX_STUDIO_URL = 'https://kraxxstudio.com';
+export const KRAXXSEC_URL = 'https://kraxxsec.com';
+
 // ─────────────────────────────────────────────────────────────────
 // Permission Tier
 // Used by dashboard permission checks — mirrors PermissionTier in

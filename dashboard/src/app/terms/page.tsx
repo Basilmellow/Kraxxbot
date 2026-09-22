@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { KRAXXBOT_SUPPORT_SERVER_URL } from '@/lib/constants';
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
@@ -16,7 +17,7 @@ function LegalNavigation() {
         </Link>
         <div className="legal-nav-links">
           <Link href="/privacy" className="legal-link">Privacy Policy</Link>
-          <a href="https://discord.gg/kraxx" target="_blank" rel="noopener noreferrer" className="legal-link">Support</a>
+          <a href={KRAXXBOT_SUPPORT_SERVER_URL} target="_blank" rel="noopener noreferrer" className="legal-link">Support</a>
         </div>
       </div>
     </nav>
@@ -30,7 +31,7 @@ function LegalFooter() {
         <div className="legal-footer-links">
           <Link href="/terms" className="legal-link">Terms of Service</Link>
           <Link href="/privacy" className="legal-link">Privacy Policy</Link>
-          <a href="https://discord.gg/kraxx" target="_blank" rel="noopener noreferrer" className="legal-link">Support Server</a>
+          <a href={KRAXXBOT_SUPPORT_SERVER_URL} target="_blank" rel="noopener noreferrer" className="legal-link">Support Server</a>
         </div>
         <p className="legal-footer-copy">© {new Date().getFullYear()} KRAXX. All rights reserved.</p>
       </div>
@@ -62,7 +63,7 @@ export default function TermsPage() {
         <section className="legal-section"><h2>12. Disclaimer</h2><p>KRAXXBot is provided on an “as is” and “as available” basis. To the extent permitted by law, we disclaim warranties that are not expressly stated in these Terms. This does not limit rights that cannot lawfully be excluded.</p></section>
         <section className="legal-section"><h2>13. Suspension and Termination</h2><p>We may suspend or terminate access to KRAXXBot where reasonably necessary to address abuse, a violation of these Terms or Discord&apos;s rules, a security concern, legal requirements, or other legitimate operational reasons.</p></section>
         <section className="legal-section"><h2>14. Changes to Terms</h2><p>We may update these Terms from time to time. The latest version will be posted here with its “Last updated” date. Continued use after an update means you accept the updated Terms.</p></section>
-        <section className="legal-section"><h2>15. Contact</h2><p>For questions about these Terms or KRAXXBot, contact us through the <a href="https://discord.gg/kraxx" target="_blank" rel="noopener noreferrer">KRAXX support server</a>.</p></section>
+        <section className="legal-section"><h2>15. Contact</h2><p>For questions about these Terms or KRAXXBot, contact us through the <a href={KRAXXBOT_SUPPORT_SERVER_URL} target="_blank" rel="noopener noreferrer">KRAXX support server</a>.</p></section>
       </main>
       <LegalFooter />
     </div>
