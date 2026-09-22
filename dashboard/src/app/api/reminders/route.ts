@@ -2,23 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get('status') || '';
-  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
+  const guildId = searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const auth = await requireGuildAccess(guildId);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
+  }
 
   try {
-    const whereClause: any = {};
-    if (guildId) whereClause.guildId = guildId;
+    const whereClause: any = { guildId };
     if (statusFilter && statusFilter !== 'ALL') whereClause.status = statusFilter;
 
     const reminders = await prisma.reminder.findMany({
@@ -35,26 +37,25 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   try {
     const body = await request.json();
     const { title, message, targetType = 'CHANNEL', targetId, triggerAt, recurrence = 'NONE', guildId: bodyGuildId } = body;
-    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId');
 
     if (!guildId) {
       return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
+
+    const auth = await requireGuildAccess(guildId);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
     }
 
     if (!title || !message || !targetId || !triggerAt) {
       return NextResponse.json({ error: 'Title, message, target ID, and trigger time are required.' }, { status: 400 });
     }
 
-    const currentUserId = session!.user.discordId;
+    const currentUserId = auth.session!.user.discordId;
     const triggerDate = new Date(triggerAt);
     if (isNaN(triggerDate.getTime()) || triggerDate <= new Date()) {
       return NextResponse.json({ error: 'Reminder trigger time must be in the future.' }, { status: 400 });

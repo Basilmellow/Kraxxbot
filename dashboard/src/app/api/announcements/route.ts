@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sendChannelMessage } from '@/lib/discord';
 import { prisma } from '@/lib/prisma';
-import { canMentionMass, canScheduleAnnouncements, requireTier, RoleTier } from '@/lib/permissions';
+import { canMentionMass, canScheduleAnnouncements, requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function POST(request: NextRequest) {
@@ -54,9 +54,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const guildId = body.guildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || process.env.DISCORD_GUILD_ID || '';
+    const guildId = body.guildId || request.nextUrl.searchParams.get('guildId');
     if (!guildId) {
       return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
+
+    const auth = await requireGuildAccess(guildId);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
     }
 
     // CASE 1: SCHEDULED ANNOUNCEMENT

@@ -10,13 +10,13 @@ export default {
     .addSubcommand(sub =>
       sub
         .setName('welcome-embed')
-        .setDescription('Publish official KRAXX HQ Welcome panel')
+        .setDescription('Publish official Welcome panel')
         .addChannelOption(opt => opt.setName('channel').setDescription('Target channel').setRequired(true))
     )
     .addSubcommand(sub =>
       sub
         .setName('verify-embed')
-        .setDescription('Publish official KRAXX HQ Verification panel')
+        .setDescription('Publish official Verification panel')
         .addChannelOption(opt => opt.setName('channel').setDescription('Target channel').setRequired(true))
     ),
 
@@ -44,7 +44,7 @@ export default {
     }
 
     if (subcommand === 'welcome-embed') {
-      const embed = KraxxEmbedBuilder.welcome();
+      const embed = KraxxEmbedBuilder.welcome(interaction.guild?.name);
       const verifyButton = new ButtonBuilder()
         .setCustomId('kraxx_verify')
         .setLabel('VERIFY')
@@ -58,7 +58,7 @@ export default {
         ephemeral: true,
       });
     } else if (subcommand === 'verify-embed') {
-      const embed = KraxxEmbedBuilder.verification();
+      const embed = KraxxEmbedBuilder.verification(interaction.guild?.name);
       const verifyButton = new ButtonBuilder()
         .setCustomId('kraxx_verify')
         .setLabel('VERIFY')

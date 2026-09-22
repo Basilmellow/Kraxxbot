@@ -11,7 +11,7 @@ export async function logDashboardAction(params: {
   ipAddress?: string | null;
 }) {
   try {
-    const guildId = params.guildId || process.env.GUILD_ID || null;
+    const guildId = params.guildId || null;
     if (!guildId) {
       // In multi-tenant architecture, audit logs require a guild tenant
       return;

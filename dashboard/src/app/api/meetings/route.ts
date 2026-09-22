@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
@@ -15,11 +15,19 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get('status') || '';
   const departmentFilter = searchParams.get('department') || '';
-  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
+  const guildId = searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
 
   try {
-    const whereClause: any = {};
-    if (guildId) whereClause.guildId = guildId;
+    const whereClause: any = { guildId };
     if (statusFilter && statusFilter !== 'ALL') whereClause.status = statusFilter;
     if (departmentFilter && departmentFilter !== 'ALL') whereClause.department = departmentFilter;
 
@@ -55,10 +63,15 @@ export async function POST(request: NextRequest) {
       attendees = [],
       guildId: bodyGuildId,
     } = body;
-    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId');
 
     if (!guildId) {
       return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
+
+    const access = await requireGuildAccess(guildId);
+    if (!access.authorized) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
     if (!title || !agenda || !startTime) {

@@ -1,23 +1,26 @@
 // KRAXX Operations Platform — Discord Guild Metadata API
 // Fetches text channels and guild roles safely for dropdown selectors
 
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
 import { fetchGuildChannels, fetchGuildRoles, DiscordChannel, DiscordRole } from '@/lib/discord';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireGuildAccess } from '@/lib/permissions';
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
+export async function GET(request: NextRequest) {
+  const guildId = request.nextUrl.searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const auth = await requireGuildAccess(guildId);
   if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error, code: 'TIER_UNAUTHORIZED' }, { status: auth.status });
+    return NextResponse.json({ error: auth.error || auth.reason, code: 'UNAUTHORIZED' }, { status: auth.status });
   }
 
   try {
     const [channels, roles] = await Promise.all([
-      fetchGuildChannels().catch(() => [] as DiscordChannel[]),
-      fetchGuildRoles().catch(() => [] as DiscordRole[]),
+      fetchGuildChannels(guildId).catch(() => [] as DiscordChannel[]),
+      fetchGuildRoles(guildId).catch(() => [] as DiscordRole[]),
     ]);
 
     // Channel types: 0 = GUILD_TEXT, 4 = GUILD_CATEGORY, 5 = GUILD_ANNOUNCEMENT, 15 = GUILD_FORUM

@@ -1,28 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
-const DEFAULT_GUILD_ID = process.env.DISCORD_GUILD_ID || 'default';
-
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
+  const guildId = request.nextUrl.searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const auth = await requireGuildAccess(guildId);
   if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
   }
 
   try {
     let config = await prisma.welcomeConfig.findUnique({
-      where: { guildId: DEFAULT_GUILD_ID },
+      where: { guildId },
     });
 
     if (!config) {
       config = await prisma.welcomeConfig.create({
         data: {
-          guildId: DEFAULT_GUILD_ID,
+          guildId,
           enabled: false,
           message: 'Welcome {user} to **{server}**! We are now {memberCount} operators strong.',
           dmEnabled: false,
@@ -39,14 +40,19 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   try {
     const body = await request.json();
+    const guildId = body.guildId || request.nextUrl.searchParams.get('guildId');
+
+    if (!guildId) {
+      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
+
+    const auth = await requireGuildAccess(guildId);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
+    }
+
     const {
       enabled,
       channelId,
@@ -60,10 +66,10 @@ export async function POST(request: NextRequest) {
       leaveMessage,
     } = body;
 
-    const currentUserId = session!.user.discordId;
+    const currentUserId = auth.session?.user?.discordId || 'UNKNOWN';
 
     const config = await prisma.welcomeConfig.upsert({
-      where: { guildId: DEFAULT_GUILD_ID },
+      where: { guildId },
       update: {
         enabled: Boolean(enabled),
         channelId: channelId || null,
@@ -77,7 +83,7 @@ export async function POST(request: NextRequest) {
         leaveMessage: leaveMessage || null,
       },
       create: {
-        guildId: DEFAULT_GUILD_ID,
+        guildId,
         enabled: Boolean(enabled),
         channelId: channelId || null,
         message: message || null,
@@ -92,9 +98,10 @@ export async function POST(request: NextRequest) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'WELCOME_UPDATE',
       executorId: currentUserId,
-      targetId: DEFAULT_GUILD_ID,
+      targetId: guildId,
       targetType: 'GUILD',
       details: { enabled: config.enabled, channelId: config.channelId },
     });

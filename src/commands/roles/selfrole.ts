@@ -9,7 +9,7 @@ export default {
     .setDescription('Self-assignable roles management and interaction system')
 
     // /selfrole list
-    .addSubcommand(sub => sub.setName('list').setDescription('Display all self-assignable roles in KRAXX HQ'))
+    .addSubcommand(sub => sub.setName('list').setDescription('Display all self-assignable roles in this server'))
 
     // /selfrole create
     .addSubcommand(sub =>

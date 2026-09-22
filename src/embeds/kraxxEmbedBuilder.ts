@@ -22,35 +22,35 @@ export class KraxxEmbedBuilder extends EmbedBuilder {
 
   static createHeader(title: string, category?: string): KraxxEmbedBuilder {
     const embed = new KraxxEmbedBuilder();
-    const formattedTitle = category ? `KRAXX HQ │ ${category.toUpperCase()}` : 'KRAXX HQ';
+    const formattedTitle = category ? `KRAXXBot │ ${category.toUpperCase()}` : 'KRAXXBot';
     embed.setTitle(formattedTitle);
     embed.setDescription(`**${title}**`);
     return embed;
   }
 
-  static welcome(): KraxxEmbedBuilder {
+  static welcome(serverName?: string): KraxxEmbedBuilder {
     const embed = new KraxxEmbedBuilder();
     embed.setColor(KRAXX_COLORS.BRAND);
-    embed.setTitle('KRAXX HQ │ WELCOME');
+    embed.setTitle(serverName ? `${serverName.toUpperCase()} │ WELCOME` : 'KRAXXBot │ WELCOME');
+    const welcomeTarget = serverName ? `**${serverName}**` : 'our server';
     embed.setDescription(
-      `Welcome to **KRAXX HQ**.\n\n` +
-      `KRAXX is the parent organization behind our specialized operating divisions:\n\n` +
-      `🛡️ **KRAXXSEC**\n*Cybersecurity & Security Engineering*\n\n` +
-      `🎨 **KRAXX STUDIO**\n*Digital Creative & Technology Services*\n\n` +
+      `Welcome to ${welcomeTarget}.\n\n` +
+      `This server is powered by **KRAXXBot Operations System**.\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `Please verify your membership to access public operations channels.`
+      `Please verify your membership to access server channels.`
     );
     return embed;
   }
 
-  static verification(): KraxxEmbedBuilder {
+  static verification(serverName?: string): KraxxEmbedBuilder {
     const embed = new KraxxEmbedBuilder();
     embed.setColor(KRAXX_COLORS.SECURITY);
-    embed.setTitle('KRAXX HQ │ MEMBER VERIFICATION');
+    embed.setTitle(serverName ? `${serverName.toUpperCase()} │ MEMBER VERIFICATION` : 'KRAXXBot │ MEMBER VERIFICATION');
+    const target = serverName ? `**${serverName}**` : 'Server';
     embed.setDescription(
-      `Welcome to KRAXX HQ Verification.\n\n` +
-      `Click the **[ VERIFY ]** button below to complete verification and obtain base organization access.\n\n` +
-      `*Division and management access are granted separately by authorized management.*`
+      `Welcome to ${target} Verification.\n\n` +
+      `Click the **[ VERIFY ]** button below to complete verification and obtain server access.\n\n` +
+      `*Specialized and management access are granted separately by authorized server managers.*`
     );
     return embed;
   }
@@ -165,7 +165,7 @@ export class KraxxEmbedBuilder extends EmbedBuilder {
       { name: 'Type', value: `\`${type}\``, inline: true },
       { name: 'Department', value: `\`${department}\``, inline: true },
       { name: 'Schedule', value: startTimeText, inline: true },
-      { name: 'Location', value: location || 'KRAXX HQ', inline: true }
+      { name: 'Location', value: location || 'Discord Server', inline: true }
     );
 
     return embed;

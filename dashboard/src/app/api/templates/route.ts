@@ -1,25 +1,23 @@
-// KRAXX Operations Platform — Embed Templates API
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { canManageTemplates } from '@/lib/permissions';
+import { requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const category = request.nextUrl.searchParams.get('category');
+  const guildId = request.nextUrl.searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
   }
 
-  const category = request.nextUrl.searchParams.get('category');
-  const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+  const auth = await requireGuildAccess(guildId);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
+  }
 
   try {
-    const where: Record<string, unknown> = {};
-    if (guildId) {
-      where.guildId = guildId;
-    }
+    const where: Record<string, unknown> = { guildId };
     if (category && category !== 'ALL') {
       where.category = category.toUpperCase();
     }
@@ -52,25 +50,18 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!canManageTemplates(session.user.roleTier)) {
-    return NextResponse.json(
-      { error: 'Creating embed templates requires Team Lead authority or higher.' },
-      { status: 403 }
-    );
-  }
-
   try {
     const body = await request.json();
     const { name, category, description, title, embedData, guildId: bodyGuildId } = body;
-    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId');
 
     if (!guildId) {
       return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
+
+    const auth = await requireGuildAccess(guildId);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
     }
 
     if (!name || !embedData) {
@@ -97,14 +88,14 @@ export async function POST(request: NextRequest) {
         description: description?.trim() || null,
         title: title?.trim() || null,
         embedData: typeof embedData === 'object' ? JSON.stringify(embedData) : embedData,
-        createdBy: session.user.discordId,
+        createdBy: auth.session!.user.discordId,
       },
     });
 
     await logDashboardAction({
       guildId,
       action: 'TEMPLATE_CREATE',
-      executorId: session.user.discordId,
+      executorId: auth.session!.user.discordId,
       targetId: template.id,
       targetType: 'TEMPLATE',
       details: {

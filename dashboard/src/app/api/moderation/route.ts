@@ -9,7 +9,7 @@ import {
   timeoutGuildMember,
   fetchGuildMember,
 } from '@/lib/discord';
-import { requireTier, RoleTier, resolveRoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, resolveRoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
@@ -22,11 +22,19 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const actionFilter = searchParams.get('action') || '';
   const targetId = searchParams.get('targetId') || '';
-  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
+  const guildId = searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
 
   try {
-    const whereClause: any = {};
-    if (guildId) whereClause.guildId = guildId;
+    const whereClause: any = { guildId };
     if (actionFilter && actionFilter !== 'ALL') whereClause.action = actionFilter;
     if (targetId) whereClause.targetId = targetId;
 
@@ -53,10 +61,15 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { targetId, action, reason, durationSeconds = 3600, guildId: bodyGuildId } = body; // action: 'WARN' | 'TIMEOUT' | 'KICK' | 'BAN' | 'UNBAN'
-    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId');
 
     if (!guildId) {
       return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
+
+    const access = await requireGuildAccess(guildId);
+    if (!access.authorized) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
     if (!targetId || !action) {

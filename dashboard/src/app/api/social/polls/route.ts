@@ -3,20 +3,24 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendChannelMessage } from '@/lib/discord';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
+  const guildId = request.nextUrl.searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const auth = await requireGuildAccess(guildId);
   if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
   }
 
   try {
-    const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
     const polls = await prisma.poll.findMany({
-      where: guildId ? { guildId } : undefined,
+      where: { guildId },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
@@ -29,26 +33,25 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   try {
     const body = await request.json();
     const { question, options = [], channelId, isAnonymous = false, durationHours = 24, guildId: bodyGuildId } = body;
-    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId');
 
     if (!guildId) {
       return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
+
+    const auth = await requireGuildAccess(guildId);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
     }
 
     if (!question || options.length < 2 || !channelId) {
       return NextResponse.json({ error: 'Question, at least 2 options, and channel are required.' }, { status: 400 });
     }
 
-    const currentUserId = session!.user.discordId;
+    const currentUserId = auth.session!.user.discordId;
     const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000);
 
     // Format embed for Discord channel
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
       title: `📊 COMMUNITY POLL: ${question}`,
       description: optionsText,
       color: 0x00f0ff,
-      footer: { text: `Poll created by ${session!.user.name} • Closes in ${durationHours}h` },
+      footer: { text: `Poll created by ${auth.session!.user.name} • Closes in ${durationHours}h` },
       timestamp: new Date().toISOString(),
     };
 

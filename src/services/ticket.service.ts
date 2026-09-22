@@ -101,12 +101,12 @@ export class TicketService {
       return;
     }
 
-    const panelTitle = title || 'KRAXX HQ │ SUPPORT TICKETS';
+    const panelTitle = title || 'KRAXXBot │ SUPPORT TICKETS';
     const panelDesc =
       description ||
-      'Need assistance from KRAXX Management or Technical Support?\n\n' +
+      'Need assistance? Our team is here to help.\n\n' +
       'Click the button below to create a private support ticket channel.\n' +
-      'Our team will be dispatched to assist you promptly.';
+      'A team member will be dispatched to assist you promptly.';
 
     const embed = new KraxxEmbedBuilder();
     embed.setColor(KRAXX_COLORS.BRAND);
@@ -168,7 +168,7 @@ export class TicketService {
 
     const embed = new KraxxEmbedBuilder();
     embed.setColor(KRAXX_COLORS.BRAND);
-    embed.setTitle('KRAXX HQ │ SUPPORT & ASSISTANCE');
+    embed.setTitle('KRAXXBot │ SUPPORT & ASSISTANCE');
 
     let descText = 'Select a category below to open a private support ticket:\n\n';
     TICKET_CATEGORIES.forEach(cat => {
@@ -228,7 +228,7 @@ export class TicketService {
 
     if (panels.length === 0) {
       await interaction.reply({
-        embeds: [KraxxEmbedBuilder.createHeader('KRAXX HQ │ TICKET PANELS', 'TICKETS').setDescription('No ticket panels configured.')],
+        embeds: [KraxxEmbedBuilder.createHeader('TICKET PANELS', 'TICKETS').setDescription('No ticket panels configured.')],
         ephemeral: true,
       });
       return;
@@ -401,7 +401,7 @@ export class TicketService {
           type: ChannelType.GuildText,
           parent: transcriptCategory ? transcriptCategory.id : undefined,
           permissionOverwrites: categoryOverwrites,
-          topic: 'KRAXX HQ Archive │ Restricted Support Ticket Transcripts',
+          topic: 'KRAXXBot Archive │ Restricted Support Ticket Transcripts',
         });
       } catch (err) {
         logger.warn({ err }, 'Failed to create #ticket-transcripts channel');
@@ -486,7 +486,7 @@ export class TicketService {
           type: ChannelType.GuildText,
           parent: logCategory ? logCategory.id : undefined,
           permissionOverwrites: categoryOverwrites,
-          topic: 'KRAXX HQ Audit │ Support Ticket System Event Logs',
+          topic: 'KRAXXBot Audit │ Support Ticket System Event Logs',
         });
       } catch (err) {
         logger.warn({ err }, 'Failed to create #ticket-logs channel');
@@ -1123,7 +1123,7 @@ export class TicketService {
     const sorted = Array.from(messages.values()).reverse();
 
     let transcriptText = `============================================================\n`;
-    transcriptText += `KRAXX HQ SUPPORT TICKET TRANSCRIPT #${ticket.ticketNumber}\n`;
+    transcriptText += `KRAXXBot SUPPORT TICKET TRANSCRIPT #${ticket.ticketNumber}\n`;
     transcriptText += `Subject: ${ticket.subject}\n`;
     transcriptText += `Category: ${ticket.category}\n`;
     transcriptText += `Opener ID: ${ticket.openerId}\n`;
@@ -1166,7 +1166,7 @@ export class TicketService {
     const sorted = Array.from(messages.values()).reverse();
 
     let transcriptText = `============================================================\n`;
-    transcriptText += `KRAXX HQ SUPPORT TICKET TRANSCRIPT #${ticket.ticketNumber}\n`;
+    transcriptText += `KRAXXBot SUPPORT TICKET TRANSCRIPT #${ticket.ticketNumber}\n`;
     transcriptText += `Ticket ID: ${ticket.id}\n`;
     transcriptText += `Channel Name: ${channel.name}\n`;
     transcriptText += `Subject: ${ticket.subject}\n`;

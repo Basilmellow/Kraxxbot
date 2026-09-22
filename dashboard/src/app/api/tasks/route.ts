@@ -2,26 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get('status') || '';
   const departmentFilter = searchParams.get('department') || '';
   const priorityFilter = searchParams.get('priority') || '';
   const query = searchParams.get('q')?.toLowerCase() || '';
-  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
+  const guildId = searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const auth = await requireGuildAccess(guildId);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
+  }
 
   try {
-    const whereClause: any = {};
-    if (guildId) whereClause.guildId = guildId;
+    const whereClause: any = { guildId };
     if (statusFilter && statusFilter !== 'ALL') whereClause.status = statusFilter;
     if (departmentFilter && departmentFilter !== 'ALL') whereClause.department = departmentFilter;
     if (priorityFilter && priorityFilter !== 'ALL') whereClause.priority = priorityFilter;
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
     const members = await prisma.guildMember.findMany({
       where: {
         discordId: { in: Array.from(userIds) },
-        ...(guildId ? { guildId } : {}),
+        guildId,
       },
     });
     const memberMap = new Map(members.map((m) => [m.discordId, m]));
@@ -71,26 +73,25 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   try {
     const body = await request.json();
     const { title, description, department = 'GENERAL', priority = 'MEDIUM', assigneeId, dueDate, guildId: bodyGuildId } = body;
-    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId');
 
     if (!guildId) {
       return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    }
+
+    const auth = await requireGuildAccess(guildId);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
     }
 
     if (!title || !description) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
     }
 
-    const currentUserId = session!.user.discordId;
+    const currentUserId = auth.session!.user.discordId;
 
     // Get highest taskNumber for this guild
     const lastTask = await prisma.task.findFirst({

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetchGuildMembers, fetchGuildRoles } from '@/lib/discord';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -16,12 +16,21 @@ export async function GET(request: NextRequest) {
   const query = searchParams.get('q')?.toLowerCase() || '';
   const roleFilter = searchParams.get('role') || '';
   const limit = parseInt(searchParams.get('limit') || '100', 10);
-  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
+  const guildId = searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
 
   try {
     const [discordMembers, dbMembers, discordRoles] = await Promise.all([
-      guildId ? fetchGuildMembers(guildId, Math.min(limit, 1000)).catch(() => []) : Promise.resolve([]),
-      prisma.guildMember.findMany({ where: guildId ? { guildId } : {} }),
+      fetchGuildMembers(guildId, Math.min(limit, 1000)).catch(() => []),
+      prisma.guildMember.findMany({ where: { guildId } }),
       fetchGuildRoles(guildId).catch(() => []),
     ]);
 

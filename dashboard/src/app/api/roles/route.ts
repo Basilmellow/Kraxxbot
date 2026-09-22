@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { fetchGuildRoles, fetchGuildMembers } from '@/lib/discord';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireGuildAccess } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
+  const guildId = request.nextUrl.searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const auth = await requireGuildAccess(guildId);
   if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
   }
 
   try {
     const [roles, members] = await Promise.all([
-      fetchGuildRoles(),
-      fetchGuildMembers(1000).catch(() => []),
+      fetchGuildRoles(guildId),
+      fetchGuildMembers(guildId, 1000).catch(() => []),
     ]);
 
     // Calculate member counts per role

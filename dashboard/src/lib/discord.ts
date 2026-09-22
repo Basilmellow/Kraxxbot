@@ -150,9 +150,9 @@ export async function fetchGuildById(guildId: string): Promise<DiscordGuild> {
   return discordFetch<DiscordGuild>(`/guilds/${guildId}?with_counts=true`);
 }
 
-export const fetchGuild = async (guildId?: string): Promise<DiscordGuild> => {
-  const gId = guildId || process.env.GUILD_ID || '';
-  return fetchGuildById(gId);
+export const fetchGuild = async (guildId: string): Promise<DiscordGuild> => {
+  if (!guildId) throw new Error('guildId is required to fetch guild');
+  return fetchGuildById(guildId);
 };
 
 /**
@@ -201,19 +201,17 @@ export async function fetchUserGuilds(accessToken: string): Promise<UserGuild[]>
 /**
  * Fetches all channels for a specific guild.
  */
-export async function fetchGuildChannels(guildId?: string): Promise<DiscordChannel[]> {
-  const gId = guildId || process.env.GUILD_ID || '';
-  if (!gId) return [];
-  return discordFetch<DiscordChannel[]>(`/guilds/${gId}/channels`);
+export async function fetchGuildChannels(guildId: string): Promise<DiscordChannel[]> {
+  if (!guildId) return [];
+  return discordFetch<DiscordChannel[]>(`/guilds/${guildId}/channels`);
 }
 
 /**
  * Fetches all roles for a specific guild.
  */
-export async function fetchGuildRoles(guildId?: string): Promise<DiscordRole[]> {
-  const gId = guildId || process.env.GUILD_ID || '';
-  if (!gId) return [];
-  return discordFetch<DiscordRole[]>(`/guilds/${gId}/roles`);
+export async function fetchGuildRoles(guildId: string): Promise<DiscordRole[]> {
+  if (!guildId) return [];
+  return discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`);
 }
 
 /**
@@ -227,23 +225,13 @@ export async function fetchGuildMember(guildId: string, userId: string): Promise
  * Fetches guild members (paginated, up to 1000 per call).
  */
 export async function fetchGuildMembers(
-  guildIdOrLimit?: string | number,
+  guildId: string,
   limit = 100,
   after = '0'
 ): Promise<DiscordMember[]> {
-  let gId = process.env.GUILD_ID || '';
-  let lim = limit;
-  let aft = after;
-
-  if (typeof guildIdOrLimit === 'string') {
-    gId = guildIdOrLimit;
-  } else if (typeof guildIdOrLimit === 'number') {
-    lim = guildIdOrLimit;
-  }
-
-  if (!gId) return [];
+  if (!guildId) return [];
   return discordFetch<DiscordMember[]>(
-    `/guilds/${gId}/members?limit=${lim}&after=${aft}`
+    `/guilds/${guildId}/members?limit=${limit}&after=${after}`
   );
 }
 

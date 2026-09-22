@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fetchGuildMember, fetchGuildRoles } from '@/lib/discord';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 
 export async function GET(
   request: NextRequest,
@@ -16,17 +16,26 @@ export async function GET(
   }
 
   const { id: userId } = await params;
-  const guildId = request.nextUrl.searchParams.get('guildId') || process.env.GUILD_ID || '';
+  const guildId = request.nextUrl.searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
 
   try {
     const [discordMember, dbMember, discordRoles, tickets, tasks, moderationLogs] = await Promise.all([
-      guildId ? fetchGuildMember(guildId, userId).catch(() => null) : Promise.resolve(null),
-      prisma.guildMember.findFirst({ where: { discordId: userId, ...(guildId ? { guildId } : {}) } }),
+      fetchGuildMember(guildId, userId).catch(() => null),
+      prisma.guildMember.findFirst({ where: { discordId: userId, guildId } }),
       fetchGuildRoles(guildId).catch(() => []),
       prisma.ticket.findMany({
         where: {
           OR: [{ openerId: userId }, { claimerId: userId }],
-          ...(guildId ? { guildId } : {}),
+          guildId,
         },
         orderBy: { createdAt: 'desc' },
         take: 20,
@@ -34,7 +43,7 @@ export async function GET(
       prisma.task.findMany({
         where: {
           OR: [{ assigneeId: userId }, { creatorId: userId }],
-          ...(guildId ? { guildId } : {}),
+          guildId,
         },
         orderBy: { createdAt: 'desc' },
         take: 20,
@@ -42,7 +51,7 @@ export async function GET(
       prisma.moderationCase.findMany({
         where: {
           targetId: userId,
-          ...(guildId ? { guildId } : {}),
+          guildId,
         },
         orderBy: { createdAt: 'desc' },
       }),

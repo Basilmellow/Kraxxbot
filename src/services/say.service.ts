@@ -68,7 +68,7 @@ export class SayService {
   ): Promise<void> {
     const modal = new ModalBuilder()
       .setCustomId(`kraxx_say_modal:${targetChannelId || ''}`)
-      .setTitle('KRAXX HQ │ Message Dispatch');
+      .setTitle('KRAXXBot │ Message Dispatch');
 
     const messageInput = new TextInputBuilder()
       .setCustomId('say_content')

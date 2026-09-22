@@ -1,26 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireGuildAccess } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get('status') || 'ALL'; // ALL | OPEN | CLAIMED | CLOSED | MY_TICKETS | UNASSIGNED
   const categoryFilter = searchParams.get('category') || '';
   const query = searchParams.get('q')?.toLowerCase() || '';
-  const guildId = searchParams.get('guildId') || process.env.GUILD_ID || '';
+  const guildId = searchParams.get('guildId');
+
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+
+  const auth = await requireGuildAccess(guildId);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
+  }
 
   try {
-    const currentUserId = session!.user.discordId;
-    let whereClause: any = {};
-    if (guildId) whereClause.guildId = guildId;
+    const currentUserId = auth.session!.user.discordId;
+    let whereClause: any = { guildId };
 
     if (statusFilter === 'OPEN') {
       whereClause.status = 'OPEN';
