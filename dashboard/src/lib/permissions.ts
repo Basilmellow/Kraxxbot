@@ -3,7 +3,8 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from './auth';
-import { fetchUserGuilds } from './discord';
+import { fetchGuildById, fetchUserGuilds, isBotInstalledInGuild } from './discord';
+import { reconcileInstalledGuild } from './guild-registry';
 import { prisma } from './prisma';
 
 export { RoleTier } from './constants';
@@ -31,8 +32,9 @@ export type PermissionCheck = {
  *
  * Checks (in order):
  * 1. Valid authenticated session exists
- * 2. Guild exists in database with botInstalled = true
- * 3. User has MANAGE_GUILD or ADMINISTRATOR permissions in that Discord server
+ * 2. User has MANAGE_GUILD or ADMINISTRATOR permissions in that Discord server
+ * 3. KRAXXBot is currently installed, verified with Discord's bot REST API
+ * 4. A durable Guild record exists for configuration and tenant data
  *
  * Prevents IDOR: a user cannot access guild data by simply guessing the guildId URL.
  */
@@ -49,42 +51,11 @@ export async function requireGuildAccess(guildId: string): Promise<PermissionChe
     };
   }
 
-  // 2. Verify the guild exists in DB with bot installed
-  try {
-    const guild = await prisma.guild.findUnique({
-      where: { id: guildId },
-    });
-
-    if (!guild) {
-      return {
-        authorized: false,
-        reason: 'This server has not been set up with KRAXXBot.',
-        error: 'Guild not found',
-        status: 404,
-      };
-    }
-
-    if (!guild.botInstalled) {
-      return {
-        authorized: false,
-        reason: 'KRAXXBot has been removed from this server.',
-        error: 'Bot not installed',
-        status: 403,
-      };
-    }
-  } catch {
-    return {
-      authorized: false,
-      reason: 'Unable to verify server access.',
-      error: 'Database error',
-      status: 500,
-    };
-  }
-
-  // 3. Verify user has manage permissions in this guild via Discord API
+  // 2. Verify user membership and management permission before trusting the
+  // requested guild id or making a bot-token request for it.
   try {
     const managedGuilds = await fetchUserGuilds(session.user.accessToken as string);
-    const hasAccess = managedGuilds.some(g => g.id === guildId);
+    const hasAccess = managedGuilds.some((guild) => guild.id === guildId);
 
     if (!hasAccess) {
       return {
@@ -95,11 +66,48 @@ export async function requireGuildAccess(guildId: string): Promise<PermissionChe
       };
     }
   } catch {
-    // If Discord API is down, deny access for security
     return {
       authorized: false,
       reason: 'Unable to verify Discord guild permissions. Please try again.',
       error: 'Discord API unavailable',
+      status: 503,
+    };
+  }
+
+  // 3. Verify live bot membership separately from worker/heartbeat state.
+  try {
+    const installed = await isBotInstalledInGuild(guildId);
+    if (!installed) {
+      return {
+        authorized: false,
+        reason: 'KRAXXBot is not installed in this server.',
+        error: 'Bot not installed',
+        status: 403,
+      };
+    }
+  } catch {
+    return {
+      authorized: false,
+      reason: 'Unable to verify KRAXXBot installation. Please try again.',
+      error: 'Discord API unavailable',
+      status: 503,
+    };
+  }
+
+  // 4. Reconcile the durable tenant record only after both live authorization
+  // checks pass. This preserves initialization for installs added while the
+  // Gateway worker was offline.
+  try {
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild || !guild.botInstalled) {
+      const discordGuild = await fetchGuildById(guildId);
+      await reconcileInstalledGuild(discordGuild);
+    }
+  } catch {
+    return {
+      authorized: false,
+      reason: 'Unable to initialize this server for dashboard access.',
+      error: 'Guild reconciliation failed',
       status: 503,
     };
   }

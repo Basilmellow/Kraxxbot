@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname, useParams } from 'next/navigation';
+import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigation';
 import {
   ChevronDown,
   Check,
@@ -18,10 +18,13 @@ export function ServerSelector() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams();
-  const currentGuildId = (params?.guildId as string) || '';
+  const searchParams = useSearchParams();
+  const pathMatch = pathname.match(/^\/dashboard\/(\d+)/);
+  const currentGuildId = (params?.guildId as string) || pathMatch?.[1] || searchParams.get('guildId') || '';
 
   const [guilds, setGuilds] = useState<ManagedGuild[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -34,10 +37,20 @@ export function ServerSelector() {
           const data = await res.json();
           if (mounted) {
             setGuilds(data.guilds || []);
+            setLoadError(null);
+          }
+        } else if (mounted) {
+          if (res.status === 401) {
+            setLoadError('Your Discord session needs to be refreshed.');
+          } else if (res.status === 403) {
+            setLoadError('You are not authorized to view these servers.');
+          } else {
+            setLoadError('Unable to load servers. Please try again.');
           }
         }
       } catch (err) {
         console.error('Failed to load user guilds:', err);
+        if (mounted) setLoadError('Unable to load servers. Please try again.');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -65,10 +78,16 @@ export function ServerSelector() {
 
   const handleSelectGuild = (guildId: string) => {
     setIsOpen(false);
-    // If on a subroute like /dashboard/[guildId]/modules, preserve the subroute
-    const match = pathname.match(/^\/dashboard\/[^/]+(\/.*)?$/);
-    const subRoute = match?.[1] || '';
-    router.push(`/dashboard/${guildId}${subRoute}`);
+    if (pathMatch) {
+      const subRoute = pathname.replace(/^\/dashboard\/\d+/, '');
+      router.push(`/dashboard/${guildId}${subRoute}`);
+      return;
+    }
+    if (pathname.startsWith('/dashboard/') && pathname !== '/dashboard/select-server') {
+      router.push(`${pathname}?guildId=${guildId}`);
+      return;
+    }
+    router.push(`/dashboard/${guildId}`);
   };
 
   return (
@@ -127,7 +146,11 @@ export function ServerSelector() {
           </div>
 
           <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
-            {installedGuilds.length > 0 ? (
+            {loadError ? (
+              <div className="p-3 text-center text-xs text-red-700">
+                {loadError}
+              </div>
+            ) : installedGuilds.length > 0 ? (
               installedGuilds.map((g) => {
                 const isSelected = g.id === currentGuildId;
                 return (

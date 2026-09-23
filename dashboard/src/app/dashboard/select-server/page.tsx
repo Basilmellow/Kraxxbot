@@ -12,19 +12,28 @@ export default function SelectServerPage() {
   const { data: session, status: authStatus } = useSession();
   const [guilds, setGuilds] = useState<ManagedGuild[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchGuilds = async () => {
     try {
       setIsRefreshing(true);
+      setLoadError(null);
       const res = await fetch('/api/guilds');
       if (res.ok) {
         const data = await res.json();
         setGuilds(data.guilds || []);
+      } else if (res.status === 401) {
+        setLoadError('Your Discord session needs to be refreshed. Please sign in again.');
+      } else if (res.status === 403) {
+        setLoadError('You are not authorized to view these servers.');
+      } else {
+        setLoadError('Unable to load servers. Please try again.');
       }
     } catch (err) {
       console.error('Error fetching guilds:', err);
+      setLoadError('Unable to load servers. Please check your connection and try again.');
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -341,7 +350,16 @@ export default function SelectServerPage() {
                 </span>
               </div>
 
-              {installed.length === 0 ? (
+              {loadError ? (
+                <div style={S.emptyState}>
+                  <Server style={{ width: '28px', height: '28px', color: '#EF4444', marginBottom: '0.25rem' }} />
+                  <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#A8A49B' }}>Unable to load servers</p>
+                  <p style={{ fontSize: '0.8125rem', color: '#716D65' }}>{loadError}</p>
+                  <Link href="/login" style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#C9A66B', marginTop: '0.5rem' }}>
+                    Sign in again
+                  </Link>
+                </div>
+              ) : installed.length === 0 ? (
                 <div style={S.emptyState}>
                   <Server style={{ width: '28px', height: '28px', color: '#4A4742', marginBottom: '0.25rem' }} />
                   <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#A8A49B' }}>No active servers found</p>

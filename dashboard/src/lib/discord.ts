@@ -163,8 +163,17 @@ export async function isBotInstalledInGuild(guildId: string): Promise<boolean> {
   try {
     await discordFetch<DiscordGuild>(`/guilds/${guildId}`);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    // A missing/forbidden guild means this bot is not a member. Other failures
+    // (rate limiting, invalid token, Discord outage) must remain distinguishable
+    // so callers can fail closed instead of reporting a false uninstall.
+    if (
+      error instanceof Error
+      && /^Discord API Error \[(403|404)\]:/.test(error.message)
+    ) {
+      return false;
+    }
+    throw error;
   }
 }
 
