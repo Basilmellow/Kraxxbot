@@ -15,7 +15,7 @@ interface DashboardShellProps {
  */
 export function DashboardShell({ session, children }: DashboardShellProps) {
   return (
-    <div style={{
+    <div className="dashboard-shell" style={{
       minHeight: '100vh',
       background: '#090908',
       color: '#F3F0E9',

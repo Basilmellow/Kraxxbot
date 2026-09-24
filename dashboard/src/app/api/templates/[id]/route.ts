@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { canManageTemplates } from '@/lib/permissions';
+import { canManageTemplates, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 interface RouteParams {
@@ -17,10 +17,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   const { id } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
 
   try {
     const template = await prisma.embedTemplate.findUnique({
-      where: { id },
+      where: { id, guildId },
     });
 
     if (!template) {
@@ -52,13 +56,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 
   const { id } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
 
   try {
     const body = await request.json();
     const { name, category, description, title, embedData } = body;
 
     const updated = await prisma.embedTemplate.update({
-      where: { id },
+      where: { id, guildId },
       data: {
         ...(name ? { name: name.trim() } : {}),
         ...(category ? { category: category.toUpperCase() } : {}),
@@ -70,6 +78,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     await logDashboardAction({
       action: 'TEMPLATE_UPDATE',
+      guildId,
       executorId: session.user.discordId,
       targetId: id,
       targetType: 'TEMPLATE',
@@ -103,14 +112,19 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   }
 
   const { id } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
 
   try {
     const template = await prisma.embedTemplate.delete({
-      where: { id },
+      where: { id, guildId },
     });
 
     await logDashboardAction({
       action: 'TEMPLATE_DELETE',
+      guildId,
       executorId: session.user.discordId,
       targetId: id,
       targetType: 'TEMPLATE',

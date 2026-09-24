@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function PATCH(
@@ -16,6 +16,10 @@ export async function PATCH(
   }
 
   const { id: meetingId } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const guildAccess = await requireGuildAccess(guildId);
+  if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
   const currentUserId = session!.user.discordId;
 
   try {
@@ -29,11 +33,12 @@ export async function PATCH(
     if (locationChannelId !== undefined) dataToUpdate.locationChannelId = locationChannelId || null;
 
     const updated = await prisma.meeting.update({
-      where: { id: meetingId },
+      where: { id: meetingId, guildId },
       data: dataToUpdate,
     });
 
     await logDashboardAction({
+      guildId,
       action: 'MEETING_UPDATE',
       executorId: currentUserId,
       targetId: meetingId,
@@ -59,14 +64,19 @@ export async function DELETE(
   }
 
   const { id: meetingId } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const guildAccess = await requireGuildAccess(guildId);
+  if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
   const currentUserId = session!.user.discordId;
 
   try {
     const meeting = await prisma.meeting.delete({
-      where: { id: meetingId },
+      where: { id: meetingId, guildId },
     });
 
     await logDashboardAction({
+      guildId,
       action: 'MEETING_DELETE',
       executorId: currentUserId,
       targetId: meetingId,

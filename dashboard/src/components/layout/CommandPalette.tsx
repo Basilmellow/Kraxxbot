@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useGuildId } from '@/lib/useGuildId';
 import {
   Search,
   LayoutDashboard,
@@ -39,12 +40,12 @@ interface SearchResultItem {
 }
 
 const QUICK_ACTIONS: SearchResultItem[] = [
-  { id: 'act-new-embed', label: 'Compose Discord Embed', category: 'ACTION', href: '/dashboard/messages/embed', icon: Sparkles, description: 'Open interactive rich embed builder' },
-  { id: 'act-announce', label: 'Schedule Announcement', category: 'ACTION', href: '/dashboard/announcements', icon: Megaphone, description: 'Broadcast message to target channels' },
-  { id: 'act-mod', label: 'Moderation Console', category: 'ACTION', href: '/dashboard/moderation', icon: Shield, description: 'Execute warn, timeout, kick, or ban actions' },
-  { id: 'act-task', label: 'Open Tasks Board', category: 'ACTION', href: '/dashboard/tasks', icon: CheckSquare, description: 'View operations pipeline and task statuses' },
-  { id: 'act-audit', label: 'View Real-time Audit Logs', category: 'ACTION', href: '/dashboard/audit', icon: ScrollText, description: 'Inspect full audit telemetry & timestamps' },
-  { id: 'act-members', label: 'Operator Directory', category: 'ACTION', href: '/dashboard/members', icon: Users, description: 'Lookup guild members and clearances' },
+  { id: 'act-new-embed', label: 'Compose Discord Embed', category: 'ACTION', href: '/messages/embed', icon: Sparkles, description: 'Open interactive rich embed builder' },
+  { id: 'act-announce', label: 'Schedule Announcement', category: 'ACTION', href: '/announcements', icon: Megaphone, description: 'Broadcast message to target channels' },
+  { id: 'act-mod', label: 'Moderation Console', category: 'ACTION', href: '/moderation', icon: Shield, description: 'Execute warn, timeout, kick, or ban actions' },
+  { id: 'act-task', label: 'Open Tasks Board', category: 'ACTION', href: '/tasks', icon: CheckSquare, description: 'View operations pipeline and task statuses' },
+  { id: 'act-audit', label: 'View Real-time Audit Logs', category: 'ACTION', href: '/audit', icon: ScrollText, description: 'Inspect full audit telemetry & timestamps' },
+  { id: 'act-members', label: 'Operator Directory', category: 'ACTION', href: '/members', icon: Users, description: 'Lookup guild members and clearances' },
 ];
 
 export function CommandPalette() {
@@ -55,6 +56,7 @@ export function CommandPalette() {
   const [isSearchingApi, setIsSearchingApi] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const guildId = useGuildId();
 
   // Listen for global custom event or keyboard shortcut
   useEffect(() => {
@@ -97,7 +99,8 @@ export function CommandPalette() {
     const timer = setTimeout(async () => {
       try {
         setIsSearchingApi(true);
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`);
+        if (!guildId) return;
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&guildId=${encodeURIComponent(guildId)}`);
         if (res.ok) {
           const data = await res.json();
           setApiResults(data.results || []);
@@ -110,7 +113,7 @@ export function CommandPalette() {
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, guildId]);
 
   // Filter modules
   const filteredModules = DASHBOARD_MODULES.filter((m) =>
@@ -120,7 +123,11 @@ export function CommandPalette() {
     id: m.id,
     label: m.label,
     category: `NAV // ${m.category}`,
-    href: m.href,
+    href: m.id === 'select-server'
+      ? '/dashboard/select-server'
+      : guildId
+        ? `/dashboard/${guildId}${m.href}`
+        : '/dashboard/select-server',
     icon: LayoutDashboard,
     description: `Jump to ${m.label}`,
   }));
@@ -128,7 +135,10 @@ export function CommandPalette() {
   const filteredActions = QUICK_ACTIONS.filter((a) =>
     a.label.toLowerCase().includes(query.toLowerCase()) ||
     (a.description && a.description.toLowerCase().includes(query.toLowerCase()))
-  );
+  ).map((action) => ({
+    ...action,
+    href: guildId ? `/dashboard/${guildId}${action.href}` : '/dashboard/select-server',
+  }));
 
   const allItems: SearchResultItem[] = [
     ...filteredModules,
@@ -166,14 +176,14 @@ export function CommandPalette() {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
       <div
-        className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs"
+        className="fixed inset-0 bg-black/70 backdrop-blur-xs"
         onClick={() => setIsOpen(false)}
       />
 
-      <div className="relative w-full max-w-xl rounded-2xl bg-white border border-[#E5E7EB] shadow-2xl overflow-hidden z-10 flex flex-col max-h-[75vh]">
+      <div className="relative w-full max-w-xl rounded-2xl bg-[#161614] border border-[#2A2925] shadow-2xl overflow-hidden z-10 flex flex-col max-h-[75vh]">
         {/* Search Input Bar */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#F1F3F9] bg-[#F8FAFC]">
-          <Search className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#2A2925] bg-[#10100F]">
+          <Search className="w-4 h-4 text-[#C9A66B] flex-shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -184,17 +194,17 @@ export function CommandPalette() {
             }}
             onKeyDown={handleInputKeyDown}
             placeholder="Type a command, search pages, tickets, members, or tools..."
-            className="flex-1 bg-transparent border-none text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-none"
+            className="flex-1 bg-transparent border-none text-sm text-[#F3F0E9] placeholder-[#716D65] focus:outline-none"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 text-[#667085] hover:text-[#101828]"
+              className="p-1 text-[#716D65] hover:text-[#F3F0E9]"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
-          <kbd className="text-[10px] text-[#667085] px-1.5 py-0.5 rounded bg-white border border-[#E5E7EB] font-sans font-medium">
+          <kbd className="text-[10px] text-[#A8A49B] px-1.5 py-0.5 rounded bg-[#1D1C19] border border-[#2A2925] font-sans font-medium">
             ESC
           </kbd>
         </div>
@@ -202,7 +212,7 @@ export function CommandPalette() {
         {/* Results List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {allItems.length === 0 ? (
-            <div className="py-12 text-center text-xs text-[#667085]">
+            <div className="py-12 text-center text-xs text-[#A8A49B]">
               No matching commands or pages found.
             </div>
           ) : (
@@ -215,23 +225,23 @@ export function CommandPalette() {
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`px-3 py-2.5 rounded-xl cursor-pointer flex items-center justify-between transition-colors text-xs ${
                     isSelected
-                      ? 'bg-indigo-50/80 text-indigo-900 border-l-2 border-indigo-600'
-                      : 'text-[#475467] hover:bg-[#F8FAFC] hover:text-[#101828]'
+                      ? 'bg-[#C9A66B]/10 text-[#F3F0E9] border-l-2 border-[#C9A66B]'
+                      : 'text-[#A8A49B] hover:bg-[#1D1C19] hover:text-[#F3F0E9]'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-[10px] font-semibold text-[#667085] px-1.5 py-0.5 rounded bg-[#F3F5FA] border border-[#E5E7EB] uppercase">
+                    <span className="text-[10px] font-semibold text-[#A8A49B] px-1.5 py-0.5 rounded bg-[#1D1C19] border border-[#2A2925] uppercase">
                       {item.category}
                     </span>
-                    <span className="font-medium text-[#101828] truncate">{item.label}</span>
+                    <span className="font-medium text-[#F3F0E9] truncate">{item.label}</span>
                     {item.description && (
-                      <span className="text-[11px] text-[#667085] truncate hidden sm:inline">
+                      <span className="text-[11px] text-[#716D65] truncate hidden sm:inline">
                         — {item.description}
                       </span>
                     )}
                   </div>
                   {isSelected && (
-                    <CornerDownLeft className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                    <CornerDownLeft className="w-3.5 h-3.5 text-[#C9A66B] flex-shrink-0" />
                   )}
                 </div>
               );
@@ -240,13 +250,13 @@ export function CommandPalette() {
         </div>
 
         {/* Command Footer */}
-        <div className="px-4 py-2.5 bg-[#F8FAFC] border-t border-[#F1F3F9] flex items-center justify-between text-[11px] text-[#667085]">
+        <div className="px-4 py-2.5 bg-[#10100F] border-t border-[#2A2925] flex items-center justify-between text-[11px] text-[#716D65]">
           <div className="flex items-center gap-3">
             <span>↑↓ Navigate</span>
             <span>↵ Select</span>
             <span>ESC Close</span>
           </div>
-          <span className="text-indigo-600 font-medium">KRAXX HQ Command</span>
+          <span className="text-[#C9A66B] font-medium">KRAXXBot</span>
         </div>
       </div>
     </div>

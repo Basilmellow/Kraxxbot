@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function PATCH(
@@ -16,6 +16,10 @@ export async function PATCH(
   }
 
   const { id: taskId } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const guildAccess = await requireGuildAccess(guildId);
+  if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
   const currentUserId = session!.user.discordId;
 
   try {
@@ -38,12 +42,13 @@ export async function PATCH(
     if (description !== undefined) dataToUpdate.description = description.trim();
 
     const updatedTask = await prisma.task.update({
-      where: { id: taskId },
+      where: { id: taskId, guildId },
       data: dataToUpdate,
     });
 
     await logDashboardAction({
       action: 'TASK_UPDATE',
+      guildId,
       executorId: currentUserId,
       targetId: taskId,
       targetType: 'TASK',
@@ -68,15 +73,20 @@ export async function DELETE(
   }
 
   const { id: taskId } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const guildAccess = await requireGuildAccess(guildId);
+  if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
   const currentUserId = session!.user.discordId;
 
   try {
     const task = await prisma.task.delete({
-      where: { id: taskId },
+      where: { id: taskId, guildId },
     });
 
     await logDashboardAction({
       action: 'TASK_DELETE',
+      guildId,
       executorId: currentUserId,
       targetId: taskId,
       targetType: 'TASK',

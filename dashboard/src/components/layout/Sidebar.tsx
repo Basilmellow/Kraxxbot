@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { Session } from 'next-auth';
 import { signOut } from 'next-auth/react';
 import {
@@ -56,6 +56,7 @@ interface SidebarProps {
 
 export function Sidebar({ session }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   // Close mobile sidebar on route change
@@ -63,27 +64,22 @@ export function Sidebar({ session }: SidebarProps) {
     setIsMobileOpen(false);
   }, [pathname]);
 
-  // Extract active guildId from route: /dashboard/[guildId]/...
+  // Extract active guildId from route (/dashboard/[guildId]/...) or query parameter (?guildId=...)
   const guildMatch = pathname.match(/^\/dashboard\/(\d+)/);
-  const activeGuildId = guildMatch?.[1] ?? '';
+  const activeGuildId = guildMatch?.[1] || searchParams.get('guildId') || '';
 
-  const getHref = (modHref: string) => {
-    // /select-server is always absolute
-    if (modHref === '/select-server') return '/dashboard/select-server';
-    // Root overview
-    if (modHref === '') return activeGuildId ? `/dashboard/${activeGuildId}` : '/dashboard';
-    // Guild-specific
-    if (activeGuildId) return `/dashboard/${activeGuildId}${modHref}`;
-    // No guild selected yet — link to select-server
-    return `/dashboard/select-server`;
+  const getHref = (modId: string, modHref: string) => {
+    if (modId === 'select-server') return '/dashboard/select-server';
+    if (!activeGuildId) return '/dashboard/select-server';
+    if (modId === 'overview') return `/dashboard/${activeGuildId}`;
+    return `/dashboard/${activeGuildId}${modHref}`;
   };
 
-  const isActive = (href: string) => {
-    const resolved = getHref(href);
-    if (href === '') {
-      return pathname === `/dashboard/${activeGuildId}` || pathname === '/dashboard';
-    }
-    return pathname === resolved || pathname.startsWith(resolved + '/');
+  const isActive = (modId: string, modHref: string) => {
+    if (modId === 'select-server') return pathname === '/dashboard/select-server';
+    const href = getHref(modId, modHref);
+    if (modId === 'overview') return pathname === href || (pathname === '/dashboard' && !activeGuildId);
+    return pathname === href || pathname.startsWith(`${href}/`);
   };
 
   const user = session?.user as any;
@@ -217,8 +213,8 @@ export function Sidebar({ session }: SidebarProps) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 {items.map(mod => {
-                  const href = getHref(mod.href);
-                  const active = isActive(mod.href);
+                  const href = getHref(mod.id, mod.href);
+                  const active = isActive(mod.id, mod.href);
                   const Icon = ICON_MAP[mod.icon] ?? LayoutDashboard;
 
                   return (

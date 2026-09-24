@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { canScheduleAnnouncements } from '@/lib/permissions';
+import { canScheduleAnnouncements, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 interface RouteParams {
@@ -17,10 +17,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   const { id } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
 
   try {
     const item = await prisma.scheduledAnnouncement.findUnique({
-      where: { id },
+      where: { id, guildId },
     });
 
     if (!item) {
@@ -50,10 +54,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
 
   const { id } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
 
   try {
     const existing = await prisma.scheduledAnnouncement.findUnique({
-      where: { id },
+      where: { id, guildId },
     });
 
     if (!existing) {
@@ -79,7 +87,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const updated = await prisma.scheduledAnnouncement.update({
-      where: { id },
+      where: { id, guildId },
       data: {
         ...(title !== undefined ? { title: title?.trim() || null } : {}),
         ...(content !== undefined ? { content: content?.trim() || null } : {}),
@@ -93,6 +101,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     });
 
     await logDashboardAction({
+      guildId,
       action: 'ANNOUNCEMENT_EDIT',
       executorId: session.user.discordId,
       targetId: id,
@@ -124,10 +133,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   }
 
   const { id } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
 
   try {
     const existing = await prisma.scheduledAnnouncement.findUnique({
-      where: { id },
+      where: { id, guildId },
     });
 
     if (!existing) {
@@ -142,11 +155,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const cancelled = await prisma.scheduledAnnouncement.update({
-      where: { id },
+      where: { id, guildId },
       data: { status: 'CANCELLED' },
     });
 
     await logDashboardAction({
+      guildId,
       action: 'ANNOUNCEMENT_CANCEL',
       executorId: session.user.discordId,
       targetId: id,

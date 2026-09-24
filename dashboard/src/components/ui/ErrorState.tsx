@@ -17,21 +17,21 @@ export function ErrorState({
 }: ErrorStateProps) {
   return (
     <div
-      className={`p-6 sm:p-8 rounded-2xl bg-[#FEF2F2]/60 border border-[#FCA5A5]/40 text-center flex flex-col items-center justify-center ${className}`}
+      className={`p-6 sm:p-8 rounded-2xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-center flex flex-col items-center justify-center ${className}`}
     >
-      <div className="w-10 h-10 rounded-full bg-[#FEE2E2] text-[#DC2626] flex items-center justify-center mb-3">
+      <div className="w-10 h-10 rounded-full bg-[#EF4444]/15 text-[#EF4444] flex items-center justify-center mb-3">
         <AlertTriangle className="w-5 h-5" />
       </div>
-      <h4 className="text-sm font-semibold text-[#991B1B] mb-1">{title}</h4>
-      <p className="text-xs text-[#B91C1C] max-w-md leading-relaxed mb-4">
+      <h4 className="text-sm font-semibold text-[#F3F0E9] mb-1">{title}</h4>
+      <p className="text-xs text-[#A8A49B] max-w-md leading-relaxed mb-4">
         {message}
       </p>
       {onRetry && (
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={onRetry}
-          className="border-[#FCA5A5] text-[#991B1B] hover:bg-[#FEE2E2]"
+          className="border-[#EF4444]/40 text-[#F3F0E9] hover:bg-[#EF4444]/10"
         >
           <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
           <span>Retry Operation</span>

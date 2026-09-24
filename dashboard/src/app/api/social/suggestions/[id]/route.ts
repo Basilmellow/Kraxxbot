@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function PATCH(
@@ -16,6 +16,10 @@ export async function PATCH(
   }
 
   const { id: suggestionId } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const guildAccess = await requireGuildAccess(guildId);
+  if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
   const currentUserId = session!.user.discordId;
 
   try {
@@ -27,11 +31,12 @@ export async function PATCH(
     if (reviewerNotes !== undefined) dataToUpdate.reviewerNotes = reviewerNotes.trim();
 
     const updated = await prisma.suggestion.update({
-      where: { id: suggestionId },
+      where: { id: suggestionId, guildId },
       data: dataToUpdate,
     });
 
     await logDashboardAction({
+      guildId,
       action: 'SUGGESTION_REVIEW',
       executorId: currentUserId,
       targetId: suggestionId,

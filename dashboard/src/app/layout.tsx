@@ -1,14 +1,6 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-  weight: ['400', '500', '600', '700', '800'],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -39,11 +31,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body style={{
         background: '#090908',
         color: '#F3F0E9',
-        fontFamily: 'var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif',
+        fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         WebkitFontSmoothing: 'antialiased',
         MozOsxFontSmoothing: 'grayscale',
         margin: 0,

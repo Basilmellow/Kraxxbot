@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier } from '@/lib/permissions';
+import { requireTier, requireGuildAccess } from '@/lib/permissions';
 import { RoleTier } from '@/lib/constants';
 
 export async function GET(request: NextRequest) {
@@ -25,11 +25,19 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
   const action = searchParams.get('action') || undefined;
   const executorId = searchParams.get('executorId') || undefined;
+  const guildId = searchParams.get('guildId');
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+  const auth = await requireGuildAccess(guildId);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
+  }
 
   const skip = (page - 1) * limit;
 
   try {
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { guildId };
     if (action) where.action = action;
     if (executorId) where.executorId = executorId;
 

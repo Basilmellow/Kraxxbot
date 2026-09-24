@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const [discordMembers, dbMembers, discordRoles] = await Promise.all([
-      fetchGuildMembers(guildId, Math.min(limit, 1000)).catch(() => []),
+      fetchGuildMembers(guildId, Math.min(limit, 1000)),
       prisma.guildMember.findMany({ where: { guildId } }),
-      fetchGuildRoles(guildId).catch(() => []),
+      fetchGuildRoles(guildId),
     ]);
 
     const dbMemberMap = new Map(dbMembers.map((m: any) => [m.discordId, m]));

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function POST(
@@ -16,6 +16,10 @@ export async function POST(
   }
 
   const { id: ticketId } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const guildAccess = await requireGuildAccess(guildId);
+  if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
   const currentUserId = session!.user.discordId;
 
   try {
@@ -23,7 +27,7 @@ export async function POST(
     const { action, reason } = body;
 
     const ticket = await prisma.ticket.findFirst({
-      where: { OR: [{ id: ticketId }, { channelId: ticketId }] },
+      where: { guildId, OR: [{ id: ticketId }, { channelId: ticketId }] },
     });
 
     if (!ticket) {

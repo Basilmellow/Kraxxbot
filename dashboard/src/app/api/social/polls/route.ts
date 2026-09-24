@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { sendChannelMessage } from '@/lib/discord';
+import { sendChannelMessage, fetchGuildChannels } from '@/lib/discord';
 import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
@@ -49,6 +49,10 @@ export async function POST(request: NextRequest) {
 
     if (!question || options.length < 2 || !channelId) {
       return NextResponse.json({ error: 'Question, at least 2 options, and channel are required.' }, { status: 400 });
+    }
+    const channels = await fetchGuildChannels(guildId);
+    if (!channels.some((channel) => channel.id === channelId)) {
+      return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
     }
 
     const currentUserId = auth.session!.user.discordId;

@@ -32,19 +32,19 @@ export function Topbar({
   };
 
   return (
-    <header className="h-[58px] bg-white/90 backdrop-blur-md border-b border-[#E5E7EB] sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between flex-shrink-0">
+    <header className="h-[64px] bg-[#0C0C0B]/95 backdrop-blur-md border-b border-[#2A2925] sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between flex-shrink-0">
       {/* Left: ServerSelector & Page Title */}
       <div className="flex items-center gap-3 min-w-0">
         <ServerSelector />
-        <div className="hidden sm:block h-6 w-px bg-[#E5E7EB]" />
+        <div className="hidden sm:block h-6 w-px bg-[#2A2925]" />
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-sm sm:text-base font-semibold text-[#101828] tracking-tight truncate">
+            <h1 className="text-sm sm:text-base font-semibold text-[#F3F0E9] tracking-tight truncate">
               {title}
             </h1>
           </div>
           {subtitle && (
-            <p className="text-xs text-[#667085] hidden md:block truncate">
+            <p className="text-xs text-[#A8A49B] hidden md:block truncate">
               {subtitle}
             </p>
           )}
@@ -56,26 +56,26 @@ export function Topbar({
         {/* Global Command Palette Trigger Button */}
         <button
           onClick={handleOpenSearch}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#F3F5FA] border border-[#E5E7EB] text-xs text-[#667085] hover:text-[#101828] hover:border-[#D1D5DB] transition-all cursor-pointer shadow-2xs"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#161614] border border-[#2A2925] text-xs text-[#A8A49B] hover:text-[#F3F0E9] hover:border-[#4A4742] transition-all cursor-pointer"
           title="Open Command Palette (Ctrl+K)"
         >
-          <Search className="w-3.5 h-3.5 text-[#667085]" />
+          <Search className="w-3.5 h-3.5 text-[#A8A49B]" />
           <span className="hidden md:inline text-xs font-medium">Search</span>
-          <kbd className="hidden sm:inline-flex items-center text-[10px] text-[#98A2B3] bg-white px-1.5 py-0.5 rounded border border-[#E5E7EB] font-sans font-medium shadow-2xs">
+          <kbd className="hidden sm:inline-flex items-center text-[10px] text-[#716D65] bg-[#1D1C19] px-1.5 py-0.5 rounded border border-[#2A2925] font-sans font-medium">
             Ctrl+K
           </kbd>
         </button>
 
         {/* Live Systems Telemetry Badge */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-700 text-xs font-medium">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#161614] border border-[#2A2925] text-[#A8A49B] text-xs font-medium">
+          <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
           <span>All Systems Operational</span>
         </div>
 
         {/* Notifications Icon Button */}
         <Link
           href="/dashboard/notifications"
-          className="p-2 rounded-lg text-[#667085] hover:text-[#101828] hover:bg-[#F3F5FA] transition-colors relative"
+          className="p-2 rounded-lg text-[#716D65] hover:text-[#F3F0E9] hover:bg-[#161614] transition-colors relative"
           title="Notifications"
         >
           <Bell className="w-4 h-4" />
@@ -86,33 +86,33 @@ export function Topbar({
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
-            className="p-2 rounded-lg text-[#667085] hover:text-indigo-600 hover:bg-[#F3F5FA] transition-colors disabled:opacity-50"
+          className="p-2 rounded-lg text-[#716D65] hover:text-[#C9A66B] hover:bg-[#161614] transition-colors disabled:opacity-50"
             title="Refresh Diagnostics"
           >
             <RefreshCw
-              className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-600' : ''}`}
+              className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#C9A66B]' : ''}`}
             />
           </button>
         )}
 
         {/* User Mini Avatar & Role */}
-        <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-[#E5E7EB]">
+        <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-[#2A2925]">
           {session?.user?.avatar ? (
             <img
               src={`https://cdn.discordapp.com/avatars/${session.user.discordId}/${session.user.avatar}.png?size=64`}
               alt={session.user.name || 'User'}
-              className="w-7 h-7 rounded-full border border-[#E5E7EB] object-cover"
+              className="w-7 h-7 rounded-full border border-[#2A2925] object-cover"
             />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">
+            <div className="w-7 h-7 rounded-full bg-[#1D1C19] border border-[#2A2925] flex items-center justify-center text-xs font-bold text-[#C9A66B]">
               {(session?.user?.name || 'O')[0].toUpperCase()}
             </div>
           )}
           <div className="hidden xl:flex flex-col text-left">
-            <span className="text-xs font-semibold text-[#101828] leading-tight truncate max-w-[120px]">
+            <span className="text-xs font-semibold text-[#F3F0E9] leading-tight truncate max-w-[120px]">
               {session?.user?.displayName || session?.user?.name || 'anaya.velvet'}
             </span>
-            <span className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider">
+            <span className="text-[10px] font-semibold text-[#C9A66B] uppercase tracking-wider">
               {roleName}
             </span>
           </div>

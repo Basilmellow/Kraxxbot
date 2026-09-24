@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function PATCH(
@@ -16,6 +16,10 @@ export async function PATCH(
   }
 
   const { id: ruleId } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const guildAccess = await requireGuildAccess(guildId);
+  if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
   const currentUserId = session!.user.discordId;
 
   try {
@@ -30,12 +34,13 @@ export async function PATCH(
     if (enabled !== undefined) dataToUpdate.enabled = Boolean(enabled);
 
     const updated = await prisma.automationRule.update({
-      where: { id: ruleId },
+      where: { id: ruleId, guildId },
       data: dataToUpdate,
     });
 
     await logDashboardAction({
       action: 'AUTOMATION_UPDATE',
+      guildId,
       executorId: currentUserId,
       targetId: ruleId,
       targetType: 'AUTOMATION',
@@ -60,15 +65,20 @@ export async function DELETE(
   }
 
   const { id: ruleId } = await params;
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const guildAccess = await requireGuildAccess(guildId);
+  if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
   const currentUserId = session!.user.discordId;
 
   try {
     const rule = await prisma.automationRule.delete({
-      where: { id: ruleId },
+      where: { id: ruleId, guildId },
     });
 
     await logDashboardAction({
       action: 'AUTOMATION_DELETE',
+      guildId,
       executorId: currentUserId,
       targetId: ruleId,
       targetType: 'AUTOMATION',

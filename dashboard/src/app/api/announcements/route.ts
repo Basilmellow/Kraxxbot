@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { sendChannelMessage } from '@/lib/discord';
+import { sendChannelMessage, fetchGuildChannels } from '@/lib/discord';
 import { prisma } from '@/lib/prisma';
 import { canMentionMass, canScheduleAnnouncements, requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
@@ -63,6 +63,10 @@ export async function POST(request: NextRequest) {
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
     }
+    const channels = await fetchGuildChannels(guildId);
+    if (!channels.some((channel) => channel.id === channelId)) {
+      return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
+    }
 
     // CASE 1: SCHEDULED ANNOUNCEMENT
     if (isScheduled) {
@@ -91,6 +95,7 @@ export async function POST(request: NextRequest) {
       });
 
       await logDashboardAction({
+        guildId,
         action: 'ANNOUNCEMENT_SCHEDULE',
         executorId: session.user.discordId,
         targetId: scheduledRecord.id,

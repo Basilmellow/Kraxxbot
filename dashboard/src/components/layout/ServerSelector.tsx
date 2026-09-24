@@ -94,7 +94,7 @@ export function ServerSelector() {
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] hover:border-amber-400/80 hover:bg-[#FDFBF7] text-xs text-[#101828] font-medium transition-all shadow-2xs group cursor-pointer"
+        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-[#161614] border border-[#2A2925] hover:border-[#C9A66B] hover:bg-[#1D1C19] text-xs text-[#F3F0E9] font-medium transition-all group cursor-pointer"
         aria-label="Select Server"
         aria-expanded={isOpen}
       >
@@ -109,7 +109,7 @@ export function ServerSelector() {
                 className="w-5 h-5 rounded-md object-cover flex-shrink-0"
               />
             ) : (
-              <div className="w-5 h-5 rounded-md bg-gradient-to-tr from-amber-500 to-amber-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+              <div className="w-5 h-5 rounded-md bg-[#C9A66B] text-[#090908] text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                 {currentGuild.name.charAt(0).toUpperCase()}
               </div>
             )}
@@ -120,26 +120,26 @@ export function ServerSelector() {
         ) : (
           <>
             <Server className="w-4 h-4 text-amber-600" />
-            <span className="font-semibold text-[#475467]">Select Server</span>
+            <span className="font-semibold text-[#A8A49B]">Select Server</span>
           </>
         )}
         <ChevronDown
-          className={`w-3.5 h-3.5 text-[#98A2B3] transition-transform duration-200 group-hover:text-[#101828] ${
+          className={`w-3.5 h-3.5 text-[#716D65] transition-transform duration-200 group-hover:text-[#F3F0E9] ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-72 rounded-2xl bg-white border border-[#E5E7EB] shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-          <div className="p-2 border-b border-[#F1F3F9] bg-[#FAF9F5] flex items-center justify-between">
-            <span className="text-[10px] font-bold tracking-wider text-amber-800/80 uppercase px-2">
+        <div className="absolute left-0 mt-2 w-72 rounded-2xl bg-[#161614] border border-[#2A2925] shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+          <div className="p-2 border-b border-[#2A2925] bg-[#10100F] flex items-center justify-between">
+            <span className="text-[10px] font-bold tracking-wider text-[#C9A66B] uppercase px-2">
               Connected Servers
             </span>
             <Link
               href="/dashboard/select-server"
               onClick={() => setIsOpen(false)}
-              className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:underline px-2"
+              className="text-[11px] font-semibold text-[#C9A66B] hover:text-[#D8B77D] hover:underline px-2"
             >
               All Servers
             </Link>
@@ -147,7 +147,7 @@ export function ServerSelector() {
 
           <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
             {loadError ? (
-              <div className="p-3 text-center text-xs text-red-700">
+              <div className="p-3 text-center text-xs text-[#EF4444]">
                 {loadError}
               </div>
             ) : installedGuilds.length > 0 ? (
@@ -159,8 +159,8 @@ export function ServerSelector() {
                     onClick={() => handleSelectGuild(g.id)}
                     className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left text-xs transition-colors cursor-pointer ${
                       isSelected
-                        ? 'bg-amber-50 text-amber-950 font-semibold border border-amber-200/60'
-                        : 'text-[#101828] hover:bg-[#F9FAFB]'
+                        ? 'bg-[#C9A66B]/10 text-[#D8B77D] font-semibold border border-[#C9A66B]/30'
+                        : 'text-[#A8A49B] hover:bg-[#1D1C19] hover:text-[#F3F0E9]'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -171,13 +171,13 @@ export function ServerSelector() {
                           className="w-6 h-6 rounded-lg object-cover flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                        <div className="w-6 h-6 rounded-lg bg-[#C9A66B] text-[#090908] text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                           {g.name.charAt(0).toUpperCase()}
                         </div>
                       )}
                       <span className="truncate">{g.name}</span>
                     </div>
-                    {isSelected && <Check className="w-4 h-4 text-amber-600 flex-shrink-0" />}
+                    {isSelected && <Check className="w-4 h-4 text-[#C9A66B] flex-shrink-0" />}
                   </button>
                 );
               })
@@ -189,7 +189,7 @@ export function ServerSelector() {
 
             {uninstalledGuilds.length > 0 && (
               <>
-                <div className="pt-2 pb-1 px-2.5 text-[10px] font-bold tracking-wider text-[#98A2B3] uppercase border-t border-[#F1F3F9] mt-1.5">
+                <div className="pt-2 pb-1 px-2.5 text-[10px] font-bold tracking-wider text-[#716D65] uppercase border-t border-[#2A2925] mt-1.5">
                   Invite KRAXXBot
                 </div>
                 {uninstalledGuilds.slice(0, 5).map((g) => (
@@ -198,7 +198,7 @@ export function ServerSelector() {
                     href={g.inviteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left text-xs text-[#475467] hover:bg-[#F9FAFB] hover:text-[#101828] transition-colors group"
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left text-xs text-[#A8A49B] hover:bg-[#1D1C19] hover:text-[#F3F0E9] transition-colors group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       {g.icon ? (
@@ -208,13 +208,13 @@ export function ServerSelector() {
                           className="w-6 h-6 rounded-lg object-cover opacity-70 group-hover:opacity-100 flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-6 h-6 rounded-lg bg-gray-200 text-gray-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                        <div className="w-6 h-6 rounded-lg bg-[#1D1C19] text-[#A8A49B] text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                           {g.name.charAt(0).toUpperCase()}
                         </div>
                       )}
                       <span className="truncate">{g.name}</span>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#C9A66B] bg-[#C9A66B]/10 px-2 py-0.5 rounded-full border border-[#C9A66B]/25">
                       <Plus className="w-3 h-3" /> Add
                     </span>
                   </a>
@@ -223,13 +223,13 @@ export function ServerSelector() {
             )}
           </div>
 
-          <div className="p-2 border-t border-[#F1F3F9] bg-[#FAF9F5]">
+          <div className="p-2 border-t border-[#2A2925] bg-[#10100F]">
             <Link
               href="/dashboard/select-server"
               onClick={() => setIsOpen(false)}
-              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold text-[#101828] hover:bg-white transition-colors border border-transparent hover:border-[#E5E7EB]"
+              className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold text-[#A8A49B] hover:text-[#F3F0E9] hover:bg-[#1D1C19] transition-colors border border-transparent hover:border-[#2A2925]"
             >
-              <Layers className="w-3.5 h-3.5 text-amber-600" />
+              <Layers className="w-3.5 h-3.5 text-[#C9A66B]" />
               <span>Manage All Servers Hub</span>
             </Link>
           </div>

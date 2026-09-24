@@ -26,8 +26,8 @@ export function Button({
     primary: 'kraxx-btn-primary',
     ghost: 'kraxx-btn-ghost',
     danger: 'kraxx-btn-danger',
-    secondary: 'bg-[#F3F4F6] text-[#374151] hover:bg-[#E5E7EB] border border-[#E5E7EB]',
-    outline: 'border border-[#D1D5DB] hover:border-[#4F46E5] text-[#374151] bg-white hover:bg-[#F9FAFB] shadow-xs',
+    secondary: 'kraxx-btn-secondary',
+    outline: 'kraxx-btn-ghost',
   };
 
   return (

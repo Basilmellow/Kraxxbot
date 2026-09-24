@@ -2,8 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { sendChannelMessage } from '@/lib/discord';
-import { requireTier, canMentionMass, RoleTier } from '@/lib/permissions';
+import { sendChannelMessage, fetchGuildChannels } from '@/lib/discord';
+import { requireTier, canMentionMass, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 export async function POST(request: NextRequest) {
@@ -20,11 +20,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { channelId, content, embeds, mentionType, mentionRoleId } = body;
+    const { channelId, content, embeds, mentionType, mentionRoleId, guildId } = body;
 
     if (!channelId) {
       return NextResponse.json({ error: 'Target channelId is required' }, { status: 400 });
     }
+    if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+    const access = await requireGuildAccess(guildId);
+    if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
+    const channels = await fetchGuildChannels(guildId);
+    if (!channels.some((channel) => channel.id === channelId)) return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
 
     if (!content && (!embeds || embeds.length === 0)) {
       return NextResponse.json({ error: 'Message content or embed payload required' }, { status: 400 });
@@ -58,6 +63,7 @@ export async function POST(request: NextRequest) {
 
     // Audit Log
     await logDashboardAction({
+      guildId,
       action: embeds && embeds.length > 0 ? 'EMBED_SEND' : 'MESSAGE_SEND',
       executorId: session.user.discordId,
       targetId: channelId,

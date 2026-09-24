@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireGuildAccess } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
+  const { searchParams } = new URL(request.url);
+  const guildId = searchParams.get('guildId');
+  if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  const auth = await requireGuildAccess(guildId);
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const { searchParams } = new URL(request.url);
   const q = (searchParams.get('q') || '').trim();
 
   if (!q) {
@@ -29,13 +28,13 @@ export async function GET(request: NextRequest) {
 
     const [tickets, tasks, meetings, reminders, auditLogs] = await Promise.all([
       prisma.ticket.findMany({
-        where: {
+        where: { guildId,
           OR: ticketOrs,
         },
         take: 5,
       }),
       prisma.task.findMany({
-        where: {
+        where: { guildId,
           OR: [
             { title: { contains: q, mode: 'insensitive' } },
             { description: { contains: q, mode: 'insensitive' } },
@@ -44,7 +43,7 @@ export async function GET(request: NextRequest) {
         take: 5,
       }),
       prisma.meeting.findMany({
-        where: {
+        where: { guildId,
           OR: [
             { title: { contains: q, mode: 'insensitive' } },
             { agenda: { contains: q, mode: 'insensitive' } },
@@ -53,7 +52,7 @@ export async function GET(request: NextRequest) {
         take: 5,
       }),
       prisma.reminder.findMany({
-        where: {
+        where: { guildId,
           OR: [
             { title: { contains: q, mode: 'insensitive' } },
             { message: { contains: q, mode: 'insensitive' } },
@@ -62,7 +61,7 @@ export async function GET(request: NextRequest) {
         take: 5,
       }),
       prisma.dashboardAuditLog.findMany({
-        where: {
+        where: { guildId,
           OR: [
             { action: { contains: q, mode: 'insensitive' } },
             { executorId: { contains: q } },
@@ -79,35 +78,35 @@ export async function GET(request: NextRequest) {
         id: t.id,
         title: `Ticket #${t.ticketNumber}`,
         subtitle: `Status: ${t.status} • Opener: ${t.openerId}`,
-        url: `/dashboard/tickets`,
+        url: `/dashboard/${guildId}/tickets`,
       })),
       ...tasks.map((t) => ({
         type: 'TASK',
         id: t.id,
         title: `Task #${t.taskNumber}: ${t.title}`,
         subtitle: `Status: ${t.status} • Priority: ${t.priority}`,
-        url: `/dashboard/tasks`,
+        url: `/dashboard/${guildId}/tasks`,
       })),
       ...meetings.map((m) => ({
         type: 'MEETING',
         id: m.id,
         title: `Meeting: ${m.title}`,
         subtitle: `Time: ${new Date(m.startTime).toLocaleString()} • Status: ${m.status}`,
-        url: `/dashboard/meetings`,
+        url: `/dashboard/${guildId}/meetings`,
       })),
       ...reminders.map((r) => ({
         type: 'REMINDER',
         id: r.id,
         title: `Reminder: ${r.title}`,
         subtitle: `Status: ${r.status} • Target: ${r.targetType}`,
-        url: `/dashboard/reminders`,
+        url: `/dashboard/${guildId}/reminders`,
       })),
       ...auditLogs.map((a) => ({
         type: 'AUDIT',
         id: a.id,
         title: `Audit Action: ${a.action}`,
         subtitle: `By: ${a.executorId} • ${new Date(a.timestamp).toLocaleString()}`,
-        url: `/dashboard/audit`,
+        url: `/dashboard/${guildId}/audit`,
       })),
     ];
 

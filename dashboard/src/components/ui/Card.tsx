@@ -18,7 +18,7 @@ export function Card({
   const baseClass = interactive
     ? 'kraxx-card-interactive'
     : glass
-    ? 'bg-white/95 backdrop-blur-sm border border-[#E5E7EB] rounded-2xl p-5 shadow-xs'
+    ? 'bg-[#161614]/95 backdrop-blur-sm border border-[#2A2925] rounded-2xl p-5 shadow-lg'
     : 'kraxx-card';
 
   return (
@@ -35,7 +35,7 @@ export function CardHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={`flex items-center justify-between border-b border-[#F1F3F9] pb-3.5 mb-4 ${className}`}
+      className={`flex items-center justify-between border-b border-[#2A2925] pb-3.5 mb-4 ${className}`}
       {...props}
     >
       {children}
@@ -50,7 +50,7 @@ export function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={`text-sm font-semibold text-[#101828] flex items-center gap-2 ${className}`}
+      className={`text-sm font-semibold text-[#F3F0E9] flex items-center gap-2 ${className}`}
       {...props}
     >
       {children}
@@ -64,7 +64,7 @@ export function CardDescription({
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={`text-xs text-[#667085] mt-0.5 ${className}`} {...props}>
+    <p className={`text-xs text-[#A8A49B] mt-0.5 ${className}`} {...props}>
       {children}
     </p>
   );
@@ -89,7 +89,7 @@ export function CardFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={`border-t border-[#F1F3F9] pt-3.5 mt-4 flex items-center justify-between ${className}`}
+      className={`border-t border-[#2A2925] pt-3.5 mt-4 flex items-center justify-between ${className}`}
       {...props}
     >
       {children}

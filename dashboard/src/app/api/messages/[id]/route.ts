@@ -2,8 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { fetchChannelMessage, editChannelMessage, deleteChannelMessage } from '@/lib/discord';
-import { canEditMessages, canDeleteMessages, canMentionMass } from '@/lib/permissions';
+import { fetchChannelMessage, editChannelMessage, deleteChannelMessage, fetchGuildChannels } from '@/lib/discord';
+import { canEditMessages, canDeleteMessages, canMentionMass, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
 
 interface RouteParams {
@@ -18,12 +18,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   const { id: messageId } = await params;
   const channelId = request.nextUrl.searchParams.get('channelId');
+  const guildId = request.nextUrl.searchParams.get('guildId');
 
-  if (!channelId || !messageId) {
-    return NextResponse.json({ error: 'channelId and messageId required' }, { status: 400 });
+  if (!channelId || !messageId || !guildId) {
+    return NextResponse.json({ error: 'channelId, guildId and messageId required' }, { status: 400 });
   }
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
 
   try {
+    const channels = await fetchGuildChannels(guildId);
+    if (!channels.some((channel) => channel.id === channelId)) return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
     const message = await fetchChannelMessage(channelId, messageId);
     return NextResponse.json({ message });
   } catch (error: any) {
@@ -51,11 +56,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await request.json();
-    const { channelId, content, embeds, mentionType, mentionRoleId } = body;
+    const { channelId, content, embeds, mentionType, mentionRoleId, guildId } = body;
 
-    if (!channelId || !messageId) {
-      return NextResponse.json({ error: 'channelId and messageId are required' }, { status: 400 });
+    if (!channelId || !messageId || !guildId) {
+      return NextResponse.json({ error: 'channelId, guildId and messageId are required' }, { status: 400 });
     }
+    const access = await requireGuildAccess(guildId);
+    if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
+    const channels = await fetchGuildChannels(guildId);
+    if (!channels.some((channel) => channel.id === channelId)) return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
 
     // Mass mention check for edited content
     const containsMassMention =
@@ -83,6 +92,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // Audit Log
     await logDashboardAction({
+      guildId,
       action: 'MESSAGE_EDIT',
       executorId: session.user.discordId,
       targetId: messageId,
@@ -124,16 +134,22 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   const { id: messageId } = await params;
   const channelId = request.nextUrl.searchParams.get('channelId');
+  const guildId = request.nextUrl.searchParams.get('guildId');
 
-  if (!channelId || !messageId) {
-    return NextResponse.json({ error: 'channelId and messageId are required' }, { status: 400 });
+  if (!channelId || !messageId || !guildId) {
+    return NextResponse.json({ error: 'channelId, guildId and messageId are required' }, { status: 400 });
   }
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
 
   try {
+    const channels = await fetchGuildChannels(guildId);
+    if (!channels.some((channel) => channel.id === channelId)) return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
     await deleteChannelMessage(channelId, messageId);
 
     // Audit Log
     await logDashboardAction({
+      guildId,
       action: 'MESSAGE_DELETE',
       executorId: session.user.discordId,
       targetId: messageId,

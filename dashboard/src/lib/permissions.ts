@@ -121,6 +121,41 @@ export async function requireGuildAccess(guildId: string): Promise<PermissionChe
 }
 
 /**
+ * Read-only authorization for guild route layouts. API handlers use
+ * requireGuildAccess so they can reconcile a newly installed guild; rendering
+ * a page must not create or update tenant records as a side effect.
+ */
+export async function requireGuildPageAccess(guildId: string): Promise<PermissionCheck> {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.accessToken) {
+    return { authorized: false, error: 'Unauthorized', status: 401 };
+  }
+
+  try {
+    const managedGuilds = await fetchUserGuilds(session.user.accessToken as string);
+
+    if (!managedGuilds.some((guildItem) => guildItem.id === guildId)) {
+      return { authorized: false, error: 'Forbidden', status: 404 };
+    }
+
+    const installed = await isBotInstalledInGuild(guildId);
+    const guild = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { id: true, botInstalled: true },
+    });
+
+    if (!installed || !guild?.botInstalled) {
+      return { authorized: false, error: 'Guild unavailable', status: 404 };
+    }
+
+    return { authorized: true, status: 200, session, guildId };
+  } catch {
+    return { authorized: false, error: 'Guild access could not be verified', status: 503 };
+  }
+}
+
+/**
  * Lightweight session check — just verifies the user is logged in.
  * Use for routes that don't require guild-level isolation.
  */

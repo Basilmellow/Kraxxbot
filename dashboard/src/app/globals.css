@@ -573,3 +573,30 @@ body {
   .legal-nav-links .legal-link:first-child { display: none; }
   .legal-footer-inner { align-items: flex-start; flex-direction: column; }
 }
+
+/* Keep older guild feature pages on the current dark dashboard palette. */
+.dashboard-shell .bg-white { background-color: var(--surface-1) !important; }
+.dashboard-shell .bg-\[\#F8FAFC\],
+.dashboard-shell .bg-\[\#F9FAFB\],
+.dashboard-shell .bg-\[\#F3F5FA\],
+.dashboard-shell .bg-\[\#F1F3F9\] { background-color: var(--surface-2) !important; }
+.dashboard-shell .text-\[\#101828\] { color: var(--text-primary) !important; }
+.dashboard-shell .text-\[\#475467\],
+.dashboard-shell .text-\[\#667085\] { color: var(--text-secondary) !important; }
+.dashboard-shell .text-\[\#98A2B3\] { color: var(--text-muted) !important; }
+.dashboard-shell .border-\[\#E5E7EB\],
+.dashboard-shell .border-\[\#F1F3F9\] { border-color: var(--border-base) !important; }
+.dashboard-shell .text-indigo-600 { color: var(--accent) !important; }
+.dashboard-shell .hover\:text-indigo-700:hover { color: var(--accent-hover) !important; }
+.dashboard-shell input,
+.dashboard-shell select,
+.dashboard-shell textarea {
+  color-scheme: dark;
+}
+.dashboard-shell input:focus,
+.dashboard-shell select:focus,
+.dashboard-shell textarea:focus {
+  border-color: var(--border-accent-strong);
+  --tw-ring-color: var(--border-accent);
+}
+.dashboard-shell .kraxx-table tbody tr:hover { background-color: var(--surface-2); }
