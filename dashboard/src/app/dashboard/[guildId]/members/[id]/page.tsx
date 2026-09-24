@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -25,39 +25,85 @@ import {
 import Link from 'next/link';
 import { useGuildId } from '@/lib/useGuildId';
 
+interface DossierRole {
+  id: string;
+  name: string;
+  color: number;
+  manageable: boolean;
+  manageabilityReason: string | null;
+}
+
+interface DossierMember {
+  id: string;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  joinedAt?: string | null;
+  roles: DossierRole[];
+  roleIds: string[];
+  isVerified: boolean;
+  verifiedAt: string | null;
+  roleTier: string;
+  department?: string | null;
+}
+
+interface DossierTask {
+  id: string;
+  taskNumber: number;
+  title: string;
+  department: string;
+  priority: string;
+  status: string;
+}
+
+interface DossierTicket {
+  id: string;
+  ticketNumber: number;
+  subject: string;
+  category: string;
+  createdAt: string;
+  status: string;
+}
+
+interface MemberDossierData {
+  member: DossierMember;
+  tasks: DossierTask[];
+  tickets: DossierTicket[];
+  allRoles: DossierRole[];
+}
+
 export default function MemberDetailPage() {
   const params = useParams();
   const router = useRouter();
   const userId = params.id as string;
   const guildId = useGuildId();
 
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<MemberDossierData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedNewRole, setSelectedNewRole] = useState('');
   const [isMutatingRole, setIsMutatingRole] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const fetchMember = async () => {
+  const fetchMember = useCallback(async () => {
     try {
-      setIsLoading(true);
       const res = await fetch(`/api/members/${userId}?guildId=${encodeURIComponent(guildId)}`);
       if (res.ok) {
-        const result = await res.json();
+        const result = await res.json() as MemberDossierData;
         setData(result);
       } else {
-        const err = await res.json();
+        const err = await res.json() as { error?: string };
         setFeedback({ type: 'error', message: err.error || 'Failed to load member profile' });
       }
-    } catch (e: any) {
-      setFeedback({ type: 'error', message: e.message || 'Error fetching member' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Error fetching member' });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [guildId, userId]);
 
   useEffect(() => {
-    if (userId) fetchMember();
-  }, [userId, guildId]);
+    if (userId) void Promise.resolve().then(fetchMember);
+  }, [fetchMember]);
 
   const handleRoleAction = async (roleId: string, action: 'ADD' | 'REMOVE') => {
     setIsMutatingRole(true);
@@ -80,8 +126,8 @@ export default function MemberDetailPage() {
       } else {
         setFeedback({ type: 'error', message: resData.error || 'Failed to update role' });
       }
-    } catch (e: any) {
-      setFeedback({ type: 'error', message: e.message || 'Error updating role' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Error updating role' });
     } finally {
       setIsMutatingRole(false);
     }
@@ -99,9 +145,16 @@ export default function MemberDetailPage() {
   }
 
   const member = data?.member;
-  const availableRoles = (data?.allRoles || []).filter(
-    (gr: any) => !member?.roles?.some((mr: any) => mr.id === gr.id)
-  );
+  const assignedRoleIds = new Set<string>(member?.roleIds || []);
+  const roleReason = (role: DossierRole) => {
+    switch (role.manageabilityReason) {
+      case 'EVERYONE': return 'Everyone role';
+      case 'MANAGED': return 'Managed role';
+      case 'ABOVE_BOT_ROLE': return 'Above bot role';
+      case 'MISSING_MANAGE_ROLES': return 'Bot lacks Manage Roles';
+      default: return role.manageable ? 'Assignable' : 'Not manageable';
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
@@ -193,16 +246,22 @@ export default function MemberDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
-                  {member?.roles?.map((r: any) => (
+                  {member?.roles?.map((r) => (
                     <span
                       key={r.id}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#F8FAFC] border border-[#E5E7EB] text-xs text-[#475467]"
                     >
                       <span>@{r.name}</span>
+                      <span className="text-[10px] text-[#667085]">
+                        Already assigned · {roleReason(r)}
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleRoleAction(r.id, 'REMOVE')}
-                        className="text-[#98A2B3] hover:text-red-600 transition-colors"
+                        disabled={!r.manageable || isMutatingRole}
+                        title={r.manageable ? 'Remove role' : `Cannot manage: ${roleReason(r)}`}
+                        aria-label={`Remove ${r.name}: ${roleReason(r)}`}
+                        className="text-[#98A2B3] hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -218,17 +277,19 @@ export default function MemberDetailPage() {
                     className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   >
                     <option value="">Select role to assign...</option>
-                    {availableRoles.map((r: any) => (
-                      <option key={r.id} value={r.id}>
-                        @{r.name}
+                    {(data?.allRoles || []).map((r) => {
+                      const isAssigned = assignedRoleIds.has(r.id);
+                      return (
+                      <option key={r.id} value={r.id} disabled={isAssigned || !r.manageable}>
+                        @{r.name} — {isAssigned ? 'Already assigned' : 'Not assigned'} · {roleReason(r)}
                       </option>
-                    ))}
+                    );})}
                   </select>
                   <Button
                     variant="primary"
                     size="sm"
                     onClick={() => selectedNewRole && handleRoleAction(selectedNewRole, 'ADD')}
-                    disabled={!selectedNewRole || isMutatingRole}
+                    disabled={!selectedNewRole || isMutatingRole || !data?.allRoles?.some((role) => role.id === selectedNewRole && role.manageable && !assignedRoleIds.has(role.id))}
                     isLoading={isMutatingRole}
                   >
                     Assign
@@ -255,7 +316,7 @@ export default function MemberDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {data.tasks.map((t: any) => (
+                  {data.tasks.map((t) => (
                     <div
                       key={t.id}
                       className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] flex items-center justify-between text-xs"
@@ -288,7 +349,7 @@ export default function MemberDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {data.tickets.map((tk: any) => (
+                  {data.tickets.map((tk) => (
                     <div
                       key={tk.id}
                       className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] flex items-center justify-between text-xs"

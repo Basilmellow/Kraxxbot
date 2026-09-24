@@ -1,14 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ShieldAlert, Hash, Users, Shield, Layers } from 'lucide-react';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { Button } from '@/components/ui/Button';
+import { ShieldAlert, Shield, RefreshCw } from 'lucide-react';
 
 interface RoleItem {
   id: string;
@@ -16,7 +18,7 @@ interface RoleItem {
   color: string | null;
   position: number;
   permissions: string;
-  memberCount: number;
+  memberCount: number | null;
   isManaged: boolean;
 }
 
@@ -26,30 +28,40 @@ export default function RolesHierarchyPage() {
 
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const fetchRoles = async () => {
-    if (!guildId) return;
-    try {
-      setIsLoading(true);
-      const res = await fetch(`/api/roles?guildId=${guildId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setRoles(data.roles || []);
-      }
-    } catch (e) {
-      console.error('Failed to load roles:', e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const requestRoles = useCallback(async (): Promise<RoleItem[]> => {
+    const res = await fetch(`/api/roles?guildId=${guildId}`, { signal: AbortSignal.timeout(20000) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Unable to load roles for this server.');
+    return data.roles || [];
+  }, [guildId]);
+
+  const fetchRoles = useCallback(() => {
+    setIsLoading(true);
+    void requestRoles()
+      .then((nextRoles) => { setRoles(nextRoles); setLoadError(null); })
+      .catch((error: unknown) => {
+        console.error('Failed to load roles:', error);
+        setLoadError(error instanceof Error ? error.message : 'Unable to load roles for this server.');
+      })
+      .finally(() => setIsLoading(false));
+  }, [requestRoles]);
 
   useEffect(() => {
     if (!guildId) {
       router.push('/dashboard/select-server');
       return;
     }
-    fetchRoles();
-  }, [guildId]);
+    let active = true;
+    void requestRoles()
+      .then((nextRoles) => { if (active) { setRoles(nextRoles); setLoadError(null); } })
+      .catch((error: unknown) => {
+        if (active) setLoadError(error instanceof Error ? error.message : 'Unable to load roles for this server.');
+      })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [guildId, requestRoles, router]);
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
@@ -60,7 +72,7 @@ export default function RolesHierarchyPage() {
 
       <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
         <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between">
+          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-indigo-600" />
               <span>Server Role Hierarchy ({roles.length})</span>
@@ -68,22 +80,34 @@ export default function RolesHierarchyPage() {
             <span className="text-xs text-[#667085]">
               Precedence: Highest to Lowest
             </span>
+            <Button variant="outline" size="sm" onClick={fetchRoles} disabled={isLoading}>
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+            </Button>
           </div>
 
           {isLoading ? (
             <div className="p-4">
               <SkeletonTable rows={8} />
             </div>
+          ) : loadError ? (
+            <div className="p-6">
+              <ErrorState title="Could not load roles" message={loadError} onRetry={fetchRoles} />
+            </div>
           ) : roles.length === 0 ? (
             <div className="p-8">
               <EmptyState
                 icon={Shield}
-                title="No roles resolved"
-                description="Unable to acquire guild role hierarchy from Discord gateway."
+                title="No roles returned"
+                description="Discord returned no roles for this server. Try refreshing, or check the bot’s server access."
               />
             </div>
           ) : (
             <div className="overflow-x-auto">
+              {!roles.every((role) => role.memberCount !== null) && (
+                <p className="px-5 py-3 text-xs text-[#A8A49B] border-b border-[#2A2925]">
+                  Role hierarchy loaded. Member counts are unavailable because Discord did not provide member-list access.
+                </p>
+              )}
               <table className="kraxx-table">
                 <thead>
                   <tr>
@@ -116,7 +140,7 @@ export default function RolesHierarchyPage() {
                         {r.id}
                       </td>
                       <td className="text-xs text-[#475467]">
-                        <span className="font-semibold text-[#101828]">{r.memberCount}</span> operators
+                        <span className="font-semibold text-[#101828]">{r.memberCount ?? '—'}</span>{r.memberCount === null ? ' members' : ' operators'}
                       </td>
                       <td>
                         {r.isManaged ? (

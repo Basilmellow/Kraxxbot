@@ -4,14 +4,17 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { requireTier, RoleTier } from '@/lib/permissions';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const session = await getServerSession(authOptions);
   const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const currentUserId = session?.user?.discordId || '100000000000000001';
+  const currentUserId = session?.user?.discordId;
+  if (!currentUserId) {
+    return NextResponse.json({ error: 'Discord user identity is missing from this session.' }, { status: 401 });
+  }
 
   try {
     const notifications = await prisma.dashboardNotification.findMany({
@@ -25,12 +28,17 @@ export async function GET(request: NextRequest) {
       take: 50,
     });
 
-    const unreadCount = notifications.filter((n) => !n.read).length;
+    const unreadCount = notifications.filter((n) => n.userId !== 'GLOBAL' && !n.read).length;
 
-    return NextResponse.json({ notifications, unreadCount });
-  } catch (error: any) {
+    return NextResponse.json({
+      notifications: notifications.map((notification) =>
+        notification.userId === 'GLOBAL' ? { ...notification, read: true } : notification
+      ),
+      unreadCount,
+    });
+  } catch (error: unknown) {
     console.error('Failed to fetch notifications:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch notifications' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch notifications.' }, { status: 500 });
   }
 }
 
@@ -41,32 +49,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const currentUserId = session?.user?.discordId || '100000000000000001';
+  const currentUserId = session?.user?.discordId;
+  if (!currentUserId) {
+    return NextResponse.json({ error: 'Discord user identity is missing from this session.' }, { status: 401 });
+  }
 
   try {
     const body = await request.json();
-    const { action, id } = body; // action: 'MARK_READ' | 'MARK_ALL_READ'
+    const { action, id } = body as { action?: string; id?: string };
 
     if (action === 'MARK_READ' && id) {
-      await prisma.dashboardNotification.update({
-        where: { id },
+      const update = await prisma.dashboardNotification.updateMany({
+        where: {
+          id,
+          userId: currentUserId,
+        },
         data: { read: true },
       });
+      if (update.count === 0) {
+        return NextResponse.json({ error: 'Notification not found.' }, { status: 404 });
+      }
     } else if (action === 'MARK_ALL_READ') {
       await prisma.dashboardNotification.updateMany({
         where: {
-          OR: [
-            { userId: currentUserId },
-            { userId: 'GLOBAL' },
-          ],
+          userId: currentUserId,
         },
         data: { read: true },
       });
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to update notifications:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update notifications' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update notifications.' }, { status: 500 });
   }
 }

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Session } from 'next-auth';
 import { signOut } from 'next-auth/react';
 import {
@@ -25,7 +25,6 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronRight,
 } from 'lucide-react';
 import { DASHBOARD_MODULES, CATEGORY_LABELS } from '@/lib/constants';
 
@@ -56,17 +55,11 @@ interface SidebarProps {
 
 export function Sidebar({ session }: SidebarProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // Close mobile sidebar on route change
-  useEffect(() => {
-    setIsMobileOpen(false);
-  }, [pathname]);
-
-  // Extract active guildId from route (/dashboard/[guildId]/...) or query parameter (?guildId=...)
+  // The route is the only source of tenant context; query parameters are not used.
   const guildMatch = pathname.match(/^\/dashboard\/(\d+)/);
-  const activeGuildId = guildMatch?.[1] || searchParams.get('guildId') || '';
+  const activeGuildId = guildMatch?.[1] || '';
 
   const getHref = (modId: string, modHref: string) => {
     if (modId === 'select-server') return '/dashboard/select-server';
@@ -82,7 +75,11 @@ export function Sidebar({ session }: SidebarProps) {
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  const user = session?.user as any;
+  const user = session?.user as (Session['user'] & {
+    displayName?: string;
+    discordId?: string;
+    avatar?: string | null;
+  });
   const displayName = user?.displayName || user?.name || 'User';
   const discordId = user?.discordId ?? '';
   const avatarHash = user?.avatar ?? null;
@@ -90,13 +87,15 @@ export function Sidebar({ session }: SidebarProps) {
     ? `https://cdn.discordapp.com/avatars/${discordId}/${avatarHash}.png?size=64`
     : null;
 
-  const NavContent = () => (
+  const navContent = (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
       background: '#0C0C0B',
       borderRight: '1px solid #1D1C19',
+    }} onClick={(event) => {
+      if ((event.target as HTMLElement).closest('a')) setIsMobileOpen(false);
     }}>
       {/* Brand */}
       <div style={{
@@ -137,54 +136,6 @@ export function Sidebar({ session }: SidebarProps) {
           </div>
         </Link>
       </div>
-
-      {/* Active Guild Indicator */}
-      {activeGuildId && (
-        <Link
-          href="/dashboard/select-server"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.5rem',
-            padding: '0.625rem 1rem',
-            borderBottom: '1px solid #1D1C19',
-            textDecoration: 'none',
-            flexShrink: 0,
-            transition: 'background 0.12s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#161614')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-            <div style={{
-              width: '24px',
-              height: '24px',
-              borderRadius: '6px',
-              background: '#1D1C19',
-              border: '1px solid #2A2925',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.625rem',
-              fontWeight: 700,
-              color: '#C9A66B',
-              flexShrink: 0,
-            }}>
-              G
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#A8A49B', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                Active Server
-              </div>
-              <div style={{ fontSize: '0.625rem', color: '#716D65', fontFamily: 'monospace' }}>
-                {activeGuildId.slice(0, 8)}...
-              </div>
-            </div>
-          </div>
-          <ChevronRight style={{ width: '12px', height: '12px', color: '#716D65', flexShrink: 0 }} />
-        </Link>
-      )}
 
       {/* Navigation */}
       <div style={{
@@ -440,7 +391,7 @@ export function Sidebar({ session }: SidebarProps) {
             style={{ width: '260px', height: '100%' }}
             onClick={e => e.stopPropagation()}
           >
-            <NavContent />
+            {navContent}
           </div>
         </div>
       )}
@@ -454,7 +405,7 @@ export function Sidebar({ session }: SidebarProps) {
         height: '100vh',
         zIndex: 30,
       }}>
-        <NavContent />
+        {navContent}
       </aside>
 
       <style>{`

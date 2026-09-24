@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
+import React, { useCallback, useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Topbar } from '@/components/layout/Topbar';
 import {
   Users, Ticket, AlarmClock, Shield, Settings, Boxes, ShieldAlert,
   ArrowRight, RefreshCw, CheckCircle2, XCircle,
@@ -10,6 +11,21 @@ import {
 
 interface PageProps {
   params: Promise<{ guildId: string }>;
+}
+
+interface GuildDashboardStatus {
+  guild: {
+    id: string;
+    name: string;
+    icon: string | null;
+    ownerId: string;
+    botInstalled: boolean;
+    memberCount: number;
+    presenceCount: number;
+  };
+  bot: { status: string; ping: number | null; uptime: number | null };
+  modules: { module: string; enabled: boolean }[];
+  stats: { activeTickets: number; pendingReminders: number; pendingAnnouncements: number };
 }
 
 function StatCard({
@@ -71,40 +87,42 @@ function StatCard({
 export default function GuildDashboardPage({ params }: PageProps) {
   const { guildId } = use(params);
   const router = useRouter();
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<GuildDashboardStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      setIsRefreshing(true);
-      const res = await fetch(`/api/guilds/${guildId}/status`);
-      if (res.status === 401) { router.push('/login'); return; }
-      if (res.status === 403 || res.status === 404) {
-        const errData = await res.json();
-        setError(errData.error || 'Unauthorized access to this server');
-        return;
-      }
-      if (res.ok) {
-        setData(await res.json());
-        setError(null);
-      } else {
-        setError('Failed to load server details');
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Network error');
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+  const requestStatus = useCallback(async (): Promise<GuildDashboardStatus> => {
+    const res = await fetch(`/api/guilds/${guildId}/status`, { signal: AbortSignal.timeout(20000) });
+    const payload = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      router.push('/login');
+      throw new Error('Your session has expired. Sign in again to continue.');
     }
-  };
+    if (!res.ok) throw new Error(payload.error || 'Failed to load server details.');
+    return payload as GuildDashboardStatus;
+  }, [guildId, router]);
+
+  const fetchData = useCallback(() => {
+    setIsRefreshing(true);
+    void requestStatus()
+      .then((nextData) => { setData(nextData); setError(null); })
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : 'Network error'); })
+      .finally(() => { setLoading(false); setIsRefreshing(false); });
+  }, [requestStatus]);
 
   useEffect(() => {
-    fetchData();
-    const timer = setInterval(fetchData, 30000);
-    return () => clearInterval(timer);
-  }, [guildId]);
+    let active = true;
+    const load = () => {
+      void requestStatus()
+        .then((nextData) => { if (active) { setData(nextData); setError(null); } })
+        .catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : 'Network error'); })
+        .finally(() => { if (active) setLoading(false); });
+    };
+    load();
+    const timer = setInterval(load, 30000);
+    return () => { active = false; clearInterval(timer); };
+  }, [requestStatus]);
 
   const base: React.CSSProperties = {
     flex: 1,
@@ -117,7 +135,9 @@ export default function GuildDashboardPage({ params }: PageProps) {
   // ── Loading ──────────────────────────────────────────────────
   if (loading) {
     return (
-      <div style={{ ...base, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+      <div style={{ ...base, display: 'flex', flexDirection: 'column', minHeight: '60vh' }}>
+        <Topbar title="Guild Overview" subtitle="Server health, activity and enabled modules" />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{
             width: '28px', height: '28px',
@@ -130,6 +150,7 @@ export default function GuildDashboardPage({ params }: PageProps) {
           <p style={{ fontSize: '0.875rem', color: '#716D65' }}>Loading server dashboard...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
+        </div>
       </div>
     );
   }
@@ -137,7 +158,9 @@ export default function GuildDashboardPage({ params }: PageProps) {
   // ── Error ────────────────────────────────────────────────────
   if (error) {
     return (
-      <div style={{ ...base, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+      <div style={{ ...base, display: 'flex', flexDirection: 'column', minHeight: '60vh' }}>
+        <Topbar title="Guild Overview" subtitle="Server health, activity and enabled modules" />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', maxWidth: '400px', padding: '0 1.5rem' }}>
           <div style={{
             width: '48px', height: '48px', borderRadius: '12px',
@@ -165,15 +188,22 @@ export default function GuildDashboardPage({ params }: PageProps) {
             <ArrowRight style={{ width: '14px', height: '14px' }} />
           </Link>
         </div>
+        </div>
       </div>
     );
   }
 
   const { guild, modules = [], stats } = data || {};
-  const enabledCount = modules.filter((m: any) => m.enabled).length;
+  const enabledCount = modules.filter((module) => module.enabled).length;
 
   return (
     <div style={base}>
+      <Topbar
+        title="Guild Overview"
+        subtitle="Server health, activity and enabled modules"
+        onRefresh={fetchData}
+        isRefreshing={isRefreshing}
+      />
       {/* Page Header */}
       <div style={{
         padding: '1.5rem 1.5rem 0',
@@ -220,9 +250,6 @@ export default function GuildDashboardPage({ params }: PageProps) {
                   KRAXXBot Active
                 </span>
               </div>
-              <p style={{ fontSize: '0.6875rem', color: '#4A4742', fontFamily: 'monospace', marginTop: '0.25rem' }}>
-                ID: {guild?.id ?? guildId}
-              </p>
             </div>
           </div>
 
@@ -287,7 +314,7 @@ export default function GuildDashboardPage({ params }: PageProps) {
           marginBottom: '1.5rem',
         }}>
           <StatCard label="Active Tickets" value={stats?.activeTickets ?? 0} icon={Ticket} href={`/dashboard/${guildId}/tickets`} linkLabel="View Tickets" />
-          <StatCard label="Total Members" value={stats?.memberCount ?? guild?.approximate_member_count ?? '—'} icon={Users} href={`/dashboard/${guildId}/members`} linkLabel="View Members" />
+          <StatCard label="Total Members" value={guild?.memberCount ?? '—'} icon={Users} href={`/dashboard/${guildId}/members`} linkLabel="View Members" />
           <StatCard label="Pending Reminders" value={stats?.pendingReminders ?? 0} icon={AlarmClock} href={`/dashboard/${guildId}/reminders`} linkLabel="View Reminders" />
           <StatCard label="Active Modules" value={enabledCount} icon={Boxes} href={`/dashboard/${guildId}/modules`} linkLabel="Manage Modules" />
         </div>
@@ -310,14 +337,14 @@ export default function GuildDashboardPage({ params }: PageProps) {
               <p style={{ fontSize: '0.8125rem', color: '#716D65' }}>No modules configured yet.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {modules.slice(0, 8).map((mod: any) => (
-                  <div key={mod.id} style={{
+                {modules.slice(0, 8).map((mod) => (
+                  <div key={mod.module} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '0.5rem 0.75rem', borderRadius: '8px',
                     background: '#0F0F0E', border: '1px solid #1D1C19',
                   }}>
                     <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: mod.enabled ? '#A8A49B' : '#4A4742' }}>
-                      {mod.name || mod.id}
+                      {mod.module}
                     </span>
                     {mod.enabled ? (
                       <CheckCircle2 style={{ width: '14px', height: '14px', color: '#22C55E', flexShrink: 0 }} />

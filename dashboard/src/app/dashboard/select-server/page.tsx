@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -9,17 +9,16 @@ import { ManagedGuild, getBotInviteUrl } from '@/lib/discord';
 
 export default function SelectServerPage() {
   const router = useRouter();
-  const { data: session, status: authStatus } = useSession();
+  const { status: authStatus } = useSession();
   const [guilds, setGuilds] = useState<ManagedGuild[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [syncingGuildId, setSyncingGuildId] = useState<string | null>(null);
 
-  const fetchGuilds = async () => {
+  const fetchGuilds = useCallback(async () => {
     try {
-      setIsRefreshing(true);
-      setLoadError(null);
       const res = await fetch('/api/guilds');
       if (res.ok) {
         const data = await res.json();
@@ -38,22 +37,42 @@ export default function SelectServerPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (authStatus === 'authenticated') {
-      fetchGuilds();
+      void Promise.resolve().then(fetchGuilds);
     } else if (authStatus === 'unauthenticated') {
       router.push('/login');
     }
-  }, [authStatus]);
+  }, [authStatus, fetchGuilds, router]);
 
   const filtered = guilds.filter(g =>
     g.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const installed = filtered.filter(g => g.botInstalled);
-  const uninstalled = filtered.filter(g => !g.botInstalled);
+  const needsSync = filtered.filter(g => g.needsSync);
+  const uninstalled = filtered.filter(g => !g.botInstalled && !g.needsSync);
+
+  const syncGuild = async (guildId: string) => {
+    setSyncingGuildId(guildId);
+    setLoadError(null);
+    try {
+      const res = await fetch('/api/guilds/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guildId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Unable to synchronize this server.');
+      await fetchGuilds();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to synchronize this server.');
+    } finally {
+      setSyncingGuildId(null);
+    }
+  };
 
   const S: Record<string, React.CSSProperties> = {
     root: {
@@ -301,7 +320,7 @@ export default function SelectServerPage() {
           </div>
 
           <button
-            onClick={fetchGuilds}
+            onClick={() => { setIsRefreshing(true); setLoadError(null); void fetchGuilds(); }}
             disabled={isRefreshing}
             style={S.refreshBtn}
             onMouseEnter={e => {
@@ -314,7 +333,7 @@ export default function SelectServerPage() {
             }}
           >
             <RefreshCw style={{ width: '13px', height: '13px', ...(isRefreshing ? { animation: 'spin 0.75s linear infinite' } : {}) }} />
-            <span>Refresh</span>
+            <span>Refresh list</span>
           </button>
         </div>
 
@@ -364,7 +383,7 @@ export default function SelectServerPage() {
                   <Server style={{ width: '28px', height: '28px', color: '#4A4742', marginBottom: '0.25rem' }} />
                   <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#A8A49B' }}>No active servers found</p>
                   <p style={{ fontSize: '0.8125rem', color: '#716D65' }}>
-                    Add KRAXXBot to one of your servers below to get started.
+                    {needsSync.length ? 'Synchronize an installed server below to initialize its dashboard.' : 'Add KRAXXBot to one of your servers below to get started.'}
                   </p>
                 </div>
               ) : (
@@ -422,6 +441,36 @@ export default function SelectServerPage() {
               )}
             </div>
 
+            {needsSync.length > 0 && (
+              <>
+                <div style={S.sectionDivider} />
+                <div>
+                  <div style={S.sectionLabel}>
+                    <RefreshCw style={{ width: '15px', height: '15px', color: '#C9A66B' }} />
+                    <span>Installed — synchronization required</span>
+                  </div>
+                  <p style={{ fontSize: '0.8125rem', color: '#716D65', marginBottom: '1rem' }}>
+                    Synchronization initializes this server&apos;s dashboard records after explicit confirmation.
+                  </p>
+                  <div style={S.grid}>
+                    {needsSync.map(guild => (
+                      <div key={guild.id} style={S.guildCardUninstalled}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          {guild.icon ? <img src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=96`} alt={guild.name} style={S.guildAvatar} /> : <div style={S.guildAvatarFallback}>{guild.name.charAt(0).toUpperCase()}</div>}
+                          <div style={{ minWidth: 0, flex: 1 }}><div style={S.guildName}>{guild.name}</div></div>
+                        </div>
+                        <button type="button" onClick={() => void syncGuild(guild.id)} disabled={syncingGuildId !== null} style={S.addBtn}>
+                          <RefreshCw style={{ width: '13px', height: '13px' }} />
+                          <span>{syncingGuildId === guild.id ? 'Synchronizing…' : 'Synchronize dashboard'}</span>
+                        </button>
+                        {loadError && syncingGuildId === null && <p role="alert" style={{ color: '#EF4444', fontSize: '0.75rem', marginTop: '0.5rem' }}>{loadError}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
             {/* Uninstalled Servers */}
             {uninstalled.length > 0 && (
               <>
@@ -435,7 +484,7 @@ export default function SelectServerPage() {
                     </span>
                   </div>
                   <p style={{ fontSize: '0.8125rem', color: '#716D65', marginBottom: '1rem' }}>
-                    Servers where you have Admin or Manage Server rights, but KRAXXBot hasn't been added yet.
+                    Servers where you have Admin or Manage Server rights, but KRAXXBot has not been added yet.
                   </p>
 
                   <div style={S.grid}>

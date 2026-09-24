@@ -2,13 +2,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigation';
+import { useRouter, usePathname, useParams } from 'next/navigation';
 import {
   ChevronDown,
   Check,
   Plus,
   Server,
-  ExternalLink,
   Layers,
   Loader2,
 } from 'lucide-react';
@@ -18,9 +17,9 @@ export function ServerSelector() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams();
-  const searchParams = useSearchParams();
   const pathMatch = pathname.match(/^\/dashboard\/(\d+)/);
-  const currentGuildId = (params?.guildId as string) || pathMatch?.[1] || searchParams.get('guildId') || '';
+  const routeGuildId = params?.guildId;
+  const currentGuildId = (typeof routeGuildId === 'string' ? routeGuildId : '') || pathMatch?.[1] || '';
 
   const [guilds, setGuilds] = useState<ManagedGuild[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +73,8 @@ export function ServerSelector() {
 
   const currentGuild = guilds.find((g) => g.id === currentGuildId);
   const installedGuilds = guilds.filter((g) => g.botInstalled);
-  const uninstalledGuilds = guilds.filter((g) => !g.botInstalled);
+  const needsSyncGuilds = guilds.filter((g) => g.needsSync);
+  const uninstalledGuilds = guilds.filter((g) => !g.botInstalled && !g.needsSync);
 
   const handleSelectGuild = (guildId: string) => {
     setIsOpen(false);
@@ -93,10 +93,12 @@ export function ServerSelector() {
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-[#161614] border border-[#2A2925] hover:border-[#C9A66B] hover:bg-[#1D1C19] text-xs text-[#F3F0E9] font-medium transition-all group cursor-pointer"
-        aria-label="Select Server"
+        aria-label={currentGuild ? `Switch server, current server ${currentGuild.name}` : 'Select server'}
         aria-expanded={isOpen}
+        aria-haspopup="listbox"
       >
         {loading ? (
           <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
@@ -134,7 +136,7 @@ export function ServerSelector() {
         <div className="absolute left-0 mt-2 w-72 rounded-2xl bg-[#161614] border border-[#2A2925] shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
           <div className="p-2 border-b border-[#2A2925] bg-[#10100F] flex items-center justify-between">
             <span className="text-[10px] font-bold tracking-wider text-[#C9A66B] uppercase px-2">
-              Connected Servers
+              Installed Servers
             </span>
             <Link
               href="/dashboard/select-server"
@@ -175,9 +177,13 @@ export function ServerSelector() {
                           {g.name.charAt(0).toUpperCase()}
                         </div>
                       )}
-                      <span className="truncate">{g.name}</span>
+                      <span className="min-w-0 truncate">{g.name}</span>
                     </div>
-                    {isSelected && <Check className="w-4 h-4 text-[#C9A66B] flex-shrink-0" />}
+                    {isSelected ? (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#C9A66B] flex-shrink-0">
+                        Active <Check className="w-3.5 h-3.5" />
+                      </span>
+                    ) : null}
                   </button>
                 );
               })
@@ -190,7 +196,7 @@ export function ServerSelector() {
             {uninstalledGuilds.length > 0 && (
               <>
                 <div className="pt-2 pb-1 px-2.5 text-[10px] font-bold tracking-wider text-[#716D65] uppercase border-t border-[#2A2925] mt-1.5">
-                  Invite KRAXXBot
+                  Available to Add
                 </div>
                 {uninstalledGuilds.slice(0, 5).map((g) => (
                   <a
@@ -220,6 +226,17 @@ export function ServerSelector() {
                   </a>
                 ))}
               </>
+            )}
+
+            {needsSyncGuilds.length > 0 && (
+              <div className="border-t border-[#2A2925] mt-1.5 pt-2">
+                <div className="px-2.5 pb-1 text-[10px] font-bold tracking-wider text-[#C9A66B] uppercase">Installed · Sync required</div>
+                {needsSyncGuilds.slice(0, 5).map((g) => (
+                  <Link key={g.id} href="/dashboard/select-server" onClick={() => setIsOpen(false)} className="block px-2.5 py-2 rounded-xl text-xs text-[#A8A49B] hover:bg-[#1D1C19]">
+                    {g.name} <span className="text-[#C9A66B]">· synchronize in server hub</span>
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
 

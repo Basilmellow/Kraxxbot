@@ -16,26 +16,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    let config = await prisma.welcomeConfig.findUnique({
+    const config = await prisma.welcomeConfig.findUnique({
       where: { guildId },
     });
 
-    if (!config) {
-      config = await prisma.welcomeConfig.create({
-        data: {
-          guildId,
-          enabled: false,
-          message: 'Welcome {user} to **{server}**! We are now {memberCount} operators strong.',
-          dmEnabled: false,
-          dmMessage: 'Welcome to {server}! Check out {rules} to get started.',
-        },
-      });
-    }
-
     return NextResponse.json({ config });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch welcome config:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch welcome configuration' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch welcome configuration.' }, { status: 500 });
   }
 }
 
@@ -107,8 +95,8 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, config });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to update welcome config:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update welcome config' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update welcome configuration.' }, { status: 500 });
   }
 }

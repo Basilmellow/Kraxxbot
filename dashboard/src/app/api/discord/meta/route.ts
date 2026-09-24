@@ -2,7 +2,7 @@
 // Fetches text channels and guild roles safely for dropdown selectors
 
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchGuildChannels, fetchGuildRoles, DiscordChannel, DiscordRole } from '@/lib/discord';
+import { fetchGuildChannels, fetchGuildRoles } from '@/lib/discord';
 import { requireGuildAccess } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const [channels, roles] = await Promise.all([
-      fetchGuildChannels(guildId).catch(() => [] as DiscordChannel[]),
-      fetchGuildRoles(guildId).catch(() => [] as DiscordRole[]),
+      fetchGuildChannels(guildId),
+      fetchGuildRoles(guildId),
     ]);
 
     // Channel types: 0 = GUILD_TEXT, 4 = GUILD_CATEGORY, 5 = GUILD_ANNOUNCEMENT, 15 = GUILD_FORUM
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         category: c.parent_id ? categoryMap.get(c.parent_id) || 'Channels' : 'Uncategorized',
       }));
 
-    const sanitizedRoles = (roles as DiscordRole[])
+    const sanitizedRoles = roles
       .filter((r) => r.name !== '@everyone')
       .sort((a, b) => b.position - a.position)
       .map((r) => ({
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     console.error('[API] Discord meta error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch Discord metadata' },
-      { status: 500 }
+      { status: 502 }
     );
   }
 }

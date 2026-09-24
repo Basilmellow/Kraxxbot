@@ -7,6 +7,7 @@ const DISCORD_API_BASE = 'https://discord.com/api/v10';
 // Discord permission bit flags
 const ADMINISTRATOR = BigInt(0x8);
 const MANAGE_GUILD = BigInt(0x20);
+const MANAGE_ROLES = BigInt(1) << BigInt(28);
 
 function getBotToken(): string {
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -66,6 +67,7 @@ export interface ManagedGuild {
   icon: string | null;
   owner: boolean;
   botInstalled: boolean;
+  needsSync?: boolean;
   inviteUrl: string;
 }
 
@@ -76,6 +78,7 @@ export interface DiscordMember {
     discriminator?: string;
     global_name?: string | null;
     avatar: string | null;
+    bot?: boolean;
   };
   nick?: string | null;
   roles: string[];
@@ -104,6 +107,21 @@ export interface DiscordRole {
   mentionable: boolean;
 }
 
+export type RoleManageabilityReason = 'EVERYONE' | 'MANAGED' | 'MISSING_MANAGE_ROLES' | 'ABOVE_BOT_ROLE';
+
+export interface DiscordRoleCapability extends DiscordRole {
+  manageable: boolean;
+  manageabilityReason: RoleManageabilityReason | null;
+}
+
+export interface BotRoleContext {
+  guild: DiscordGuild;
+  botMember: DiscordMember;
+  roles: DiscordRole[];
+  highestRolePosition: number;
+  canManageRoles: boolean;
+}
+
 export interface DiscordUser {
   id: string;
   username: string;
@@ -116,6 +134,8 @@ export interface DiscordBan {
   reason: string | null;
   user: DiscordUser;
 }
+
+export type DiscordMessageResponse = Record<string, unknown> & { id: string };
 
 // ─────────────────────────────────────────────────────────────────
 // Bot Invite URL
@@ -223,6 +243,53 @@ export async function fetchGuildRoles(guildId: string): Promise<DiscordRole[]> {
   return discordFetch<DiscordRole[]>(`/guilds/${guildId}/roles`);
 }
 
+/** Fetches live bot membership and guild role data for safe role capability checks. */
+export async function fetchBotRoleContext(guildId: string): Promise<BotRoleContext> {
+  const [guild, bot, roles] = await Promise.all([
+    fetchGuildById(guildId),
+    fetchBotUser(),
+    fetchGuildRoles(guildId),
+  ]);
+  const botMember = await fetchGuildMember(guildId, bot.id);
+  const botRoleIds = new Set([guildId, ...botMember.roles]);
+  const botRoles = roles.filter((role) => botRoleIds.has(role.id));
+  const everyoneRole = roles.find((role) => role.id === guildId);
+  const highestRolePosition = botRoles.reduce(
+    (highest, role) => Math.max(highest, role.position),
+    everyoneRole?.position ?? 0,
+  );
+
+  let permissions = BigInt(0);
+  for (const role of roles) {
+    if (!botRoleIds.has(role.id)) continue;
+    try {
+      permissions |= BigInt(role.permissions);
+    } catch {
+      // An unreadable permission bitfield fails closed below.
+      permissions = BigInt(0);
+      break;
+    }
+  }
+
+  return {
+    guild,
+    botMember,
+    roles,
+    highestRolePosition,
+    canManageRoles: (permissions & ADMINISTRATOR) === ADMINISTRATOR || (permissions & MANAGE_ROLES) === MANAGE_ROLES,
+  };
+}
+
+export function getRoleManageability(role: DiscordRole, context: BotRoleContext): DiscordRoleCapability {
+  let manageabilityReason: RoleManageabilityReason | null = null;
+  if (role.id === context.guild.id) manageabilityReason = 'EVERYONE';
+  else if (role.managed) manageabilityReason = 'MANAGED';
+  else if (role.position >= context.highestRolePosition) manageabilityReason = 'ABOVE_BOT_ROLE';
+  else if (!context.canManageRoles) manageabilityReason = 'MISSING_MANAGE_ROLES';
+
+  return { ...role, manageable: manageabilityReason === null, manageabilityReason };
+}
+
 /**
  * Fetches a specific member from a guild.
  */
@@ -239,9 +306,25 @@ export async function fetchGuildMembers(
   after = '0'
 ): Promise<DiscordMember[]> {
   if (!guildId) return [];
-  return discordFetch<DiscordMember[]>(
-    `/guilds/${guildId}/members?limit=${limit}&after=${after}`
-  );
+  const requestedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 100;
+  const boundedLimit = Math.max(1, Math.min(requestedLimit, 1000));
+  const members: DiscordMember[] = [];
+  let cursor = after || '0';
+
+  while (members.length < boundedLimit) {
+    const pageSize = Math.min(100, boundedLimit - members.length);
+    const page = await discordFetch<DiscordMember[]>(
+      `/guilds/${guildId}/members?limit=${pageSize}&after=${encodeURIComponent(cursor)}`
+    );
+    if (page.length === 0) break;
+
+    members.push(...page);
+    const nextCursor = page[page.length - 1]?.user?.id;
+    if (!nextCursor || nextCursor === cursor || page.length < pageSize) break;
+    cursor = nextCursor;
+  }
+
+  return members.slice(0, boundedLimit);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -440,12 +523,12 @@ export async function sendChannelMessage(
   channelId: string,
   content?: string,
   embeds?: object[]
-): Promise<Record<string, any>> {
+): Promise<DiscordMessageResponse> {
   const body: Record<string, unknown> = {};
   if (content) body.content = content;
   if (embeds && embeds.length > 0) body.embeds = embeds;
 
-  return discordFetch<Record<string, any>>(`/channels/${channelId}/messages`, {
+  return discordFetch<DiscordMessageResponse>(`/channels/${channelId}/messages`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
@@ -457,8 +540,8 @@ export async function sendChannelMessage(
 export async function fetchChannelMessage(
   channelId: string,
   messageId: string
-): Promise<Record<string, any>> {
-  return discordFetch<Record<string, any>>(`/channels/${channelId}/messages/${messageId}`);
+): Promise<DiscordMessageResponse> {
+  return discordFetch<DiscordMessageResponse>(`/channels/${channelId}/messages/${messageId}`);
 }
 
 /**
@@ -469,12 +552,12 @@ export async function editChannelMessage(
   messageId: string,
   content?: string,
   embeds?: object[]
-): Promise<Record<string, any>> {
+): Promise<DiscordMessageResponse> {
   const body: Record<string, unknown> = {};
   if (content !== undefined) body.content = content;
   if (embeds !== undefined) body.embeds = embeds;
 
-  return discordFetch<Record<string, any>>(`/channels/${channelId}/messages/${messageId}`, {
+  return discordFetch<DiscordMessageResponse>(`/channels/${channelId}/messages/${messageId}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
   });
@@ -511,7 +594,7 @@ export async function sendDirectMessage(
   userId: string,
   content?: string,
   embeds?: object[]
-): Promise<Record<string, any>> {
+): Promise<DiscordMessageResponse> {
   const dmChannel = await discordFetch<{ id: string }>('/users/@me/channels', {
     method: 'POST',
     body: JSON.stringify({ recipient_id: userId }),

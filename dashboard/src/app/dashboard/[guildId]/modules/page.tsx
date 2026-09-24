@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useState, use } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card } from '@/components/ui/Card';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
   Boxes,
   Shield,
@@ -17,12 +18,12 @@ import {
   Gamepad2,
   Wrench,
   BarChart3,
-  Check,
   Loader2,
   Sparkles,
+  type LucideIcon,
 } from 'lucide-react';
 
-const MODULE_DESCRIPTIONS: Record<string, { label: string; description: string; icon: any }> = {
+const MODULE_DESCRIPTIONS: Record<string, { label: string; description: string; icon: LucideIcon }> = {
   MODERATION: {
     label: 'Automated Moderation',
     description: 'Auto-kick, ban, timeouts, anti-spam, raid shield, and violation logs.',
@@ -91,30 +92,43 @@ interface PageProps {
 
 export default function GuildModulesPage({ params }: PageProps) {
   const { guildId } = use(params);
-  const router = useRouter();
 
   const [modules, setModules] = useState<{ module: string; enabled: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [togglingModule, setTogglingModule] = useState<string | null>(null);
 
-  const fetchModules = async () => {
-    try {
-      const res = await fetch(`/api/guilds/${guildId}/modules`);
-      if (res.status === 401) return router.push('/login');
-      if (res.ok) {
-        const json = await res.json();
-        setModules(json.modules || []);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const requestModules = useCallback(async (): Promise<{ module: string; enabled: boolean }[]> => {
+    const res = await fetch(`/api/guilds/${guildId}/modules`, { signal: AbortSignal.timeout(20000) });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || 'Unable to load modules for this server.');
+    return json.modules || [];
+  }, [guildId]);
 
   useEffect(() => {
-    fetchModules();
-  }, [guildId]);
+    let active = true;
+    void requestModules()
+      .then((nextModules) => {
+        if (!active) return;
+        setModules(nextModules);
+        setLoadError(null);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        console.error('Failed to load guild modules:', error);
+        setLoadError(error instanceof Error ? error.message : 'Unable to load modules for this server.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [requestModules]);
+
+  const reloadModules = () => {
+    setLoading(true);
+    void requestModules()
+      .then((nextModules) => { setModules(nextModules); setLoadError(null); })
+      .catch((error: unknown) => { setLoadError(error instanceof Error ? error.message : 'Unable to load modules for this server.'); })
+      .finally(() => setLoading(false));
+  };
 
   const handleToggle = async (moduleName: string, currentEnabled: boolean) => {
     setTogglingModule(moduleName);
@@ -125,11 +139,9 @@ export default function GuildModulesPage({ params }: PageProps) {
         body: JSON.stringify({ module: moduleName, enabled: !currentEnabled }),
       });
 
-      if (res.ok) {
-        setModules((prev) =>
-          prev.map((m) => (m.module === moduleName ? { ...m, enabled: !currentEnabled } : m))
-        );
-      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed to update this module.');
+      setModules((prev) => prev.map((m) => (m.module === moduleName ? { ...m, enabled: !currentEnabled } : m)));
     } catch (err) {
       console.error(err);
     } finally {
@@ -165,6 +177,20 @@ export default function GuildModulesPage({ params }: PageProps) {
             <Loader2 className="w-8 h-8 text-amber-600 animate-spin mb-3" />
             <p className="text-sm font-medium text-[#475467]">Loading module configurations...</p>
           </div>
+        ) : loadError ? (
+          <ErrorState
+            title="Module configuration unavailable"
+            message={loadError}
+            onRetry={reloadModules}
+          />
+        ) : modules.length === 0 ? (
+          <EmptyState
+            icon={Boxes}
+            title="No modules configured"
+            description="No module configuration records were returned for this server."
+            actionLabel="Refresh"
+            onAction={reloadModules}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {modules.map((m) => {

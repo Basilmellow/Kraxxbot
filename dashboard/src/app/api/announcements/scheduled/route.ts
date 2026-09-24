@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -16,10 +16,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: permCheck.reason }, { status: 403 });
   }
 
+  const guildId = request.nextUrl.searchParams.get('guildId');
+  if (!guildId) {
+    return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
+  }
+  const guildAccess = await requireGuildAccess(guildId);
+  if (!guildAccess.authorized) {
+    return NextResponse.json({ error: guildAccess.error || guildAccess.reason }, { status: guildAccess.status });
+  }
+
   const status = request.nextUrl.searchParams.get('status');
 
   try {
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { guildId };
     if (status && status !== 'ALL') {
       where.status = status.toUpperCase();
     }

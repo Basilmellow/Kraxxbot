@@ -15,10 +15,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [roles, members] = await Promise.all([
+    const [rolesResult, membersResult] = await Promise.allSettled([
       fetchGuildRoles(guildId),
-      fetchGuildMembers(guildId, 1000).catch(() => []),
+      fetchGuildMembers(guildId, 1000),
     ]);
+    if (rolesResult.status === 'rejected') throw rolesResult.reason;
+
+    const roles = rolesResult.value;
+    const members = membersResult.status === 'fulfilled' ? membersResult.value : [];
+    if (membersResult.status === 'rejected') {
+      console.warn('Discord roles loaded, but role member counts are unavailable:', membersResult.reason);
+    }
 
     // Calculate member counts per role
     const roleCountMap = new Map<string, number>();
@@ -35,14 +42,18 @@ export async function GET(request: NextRequest) {
         color: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : null,
         position: r.position,
         permissions: r.permissions,
-        memberCount: roleCountMap.get(r.id) || 0,
-        isManaged: (r as any).managed ?? false,
+        memberCount: membersResult.status === 'fulfilled' ? (roleCountMap.get(r.id) || 0) : null,
+        isManaged: r.managed,
       }))
       .sort((a, b) => b.position - a.position);
 
-    return NextResponse.json({ roles: enrichedRoles, total: enrichedRoles.length });
-  } catch (error: any) {
+    return NextResponse.json({
+      roles: enrichedRoles,
+      total: enrichedRoles.length,
+      memberCountsAvailable: membersResult.status === 'fulfilled',
+    });
+  } catch (error: unknown) {
     console.error('Failed to fetch guild roles:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch roles' }, { status: 500 });
+    return NextResponse.json({ error: 'Unable to load this server’s role hierarchy from Discord.' }, { status: 502 });
   }
 }

@@ -5,8 +5,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { fetchGuildById, fetchUserGuilds, isBotInstalledInGuild, ManagedGuild } from '@/lib/discord';
-import { reconcileInstalledGuild } from '@/lib/guild-registry';
+import { fetchUserGuilds, isBotInstalledInGuild, ManagedGuild } from '@/lib/discord';
 import { prisma } from '@/lib/prisma';
 
 const INSTALLATION_CHECK_CONCURRENCY = 4;
@@ -60,9 +59,10 @@ export async function GET() {
       },
       select: {
         id: true,
+        botInstalled: true,
       },
     });
-    const existingGuildIds = new Set(existingGuilds.map((guild) => guild.id));
+    const existingGuildsById = new Map(existingGuilds.map((guild) => [guild.id, guild]));
 
     // Discord has no bulk "bot is in these guilds" endpoint. Bound concurrency
     // avoids an uncontrolled request burst while allowing independent results.
@@ -86,37 +86,9 @@ export async function GET() {
 
     const verifiedInstalledIds = new Set(
       installationChecks
-        .filter((check) => check.installed && existingGuildIds.has(check.guild.id))
+        .filter((check) => check.installed && existingGuildsById.get(check.guild.id)?.botInstalled)
         .map((check) => check.guild.id)
     );
-
-    // A positive REST check repairs a stale removal flag without relying on a
-    // Gateway reconnect. This is safe because the guild id came from OAuth.
-    if (verifiedInstalledIds.size > 0) {
-      await prisma.guild.updateMany({
-        where: { id: { in: [...verifiedInstalledIds] } },
-        data: { botInstalled: true },
-      });
-    }
-
-    // Initialize any verified installation not yet registered by the worker.
-    const missingInstalledGuilds = installationChecks.filter(
-      (check) => check.installed && !existingGuildIds.has(check.guild.id)
-    );
-    const reconciled = await mapWithConcurrency(missingInstalledGuilds, async (check) => {
-      try {
-        const discordGuild = await fetchGuildById(check.guild.id);
-        await reconcileInstalledGuild(discordGuild);
-        return check.guild.id;
-      } catch (error) {
-        // Fail closed for this guild; other independently verified guilds remain usable.
-        console.warn(`Unable to reconcile verified guild ${check.guild.id}`, error);
-        return null;
-      }
-    });
-    for (const guildId of reconciled) {
-      if (guildId) verifiedInstalledIds.add(guildId);
-    }
 
     const clientId = process.env.DISCORD_CLIENT_ID || '';
 
@@ -132,6 +104,7 @@ export async function GET() {
         icon: guild.icon,
         owner: guild.owner,
         botInstalled: isInstalled,
+        needsSync: installationChecks.some((check) => check.guild.id === guild.id && check.installed) && !isInstalled,
         inviteUrl,
       };
     });
@@ -144,10 +117,11 @@ export async function GET() {
     });
 
     return NextResponse.json({ guilds: managedGuilds });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch user guilds:', error);
+    const detail = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to fetch Discord servers: ' + (error?.message || 'Unknown error') },
+      { error: 'Failed to fetch Discord servers: ' + detail },
       { status: 500 }
     );
   }

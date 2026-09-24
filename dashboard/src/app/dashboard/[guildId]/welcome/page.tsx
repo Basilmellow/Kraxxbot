@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useCallback, useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import {
   Save,
@@ -17,6 +18,22 @@ import {
 
 interface PageProps {
   params: Promise<{ guildId: string }>;
+}
+
+interface WelcomeSnapshot {
+  channels: ChannelItem[];
+  roles: { id: string; name: string }[];
+  config: {
+    enabled: boolean;
+    message: string | null;
+    imageUrl: string | null;
+    roleId: string | null;
+    dmEnabled: boolean;
+    dmMessage: string | null;
+    leaveMessage: string | null;
+    channelId: string | null;
+    leaveChannelId: string | null;
+  } | null;
 }
 
 export default function GuildWelcomePage({ params }: PageProps) {
@@ -40,65 +57,66 @@ export default function GuildWelcomePage({ params }: PageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const fetchConfig = async () => {
-    try {
-      setIsLoading(true);
-      const [metaRes, welcomeRes] = await Promise.all([
-        fetch(`/api/discord/meta?guildId=${guildId}`),
-        fetch(`/api/welcome?guildId=${guildId}`),
-      ]);
-
-      if (welcomeRes.status === 401 || metaRes.status === 401) {
-        router.push('/login');
-        return;
-      }
-      if (welcomeRes.status === 403 || welcomeRes.status === 404) {
-        setFeedback({ type: 'error', message: 'You do not have permission to manage this server or bot is not installed.' });
-        return;
-      }
-
-      let chList: ChannelItem[] = [];
-      if (metaRes.ok) {
-        const meta = await metaRes.json();
-        chList = meta.channels || [];
-        setChannels(chList);
-        setRoles(meta.roles || []);
-      }
-
-      if (welcomeRes.ok) {
-        const data = await welcomeRes.json();
-        const cfg = data.config;
-        if (cfg) {
-          setEnabled(cfg.enabled);
-          if (cfg.message) setMessage(cfg.message);
-          if (cfg.imageUrl) setImageUrl(cfg.imageUrl);
-          if (cfg.roleId) setRoleId(cfg.roleId);
-          setDmEnabled(cfg.dmEnabled);
-          if (cfg.dmMessage) setDmMessage(cfg.dmMessage);
-          if (cfg.leaveMessage) setLeaveMessage(cfg.leaveMessage);
-
-          if (cfg.channelId && chList.length > 0) {
-            const ch = chList.find((c) => c.id === cfg.channelId);
-            if (ch) setSelectedChannel(ch);
-          }
-          if (cfg.leaveChannelId && chList.length > 0) {
-            const lch = chList.find((c) => c.id === cfg.leaveChannelId);
-            if (lch) setSelectedLeaveChannel(lch);
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load welcome configuration:', e);
-      setFeedback({ type: 'error', message: 'Failed to load welcome configuration' });
-    } finally {
-      setIsLoading(false);
+  const requestConfig = useCallback(async (): Promise<WelcomeSnapshot> => {
+    const [metaRes, welcomeRes] = await Promise.all([
+      fetch(`/api/discord/meta?guildId=${guildId}`, { signal: AbortSignal.timeout(20000) }),
+      fetch(`/api/welcome?guildId=${guildId}`, { signal: AbortSignal.timeout(20000) }),
+    ]);
+    if (metaRes.status === 401 || welcomeRes.status === 401) router.push('/login');
+    const [meta, welcome] = await Promise.all([
+      metaRes.json().catch(() => ({})),
+      welcomeRes.json().catch(() => ({})),
+    ]);
+    if (!metaRes.ok || !welcomeRes.ok) {
+      throw new Error(meta.error || welcome.error || 'Unable to load welcome configuration.');
     }
-  };
+    return {
+      channels: meta.channels || [],
+      roles: meta.roles || [],
+      config: welcome.config || null,
+    };
+  }, [guildId, router]);
+
+  const applyConfig = useCallback((snapshot: WelcomeSnapshot) => {
+    setChannels(snapshot.channels);
+    setRoles(snapshot.roles);
+    const cfg = snapshot.config;
+    if (cfg) {
+      setEnabled(cfg.enabled);
+      setMessage(cfg.message || 'Welcome {user} to **{server}**! We are now {memberCount} operators strong.');
+      setImageUrl(cfg.imageUrl || '');
+      setRoleId(cfg.roleId || '');
+      setDmEnabled(cfg.dmEnabled);
+      setDmMessage(cfg.dmMessage || 'Welcome to {server}! Please review {rules} to get started.');
+      setLeaveMessage(cfg.leaveMessage || '{username} has departed from {server}.');
+      setSelectedChannel(snapshot.channels.find((channel) => channel.id === cfg.channelId) || null);
+      setSelectedLeaveChannel(snapshot.channels.find((channel) => channel.id === cfg.leaveChannelId) || null);
+    }
+    setLoadError(null);
+  }, []);
 
   useEffect(() => {
-    fetchConfig();
-  }, [guildId]);
+    let active = true;
+    void requestConfig()
+      .then((snapshot) => { if (active) applyConfig(snapshot); })
+      .catch((error: unknown) => {
+        if (!active) return;
+        console.error('Failed to load welcome configuration:', error);
+        setLoadError(error instanceof Error ? error.message : 'Failed to load welcome configuration.');
+      })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [applyConfig, requestConfig]);
+
+  const reloadConfig = () => {
+    setIsLoading(true);
+    void requestConfig()
+      .then(applyConfig)
+      .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : 'Failed to load welcome configuration.'))
+      .finally(() => setIsLoading(false));
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,8 +147,8 @@ export default function GuildWelcomePage({ params }: PageProps) {
       } else {
         setFeedback({ type: 'error', message: data.error || 'Failed to save configuration' });
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Save error' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Save error' });
     } finally {
       setIsSaving(false);
     }
@@ -138,10 +156,27 @@ export default function GuildWelcomePage({ params }: PageProps) {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="w-7 h-7 animate-spin text-amber-500 mx-auto mb-3" />
-          <p className="text-xs text-[#716D65]">Loading welcome configuration...</p>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar
+          title="Member Welcome & Gateway Onboarding"
+          subtitle="Automated greetings and onboarding settings for this server"
+        />
+        <div className="flex flex-1 items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <Loader2 className="w-7 h-7 animate-spin text-amber-500 mx-auto mb-3" />
+            <p className="text-xs text-[#716D65]">Loading welcome configuration...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar title="Member Welcome & Gateway Onboarding" subtitle="Automated greetings and onboarding settings for this server" />
+        <div className="mx-auto w-full max-w-3xl p-4 sm:p-6 lg:p-8">
+          <ErrorState title="Welcome settings unavailable" message={loadError} onRetry={reloadConfig} />
         </div>
       </div>
     );

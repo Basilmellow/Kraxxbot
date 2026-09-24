@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card } from '@/components/ui/Card';
 import {
@@ -10,9 +9,6 @@ import {
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
-  Settings,
-  Shield,
-  Boxes,
   Rocket,
   Loader2,
   Check,
@@ -20,6 +16,14 @@ import {
 
 interface PageProps {
   params: Promise<{ guildId: string }>;
+}
+
+interface SetupGuildInfo {
+  id: string;
+  name: string;
+  icon: string | null;
+  memberCount: number;
+  botInstalled: boolean;
 }
 
 const STEPS = [
@@ -37,7 +41,7 @@ export default function SetupWizardPage({ params }: PageProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [guildInfo, setGuildInfo] = useState<any>(null);
+  const [guildInfo, setGuildInfo] = useState<SetupGuildInfo | null>(null);
 
   const [formData, setFormData] = useState({
     prefix: '!',
@@ -127,9 +131,12 @@ export default function SetupWizardPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 text-amber-600 animate-spin mb-3" />
-        <p className="text-sm font-medium text-[#475467]">Loading setup wizard...</p>
+      <div className="flex-1 flex min-w-0 flex-col">
+        <Topbar title="Server Onboarding Wizard" subtitle="Initial setup and configuration" />
+        <div className="flex flex-1 flex-col items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 text-amber-600 animate-spin mb-3" />
+          <p className="text-sm font-medium text-[#475467]">Loading setup wizard...</p>
+        </div>
       </div>
     );
   }

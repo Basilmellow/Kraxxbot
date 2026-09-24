@@ -2,9 +2,9 @@
 // Multi-tenant: per-guild access control, IDOR defense, session validation
 
 import { getServerSession } from 'next-auth';
+import type { Session } from 'next-auth';
 import { authOptions } from './auth';
-import { fetchGuildById, fetchUserGuilds, isBotInstalledInGuild } from './discord';
-import { reconcileInstalledGuild } from './guild-registry';
+import { fetchUserGuilds, isBotInstalledInGuild } from './discord';
 import { prisma } from './prisma';
 
 export { RoleTier } from './constants';
@@ -19,7 +19,7 @@ export type PermissionCheck = {
   reason?: string;
   error?: string;
   status: number;
-  session?: any;
+  session?: Session;
   guildId?: string;
 };
 
@@ -34,7 +34,7 @@ export type PermissionCheck = {
  * 1. Valid authenticated session exists
  * 2. User has MANAGE_GUILD or ADMINISTRATOR permissions in that Discord server
  * 3. KRAXXBot is currently installed, verified with Discord's bot REST API
- * 4. A durable Guild record exists for configuration and tenant data
+ * 4. A durable, active Guild record exists for configuration and tenant data
  *
  * Prevents IDOR: a user cannot access guild data by simply guessing the guildId URL.
  */
@@ -94,20 +94,23 @@ export async function requireGuildAccess(guildId: string): Promise<PermissionChe
     };
   }
 
-  // 4. Reconcile the durable tenant record only after both live authorization
-  // checks pass. This preserves initialization for installs added while the
-  // Gateway worker was offline.
+  // 4. Require an existing tenant record. Authorization must never initialize
+  // or mutate tenant state; new installations use the explicit sync workflow.
   try {
     const guild = await prisma.guild.findUnique({ where: { id: guildId } });
     if (!guild || !guild.botInstalled) {
-      const discordGuild = await fetchGuildById(guildId);
-      await reconcileInstalledGuild(discordGuild);
+      return {
+        authorized: false,
+        reason: 'This server is installed but has not been synchronized with the dashboard yet.',
+        error: 'Guild synchronization required',
+        status: 409,
+      };
     }
   } catch {
     return {
       authorized: false,
-      reason: 'Unable to initialize this server for dashboard access.',
-      error: 'Guild reconciliation failed',
+      reason: 'Unable to verify this server’s dashboard registration. Please try again.',
+      error: 'Guild registration check failed',
       status: 503,
     };
   }
@@ -121,9 +124,8 @@ export async function requireGuildAccess(guildId: string): Promise<PermissionChe
 }
 
 /**
- * Read-only authorization for guild route layouts. API handlers use
- * requireGuildAccess so they can reconcile a newly installed guild; rendering
- * a page must not create or update tenant records as a side effect.
+ * Read-only authorization for guild route layouts. Like requireGuildAccess,
+ * this checks existing state and never initializes tenant records.
  */
 export async function requireGuildPageAccess(guildId: string): Promise<PermissionCheck> {
   const session = await getServerSession(authOptions);
@@ -227,7 +229,7 @@ export function canScheduleAnnouncements(tier?: RT): boolean {
 
 /** @deprecated Use requireGuildAccess() for multi-tenant routes. */
 export function requireTier(
-  sessionOrTier: any,
+  sessionOrTier: unknown,
   requiredTier: RT = RT.MANAGEMENT_HEAD
 ): PermissionCheck {
   let userTier: RT | undefined = undefined;
@@ -235,9 +237,14 @@ export function requireTier(
 
   if (typeof sessionOrTier === 'number') {
     userTier = sessionOrTier;
-  } else if (sessionOrTier && typeof sessionOrTier === 'object') {
-    userTier = sessionOrTier.user?.roleTier ?? sessionOrTier.roleTier;
-    isMember = sessionOrTier.user?.isMember ?? sessionOrTier.isMember;
+  } else if (sessionOrTier !== null && typeof sessionOrTier === 'object') {
+    const sessionLike = sessionOrTier as {
+      user?: { roleTier?: RT; isMember?: boolean };
+      roleTier?: RT;
+      isMember?: boolean;
+    };
+    userTier = sessionLike.user?.roleTier ?? sessionLike.roleTier;
+    isMember = sessionLike.user?.isMember ?? sessionLike.isMember;
   }
 
   if (userTier === undefined) {
@@ -274,6 +281,6 @@ export function requireTier(
 }
 
 /** @deprecated Use requireGuildAccess() for multi-tenant routes. */
-export function requireDashboardAccess(session: any): PermissionCheck {
+export function requireDashboardAccess(session: unknown): PermissionCheck {
   return requireTier(session, RT.MANAGEMENT_HEAD);
 }

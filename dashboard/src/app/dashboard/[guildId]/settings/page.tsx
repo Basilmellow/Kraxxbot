@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useState, use } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card } from '@/components/ui/Card';
+import { ErrorState } from '@/components/ui/ErrorState';
 import {
   Settings,
   Hash,
   Shield,
-  Ticket,
   Save,
   Loader2,
   CheckCircle2,
@@ -20,63 +19,75 @@ interface PageProps {
   params: Promise<{ guildId: string }>;
 }
 
+interface GuildSettingsForm {
+  prefix: string;
+  welcomeChannelId: string;
+  announcementChannelId: string;
+  modLogChannelId: string;
+  auditLogChannelId: string;
+  ticketCategoryId: string;
+  ticketTranscriptsChannelId: string;
+  adminRoleId: string;
+  modRoleId: string;
+  ticketSupportRoleId: string;
+  verifiedRoleId: string;
+}
+
+const EMPTY_SETTINGS: GuildSettingsForm = {
+  prefix: '!', welcomeChannelId: '', announcementChannelId: '', modLogChannelId: '',
+  auditLogChannelId: '', ticketCategoryId: '', ticketTranscriptsChannelId: '',
+  adminRoleId: '', modRoleId: '', ticketSupportRoleId: '', verifiedRoleId: '',
+};
+
+function normalizeSettings(settings?: Partial<GuildSettingsForm> | null): GuildSettingsForm {
+  return { ...EMPTY_SETTINGS, ...settings, prefix: settings?.prefix || '!' };
+}
+
 export default function GuildSettingsPage({ params }: PageProps) {
   const { guildId } = use(params);
-  const router = useRouter();
 
-  const [settings, setSettings] = useState<any>({
-    prefix: '!',
-    welcomeChannelId: '',
-    announcementChannelId: '',
-    modLogChannelId: '',
-    auditLogChannelId: '',
-    ticketCategoryId: '',
-    ticketTranscriptsChannelId: '',
-    adminRoleId: '',
-    modRoleId: '',
-    ticketSupportRoleId: '',
-    verifiedRoleId: '',
-  });
+  const [settings, setSettings] = useState<GuildSettingsForm>(EMPTY_SETTINGS);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadSettings() {
-      try {
-        const res = await fetch(`/api/guilds/${guildId}/settings`);
-        if (res.status === 401) return router.push('/login');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.settings) {
-            setSettings({
-              prefix: json.settings.prefix || '!',
-              welcomeChannelId: json.settings.welcomeChannelId || '',
-              announcementChannelId: json.settings.announcementChannelId || '',
-              modLogChannelId: json.settings.modLogChannelId || '',
-              auditLogChannelId: json.settings.auditLogChannelId || '',
-              ticketCategoryId: json.settings.ticketCategoryId || '',
-              ticketTranscriptsChannelId: json.settings.ticketTranscriptsChannelId || '',
-              adminRoleId: json.settings.adminRoleId || '',
-              modRoleId: json.settings.modRoleId || '',
-              ticketSupportRoleId: json.settings.ticketSupportRoleId || '',
-              verifiedRoleId: json.settings.verifiedRoleId || '',
-            });
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadSettings();
+  const requestSettings = useCallback(async (): Promise<Partial<GuildSettingsForm> | null> => {
+    const res = await fetch(`/api/guilds/${guildId}/settings`, { signal: AbortSignal.timeout(20000) });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || 'Unable to load settings for this server.');
+    return json.settings || null;
   }, [guildId]);
 
-  const handleChange = (field: string, value: string) => {
-    setSettings((prev: any) => ({ ...prev, [field]: value }));
+  useEffect(() => {
+    let active = true;
+    void requestSettings()
+      .then((nextSettings) => {
+        if (!active) return;
+        setSettings(normalizeSettings(nextSettings));
+        setLoadError(null);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        console.error('Failed to load guild settings:', error);
+        setLoadError(error instanceof Error ? error.message : 'Unable to load settings for this server.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [requestSettings]);
+
+  const reloadSettings = () => {
+    setLoading(true);
+    void requestSettings()
+      .then((nextSettings) => { setSettings(normalizeSettings(nextSettings)); setLoadError(null); })
+      .catch((error: unknown) => { setLoadError(error instanceof Error ? error.message : 'Unable to load settings for this server.'); })
+      .finally(() => setLoading(false));
+  };
+
+  const handleChange = (field: keyof GuildSettingsForm, value: string) => {
+    setSettings((prev) => ({ ...prev, [field]: value }));
     setSaveSuccess(false);
   };
 
@@ -100,8 +111,8 @@ export default function GuildSettingsPage({ params }: PageProps) {
         const data = await res.json();
         setSaveError(data.error || 'Failed to update settings');
       }
-    } catch (err: any) {
-      setSaveError(err?.message || 'Network error');
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : 'Network error');
     } finally {
       setSaving(false);
     }
@@ -135,6 +146,12 @@ export default function GuildSettingsPage({ params }: PageProps) {
             <Loader2 className="w-8 h-8 text-amber-600 animate-spin mb-3" />
             <p className="text-sm font-medium text-[#475467]">Loading server settings...</p>
           </div>
+        ) : loadError ? (
+          <ErrorState
+            title="Settings unavailable"
+            message={loadError}
+            onRetry={reloadSettings}
+          />
         ) : (
           <form onSubmit={handleSave} className="space-y-6">
             {saveSuccess && (

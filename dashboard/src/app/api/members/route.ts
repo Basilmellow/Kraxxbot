@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { fetchGuildMembers, fetchGuildRoles } from '@/lib/discord';
+import { fetchGuildMembers, fetchGuildRoles, type DiscordRole } from '@/lib/discord';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
+import { requireGuildAccess } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q')?.toLowerCase() || '';
   const roleFilter = searchParams.get('role') || '';
-  const limit = parseInt(searchParams.get('limit') || '100', 10);
+  const parsedLimit = Number.parseInt(searchParams.get('limit') || '1000', 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(parsedLimit, 1000)) : 1000;
   const guildId = searchParams.get('guildId');
 
   if (!guildId) {
@@ -29,24 +22,29 @@ export async function GET(request: NextRequest) {
 
   try {
     const [discordMembers, dbMembers, discordRoles] = await Promise.all([
-      fetchGuildMembers(guildId, Math.min(limit, 1000)),
+      fetchGuildMembers(guildId, limit),
       prisma.guildMember.findMany({ where: { guildId } }),
       fetchGuildRoles(guildId),
     ]);
 
-    const dbMemberMap = new Map(dbMembers.map((m: any) => [m.discordId, m]));
-    const roleMap = new Map(discordRoles.map((r: any) => [r.id, r]));
+    const dbMemberMap = new Map(dbMembers.map((member) => [member.discordId, member]));
+    const roleMap = new Map(discordRoles.map((role) => [role.id, role]));
 
-    let members = discordMembers.map((dm: any) => {
+    let members = discordMembers.map((dm) => {
       const user = dm.user;
       const dbRecord = user ? dbMemberMap.get(user.id) : undefined;
-      const memberRoles = dm.roles.map((rId: string) => roleMap.get(rId)).filter(Boolean);
+      const memberRoles = dm.roles
+        .map((roleId) => roleMap.get(roleId))
+        .filter((role): role is DiscordRole => role !== undefined);
 
       return {
         id: user?.id || 'unknown',
         username: user?.username || 'Unknown',
         displayName: dm.nick || dbRecord?.displayName || user?.username || 'Unknown',
-        avatar: user?.avatar || dbRecord?.avatar || null,
+        isBot: Boolean(user?.bot),
+        avatar: user?.avatar && user?.id
+          ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
+          : dbRecord?.avatar || null,
         joinedAt: dm.joined_at,
         roles: memberRoles,
         roleIds: dm.roles,
@@ -55,9 +53,11 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const fetchedCount = members.length;
+
     if (query) {
       members = members.filter(
-        (m: any) =>
+        (m) =>
           m.username.toLowerCase().includes(query) ||
           m.displayName.toLowerCase().includes(query) ||
           m.id.includes(query)
@@ -65,16 +65,24 @@ export async function GET(request: NextRequest) {
     }
 
     if (roleFilter) {
-      members = members.filter((m: any) => m.roleIds.includes(roleFilter));
+      members = members.filter((member) => member.roleIds.includes(roleFilter));
     }
 
     return NextResponse.json({
       members,
       total: members.length,
-      roles: discordRoles.sort((a: any, b: any) => b.position - a.position),
+      fetchedCount,
+      capped: fetchedCount === limit && limit === 1000,
+      roles: discordRoles.sort((a, b) => b.position - a.position),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch members:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch guild members' }, { status: 500 });
+    const deniedByDiscord = error instanceof Error && /Discord API Error \[403\]/.test(error.message);
+    return NextResponse.json({
+      error: deniedByDiscord
+        ? 'Discord denied access to this server’s member list. Check the bot’s server access and the Guild Members privileged intent configuration.'
+        : 'Unable to load guild members from Discord or the dashboard data store. Please retry and check service availability.',
+      code: deniedByDiscord ? 'DISCORD_MEMBER_ACCESS_DENIED' : 'DISCORD_MEMBER_FETCH_FAILED',
+    }, { status: 502 });
   }
 }
