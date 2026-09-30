@@ -67,10 +67,12 @@ test('Gemini timeout and configuration failures map to controlled user-safe mess
   assert.equal(provider(new Error('secret provider stack')), 'Kraxx AI is temporarily unavailable. Please try again.');
 });
 
-test('Gemini provider uses a bounded timeout and does not retry requests', () => {
+test('Gemini provider bounds application retries and keeps SDK retries disabled', () => {
   const source = fs.readFileSync(path.join(root, 'src/services/gemini.provider.ts'), 'utf8');
-  assert.match(source, /AbortSignal\.timeout\(request\.timeoutMs\)/);
-  assert.match(source, /httpOptions:\s*\{\s*timeout:\s*request\.timeoutMs,\s*retryOptions:\s*\{\s*attempts:\s*1/);
+  assert.match(source, /const MAX_RETRIES = 3/);
+  assert.match(source, /AbortSignal\.timeout\(remainingMs\)/);
+  assert.match(source, /httpOptions:\s*\{\s*timeout:\s*remainingMs,\s*retryOptions:\s*\{\s*attempts:\s*1/);
+  assert.doesNotMatch(source, /temperature\s*:/);
 });
 
 test('AI timeout is represented in safe telemetry without storing prompts or responses', () => {

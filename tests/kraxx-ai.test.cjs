@@ -135,3 +135,128 @@ test('Gemini provider fails safely when server-only key is absent', async () => 
   try { await assert.rejects(new provider.GeminiProvider().generate({ prompt: 'x', style: 'BALANCED', timeoutMs: 10, maxOutputTokens: 2 }), e => e.code === 'AUTH'); assert.equal(requested, false); }
   finally { if (prior !== undefined) process.env.GEMINI_API_KEY = prior; }
 });
+
+function geminiProviderHarness(outcomes, { timeoutMs = 12_000, jitter = 0.25, requestTimeMs = 0 } = {}) {
+  const calls = [];
+  const sleeps = [];
+  const logs = [];
+  let now = 0;
+  const { AiProviderError } = load('src/services/kraxx-ai-provider.ts');
+  const providerModule = load('src/services/gemini.provider.ts', {
+    '@google/genai': { GoogleGenAI: class {} },
+  });
+  const provider = new providerModule.GeminiProvider({
+    apiKey: () => 'local-test-key',
+    clientFactory: () => ({ models: { generateContent: async args => {
+      calls.push(args);
+      now += requestTimeMs;
+      const outcome = outcomes[calls.length - 1];
+      if (outcome instanceof Error) throw outcome;
+      return outcome;
+    } } }),
+    now: () => now,
+    sleep: async delayMs => { sleeps.push(delayMs); now += delayMs; },
+    random: () => jitter,
+    log: (level, message, metadata) => logs.push({ level, message, metadata }),
+  });
+  return { provider, calls, sleeps, logs, AiProviderError, timeoutMs };
+}
+
+const geminiSuccess = { text: 'answer', responseId: 'response-1', modelVersion: 'gemini-3.8-flash',
+  usageMetadata: { promptTokenCount: 4, candidatesTokenCount: 5 } };
+const generateRequest = timeoutMs => ({ prompt: 'private prompt', style: 'BALANCED', timeoutMs, maxOutputTokens: 64 });
+const geminiHttpError = status => Object.assign(new Error('private provider detail'), { status });
+
+test('Gemini succeeds immediately with one request and preserves response telemetry', async () => {
+  const h = geminiProviderHarness([geminiSuccess]);
+  const result = await h.provider.generate(generateRequest(h.timeoutMs));
+  assert.equal(h.calls.length, 1);
+  assert.deepEqual(h.sleeps, []);
+  assert.deepEqual(result, { text: 'answer', provider: 'GEMINI', model: 'gemini-3.8-flash',
+    requestId: 'response-1', inputTokens: 4, outputTokens: 5 });
+});
+
+test('Gemini retries one 503 and returns the subsequent success', async () => {
+  const h = geminiProviderHarness([geminiHttpError(503), geminiSuccess]);
+  assert.equal((await h.provider.generate(generateRequest(h.timeoutMs))).text, 'answer');
+  assert.equal(h.calls.length, 2);
+  assert.deepEqual(h.sleeps, [1_250]);
+  assert.notEqual(h.calls[0].config.abortSignal, h.calls[1].config.abortSignal);
+});
+
+test('Gemini retries two 503 responses with bounded exponential jitter', async () => {
+  const h = geminiProviderHarness([geminiHttpError(503), geminiHttpError(503), geminiSuccess]);
+  await h.provider.generate(generateRequest(h.timeoutMs));
+  assert.equal(h.calls.length, 3);
+  assert.deepEqual(h.sleeps, [1_250, 2_500]);
+  assert.deepEqual(h.calls.map(call => call.config.httpOptions.timeout), [12_000, 10_750, 8_250]);
+});
+
+test('Gemini never exceeds four attempts and returns SERVER after repeated 503s', async () => {
+  const h = geminiProviderHarness(Array.from({ length: 4 }, () => geminiHttpError(503)));
+  await assert.rejects(h.provider.generate(generateRequest(h.timeoutMs)), error => error.code === 'SERVER');
+  assert.equal(h.calls.length, 4);
+  assert.deepEqual(h.sleeps, [1_250, 2_500, 5_000]);
+  assert.equal(h.logs.at(-1).message, 'Gemini provider retries exhausted');
+  assert.deepEqual(h.logs.at(-1).metadata, { model: 'gemini-3.8-flash', status: 503, errorName: 'Error', attempts: 4 });
+});
+
+test('Gemini retries 429, 500, 502, and 504 responses', async () => {
+  for (const status of [429, 500, 502, 504]) {
+    const h = geminiProviderHarness([geminiHttpError(status), geminiSuccess]);
+    assert.equal((await h.provider.generate(generateRequest(h.timeoutMs))).text, 'answer');
+    assert.equal(h.calls.length, 2, `status ${status} should retry once`);
+  }
+});
+
+test('Gemini retries a transient network reset', async () => {
+  const networkError = Object.assign(new Error('private network detail'), {
+    cause: Object.assign(new Error('socket reset'), { code: 'ECONNRESET' }),
+  });
+  const h = geminiProviderHarness([networkError, geminiSuccess]);
+  assert.equal((await h.provider.generate(generateRequest(h.timeoutMs))).text, 'answer');
+  assert.equal(h.calls.length, 2);
+});
+
+test('Gemini does not retry permanent client errors and classifies authorization errors', async () => {
+  for (const [status, expectedCode] of [[401, 'AUTH'], [403, 'AUTH'], [400, 'UNAVAILABLE'], [404, 'UNAVAILABLE']]) {
+    const h = geminiProviderHarness([geminiHttpError(status), geminiSuccess]);
+    await assert.rejects(h.provider.generate(generateRequest(h.timeoutMs)), error => error.code === expectedCode);
+    assert.equal(h.calls.length, 1, `status ${status} must not retry`);
+    assert.deepEqual(h.sleeps, []);
+  }
+});
+
+test('Gemini reports TIMEOUT when a timeout leaves no safe retry budget', async () => {
+  const timeoutError = Object.assign(new Error('private timeout detail'), { name: 'TimeoutError' });
+  const h = geminiProviderHarness([timeoutError, geminiSuccess], { timeoutMs: 1_200 });
+  await assert.rejects(h.provider.generate(generateRequest(h.timeoutMs)), error => error.code === 'TIMEOUT');
+  assert.equal(h.calls.length, 1);
+  assert.deepEqual(h.sleeps, []);
+});
+
+test('Gemini retries an early timeout when the request deadline still has room', async () => {
+  const timeoutError = Object.assign(new Error('private timeout detail'), { name: 'TimeoutError' });
+  const h = geminiProviderHarness([timeoutError, geminiSuccess]);
+  assert.equal((await h.provider.generate(generateRequest(h.timeoutMs))).text, 'answer');
+  assert.equal(h.calls.length, 2);
+  assert.deepEqual(h.sleeps, [1_250]);
+});
+
+test('Gemini does not retry empty or malformed successful responses', async () => {
+  for (const [response, expectedCode] of [[{ text: '  ' }, 'EMPTY'], [{ text: 42 }, 'MALFORMED']]) {
+    const h = geminiProviderHarness([response, geminiSuccess]);
+    await assert.rejects(h.provider.generate(generateRequest(h.timeoutMs)), error => error.code === expectedCode);
+    assert.equal(h.calls.length, 1);
+    assert.deepEqual(h.sleeps, []);
+  }
+});
+
+test('Gemini retry diagnostics contain metadata but never provider details or prompts', async () => {
+  const h = geminiProviderHarness([geminiHttpError(503), geminiSuccess]);
+  await h.provider.generate(generateRequest(h.timeoutMs));
+  const diagnostic = JSON.stringify(h.logs);
+  assert.match(diagnostic, /"status":503/);
+  assert.match(diagnostic, /"retryAttempt":1/);
+  assert.doesNotMatch(diagnostic, /private provider detail|private prompt|GEMINI_API_KEY|Authorization/);
+});
