@@ -1,26 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
-
-const DEFAULT_MODULES = [
-  { module: 'messaging', enabled: true, label: 'Message Center', desc: 'Direct channel messaging and rich embeds' },
-  { module: 'announcements', enabled: true, label: 'Announcements', desc: 'Division broadcast pipelines and scheduling' },
-  { module: 'tickets', enabled: true, label: 'Support Tickets', desc: 'Inquiry routing, claim workflows and transcripts' },
-  { module: 'members', enabled: true, label: 'Member Directory', desc: 'Operator dossiers and verification status' },
-  { module: 'roles', enabled: true, label: 'Role Hierarchy', desc: 'Role precedence and authority management' },
-  { module: 'tasks', enabled: true, label: 'Tasks Engine', desc: 'Task pipelines, assignments and due dates' },
-  { module: 'reminders', enabled: true, label: 'Reminders', desc: 'Timed alerts and recurring reminders' },
-  { module: 'meetings', enabled: true, label: 'Meetings', desc: 'Briefing countdowns and attendance scheduling' },
-  { module: 'welcome', enabled: true, label: 'Welcome System', desc: 'Onboarding greetings and auto-role assignment' },
-  { module: 'automation', enabled: true, label: 'Automation Engine', desc: 'Event-driven triggers and automated actions' },
-  { module: 'moderation', enabled: true, label: 'Moderation Console', desc: 'Disciplinary sanctions, bans and timeouts' },
-  { module: 'social', enabled: true, label: 'Social & Polls', desc: 'Interactive polls and community suggestions' },
-  { module: 'entertainment', enabled: true, label: 'Entertainment', desc: 'Lightweight gamification, XP and trivia' },
-  { module: 'utilities', enabled: true, label: 'Server Utilities', desc: 'Snowflake decoders and timestamp tools' },
-];
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { assertModuleKey, getModuleState, MODULE_CATALOG } from '@/lib/module-catalog';
+import { NextRequest,NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   const guildId = request.nextUrl.searchParams.get('guildId');
@@ -40,24 +23,26 @@ export async function GET(request: NextRequest) {
     });
     const configMap = new Map(existingConfigs.map((c) => [c.module, c]));
 
-    const merged = DEFAULT_MODULES.map((dm) => {
-      const saved = configMap.get(dm.module);
+    const merged = MODULE_CATALOG.map((definition) => {
+      const saved = configMap.get(definition.key);
       return {
-        ...dm,
-        enabled: saved ? saved.enabled : dm.enabled,
+        ...definition,
+        module: definition.key,
+        enabled: saved?.enabled ?? false,
+        state: getModuleState(definition.key, saved?.enabled),
         updatedAt: saved?.updatedAt || null,
         updatedBy: saved?.updatedBy || null,
       };
     });
 
     return NextResponse.json({ modules: merged, total: merged.length });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch modules:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch modules' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch modules' }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const body = await request.json();
     const { module: moduleKey, enabled, guildId: bodyGuildId } = body;
@@ -75,6 +60,10 @@ export async function POST(request: NextRequest) {
     if (!moduleKey || enabled === undefined) {
       return NextResponse.json({ error: 'Module key and enabled boolean are required.' }, { status: 400 });
     }
+    if (typeof moduleKey !== 'string' || typeof enabled !== 'boolean') {
+      return NextResponse.json({ error: 'Invalid module state.' }, { status: 400 });
+    }
+    try { assertModuleKey(moduleKey); } catch { return NextResponse.json({ error: 'Unknown module key.' }, { status: 400 }); }
 
     const currentUserId = auth.session!.user.discordId;
 
@@ -86,13 +75,13 @@ export async function POST(request: NextRequest) {
         },
       },
       update: {
-        enabled: Boolean(enabled),
+        enabled,
         updatedBy: currentUserId,
       },
       create: {
         guildId,
         module: moduleKey,
-        enabled: Boolean(enabled),
+        enabled,
         updatedBy: currentUserId,
       },
     });
@@ -107,8 +96,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, module: updated });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to update module state:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update module state' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update module state' }, { status: 500 });
   }
 }
+
+export const POST = withMutation('MANAGE_SETTINGS', handlePOST);

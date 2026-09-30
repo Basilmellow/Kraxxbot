@@ -1,3 +1,4 @@
+import { DiscordApiError,discordRequest } from './discord-transport';
 // KRAXXBot Web Dashboard — Discord REST API Client
 // Fully parameterized — no DISCORD_GUILD_ID env var dependency.
 // Every call takes an explicit guildId parameter for multi-tenant isolation.
@@ -21,7 +22,7 @@ async function discordFetch<T>(endpoint: string, options: RequestInit = {}): Pro
   const token = getBotToken();
   const url = `${DISCORD_API_BASE}${endpoint}`;
 
-  const res = await fetch(url, {
+  const res = await discordRequest(url, {
     ...options,
     headers: {
       Authorization: `Bot ${token}`,
@@ -31,12 +32,8 @@ async function discordFetch<T>(endpoint: string, options: RequestInit = {}): Pro
     cache: 'no-store',
   });
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Discord API Error [${res.status}]: ${errorText || res.statusText}`);
-  }
 
-  return res.json() as Promise<T>;
+  return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -88,12 +85,13 @@ export interface DiscordMember {
 
 export interface DiscordChannel {
   id: string;
+  guild_id?: string;
   name: string;
   type: number; // 0=text, 2=voice, 4=category, 5=announcement, 13=stage, 15=forum
   position: number;
   parent_id?: string | null;
   topic?: string | null;
-  permission_overwrites?: object[];
+  permission_overwrites?: Array<{ id: string; type: number; allow: string; deny: string }>;
 }
 
 export interface DiscordRole {
@@ -189,7 +187,7 @@ export async function isBotInstalledInGuild(guildId: string): Promise<boolean> {
     // so callers can fail closed instead of reporting a false uninstall.
     if (
       error instanceof Error
-      && /^Discord API Error \[(403|404)\]:/.test(error.message)
+      && error instanceof DiscordApiError && [403, 404].includes(error.status)
     ) {
       return false;
     }
@@ -202,17 +200,13 @@ export async function isBotInstalledInGuild(guildId: string): Promise<boolean> {
  * Uses the user's OAuth access token — returns only manageable guilds.
  */
 export async function fetchUserGuilds(accessToken: string): Promise<UserGuild[]> {
-  const res = await fetch(`${DISCORD_API_BASE}/users/@me/guilds`, {
+  const res = await discordRequest(`${DISCORD_API_BASE}/users/@me/guilds`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
     cache: 'no-store',
   });
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Discord Guilds Fetch Error [${res.status}]: ${errorText || res.statusText}`);
-  }
 
   const guilds: UserGuild[] = await res.json();
 
@@ -233,6 +227,26 @@ export async function fetchUserGuilds(accessToken: string): Promise<UserGuild[]>
 export async function fetchGuildChannels(guildId: string): Promise<DiscordChannel[]> {
   if (!guildId) return [];
   return discordFetch<DiscordChannel[]>(`/guilds/${guildId}/channels`);
+}
+
+export async function fetchChannel(channelId: string): Promise<DiscordChannel> {
+  return discordFetch<DiscordChannel>(`/channels/${channelId}`);
+}
+
+export async function createGuildTextChannel(
+  guildId: string,
+  input: { name: string; topic: string; parent_id?: string; permission_overwrites: Array<{ id: string; type: number; allow: string; deny: string }> },
+): Promise<DiscordChannel> {
+  if (!/^\d{17,20}$/.test(guildId)) throw new Error('Invalid guild context.');
+  const channel = await discordFetch<DiscordChannel>(`/guilds/${guildId}/channels`, { method: 'POST', body: JSON.stringify({ type: 0, ...input }) });
+  if (channel.guild_id !== guildId || channel.type !== 0) throw new Error('Discord returned a channel outside the requested guild.');
+  return channel;
+}
+
+export async function deleteGuildChannel(guildId: string, channelId: string): Promise<void> {
+  const channel = await fetchChannel(channelId);
+  if (channel.guild_id !== guildId) throw new Error('Ticket channel does not belong to this guild.');
+  await discordFetch<void>(`/channels/${channelId}`, { method: 'DELETE' });
 }
 
 /**
@@ -331,128 +345,6 @@ export async function fetchGuildMembers(
 // Moderation Operations
 // ─────────────────────────────────────────────────────────────────
 
-/**
- * Kicks a member from a specific guild.
- */
-export async function kickGuildMember(
-  guildId: string,
-  userId: string,
-  reason?: string
-): Promise<boolean> {
-  const token = getBotToken();
-  const url = `${DISCORD_API_BASE}/guilds/${guildId}/members/${userId}`;
-
-  const res = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bot ${token}`,
-      ...(reason ? { 'X-Audit-Log-Reason': encodeURIComponent(reason) } : {}),
-    },
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Discord Kick Error [${res.status}]: ${errorText || res.statusText}`);
-  }
-
-  return true;
-}
-
-/**
- * Bans a user from a specific guild.
- */
-export async function banGuildMember(
-  guildId: string,
-  userId: string,
-  reason?: string,
-  deleteMessageSeconds = 0
-): Promise<boolean> {
-  const token = getBotToken();
-  const url = `${DISCORD_API_BASE}/guilds/${guildId}/bans/${userId}`;
-
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bot ${token}`,
-      'Content-Type': 'application/json',
-      ...(reason ? { 'X-Audit-Log-Reason': encodeURIComponent(reason) } : {}),
-    },
-    body: JSON.stringify({ delete_message_seconds: deleteMessageSeconds }),
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Discord Ban Error [${res.status}]: ${errorText || res.statusText}`);
-  }
-
-  return true;
-}
-
-/**
- * Unbans a user from a specific guild.
- */
-export async function unbanGuildMember(
-  guildId: string,
-  userId: string,
-  reason?: string
-): Promise<boolean> {
-  const token = getBotToken();
-  const url = `${DISCORD_API_BASE}/guilds/${guildId}/bans/${userId}`;
-
-  const res = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bot ${token}`,
-      ...(reason ? { 'X-Audit-Log-Reason': encodeURIComponent(reason) } : {}),
-    },
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Discord Unban Error [${res.status}]: ${errorText || res.statusText}`);
-  }
-
-  return true;
-}
-
-/**
- * Times out (mutes) a member. Set durationSeconds to null or 0 to remove timeout.
- */
-export async function timeoutGuildMember(
-  guildId: string,
-  userId: string,
-  durationSeconds: number | null,
-  reason?: string
-): Promise<boolean> {
-  const token = getBotToken();
-  const url = `${DISCORD_API_BASE}/guilds/${guildId}/members/${userId}`;
-
-  const communicationDisabledUntil =
-    durationSeconds && durationSeconds > 0
-      ? new Date(Date.now() + durationSeconds * 1000).toISOString()
-      : null;
-
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bot ${token}`,
-      'Content-Type': 'application/json',
-      ...(reason ? { 'X-Audit-Log-Reason': encodeURIComponent(reason) } : {}),
-    },
-    body: JSON.stringify({ communication_disabled_until: communicationDisabledUntil }),
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Discord Timeout Error [${res.status}]: ${errorText || res.statusText}`);
-  }
-
-  return true;
-}
 
 /**
  * Adds a role to a guild member.
@@ -466,7 +358,7 @@ export async function addMemberRole(
   const token = getBotToken();
   const url = `${DISCORD_API_BASE}/guilds/${guildId}/members/${userId}/roles/${roleId}`;
 
-  const res = await fetch(url, {
+  await discordRequest(url, {
     method: 'PUT',
     headers: {
       Authorization: `Bot ${token}`,
@@ -475,10 +367,6 @@ export async function addMemberRole(
     cache: 'no-store',
   });
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Discord Add Role Error [${res.status}]: ${errorText || res.statusText}`);
-  }
 
   return true;
 }
@@ -495,7 +383,7 @@ export async function removeMemberRole(
   const token = getBotToken();
   const url = `${DISCORD_API_BASE}/guilds/${guildId}/members/${userId}/roles/${roleId}`;
 
-  const res = await fetch(url, {
+  await discordRequest(url, {
     method: 'DELETE',
     headers: {
       Authorization: `Bot ${token}`,
@@ -504,11 +392,48 @@ export async function removeMemberRole(
     cache: 'no-store',
   });
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Discord Remove Role Error [${res.status}]: ${errorText || res.statusText}`);
-  }
 
+  return true;
+}
+
+/** Creates a standard (non-managed) role in the explicitly selected guild. */
+export async function createGuildRole(
+  guildId: string,
+  input: { name: string; color?: number; hoist?: boolean; mentionable?: boolean; permissions?: string },
+  reason?: string,
+): Promise<DiscordRole> {
+  return discordFetch<DiscordRole>(`/guilds/${guildId}/roles`, {
+    method: 'POST',
+    headers: reason ? { 'X-Audit-Log-Reason': encodeURIComponent(reason) } : undefined,
+    body: JSON.stringify(input),
+  });
+}
+
+/** Updates editable fields on a standard role in the explicitly selected guild. */
+export async function editGuildRole(
+  guildId: string,
+  roleId: string,
+  input: { name?: string; color?: number; hoist?: boolean; mentionable?: boolean; permissions?: string },
+  reason?: string,
+): Promise<DiscordRole> {
+  return discordFetch<DiscordRole>(`/guilds/${guildId}/roles/${roleId}`, {
+    method: 'PATCH',
+    headers: reason ? { 'X-Audit-Log-Reason': encodeURIComponent(reason) } : undefined,
+    body: JSON.stringify(input),
+  });
+}
+
+/** Deletes a standard role after its hierarchy has been authorized by the caller. */
+export async function deleteGuildRole(guildId: string, roleId: string, reason?: string): Promise<boolean> {
+  const token = getBotToken();
+  await discordRequest(`${DISCORD_API_BASE}/guilds/${guildId}/roles/${roleId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bot ${token}`,
+      ...(reason ? { 'X-Audit-Log-Reason': encodeURIComponent(reason) } : {}),
+    },
+    cache: 'no-store',
+  });
   return true;
 }
 
@@ -522,11 +447,14 @@ export async function removeMemberRole(
 export async function sendChannelMessage(
   channelId: string,
   content?: string,
-  embeds?: object[]
+  embeds?: object[],
+  options: { allowedMentions?: { parse: string[]; roles?: string[]; users?: string[] }; nonce?: string; components?: object[] } = {},
 ): Promise<DiscordMessageResponse> {
-  const body: Record<string, unknown> = {};
+  const body: Record<string, unknown> = { allowed_mentions: options.allowedMentions || { parse: [] } };
   if (content) body.content = content;
   if (embeds && embeds.length > 0) body.embeds = embeds;
+  if (options.components) body.components = options.components;
+  if (options.nonce) { body.nonce = options.nonce; body.enforce_nonce = true; }
 
   return discordFetch<DiscordMessageResponse>(`/channels/${channelId}/messages`, {
     method: 'POST',
@@ -544,6 +472,12 @@ export async function fetchChannelMessage(
   return discordFetch<DiscordMessageResponse>(`/channels/${channelId}/messages/${messageId}`);
 }
 
+/** Reads a bounded recent channel window for explicit recovery of an uncertain KRAXXBot message send. */
+export async function fetchChannelMessages(channelId: string, limit = 100): Promise<DiscordMessageResponse[]> {
+  if (!/^\d{17,20}$/.test(channelId) || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('INVALID_CHANNEL_MESSAGE_QUERY');
+  return discordFetch<DiscordMessageResponse[]>(`/channels/${channelId}/messages?limit=${limit}`);
+}
+
 /**
  * Edits an existing message sent by the bot.
  */
@@ -551,11 +485,14 @@ export async function editChannelMessage(
   channelId: string,
   messageId: string,
   content?: string,
-  embeds?: object[]
+  embeds?: object[],
+  allowedMentions: { parse: string[]; roles?: string[]; users?: string[] } = { parse: [] },
+  components?: object[],
 ): Promise<DiscordMessageResponse> {
-  const body: Record<string, unknown> = {};
+  const body: Record<string, unknown> = { allowed_mentions: allowedMentions };
   if (content !== undefined) body.content = content;
   if (embeds !== undefined) body.embeds = embeds;
+  if (components !== undefined) body.components = components;
 
   return discordFetch<DiscordMessageResponse>(`/channels/${channelId}/messages/${messageId}`, {
     method: 'PATCH',
@@ -573,16 +510,12 @@ export async function deleteChannelMessage(
   const token = getBotToken();
   const url = `${DISCORD_API_BASE}/channels/${channelId}/messages/${messageId}`;
 
-  const res = await fetch(url, {
+  await discordRequest(url, {
     method: 'DELETE',
     headers: { Authorization: `Bot ${token}` },
     cache: 'no-store',
   });
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Discord Delete Message Error [${res.status}]: ${errorText || res.statusText}`);
-  }
 
   return true;
 }
@@ -608,4 +541,29 @@ export async function sendDirectMessage(
  */
 export async function fetchBotUser(): Promise<DiscordUser> {
   return discordFetch<DiscordUser>('/users/@me');
+}
+
+export async function setTicketAccess(guildId: string, channelId: string, memberId: string, open: boolean): Promise<void> {
+  const channels = await fetchGuildChannels(guildId);
+  const channel = channels.find(c => c.id === channelId);
+  if (!channel || channel.guild_id !== guildId) throw new Error('Ticket channel does not belong to this guild.');
+  await fetchGuildMember(guildId, memberId);
+  const context = await fetchBotRoleContext(guildId);
+  const { memberPermissions } = await import('./capabilities');
+  const { hasPermission, permission, PolicyError } = await import('../../../src/security/policy');
+  if (!hasPermission(memberPermissions(context.botMember, context), permission(28))) throw new PolicyError('Bot cannot update ticket access.');
+  const existing = channel.permission_overwrites?.find((overwrite) => overwrite.id === memberId && overwrite.type === 1);
+  let allow = BigInt(existing?.allow || '0');
+  let deny = BigInt(existing?.deny || '0');
+  const sendMessages = BigInt(1) << BigInt(11);
+  if (open) {
+    allow |= sendMessages;
+    deny &= ~sendMessages;
+  } else {
+    allow &= ~sendMessages;
+    deny |= sendMessages;
+  }
+  await discordFetch(`/channels/${channelId}/permissions/${memberId}`, { method: 'PUT', body: JSON.stringify({
+    type: 1, allow: String(allow), deny: String(deny),
+  }) });
 }

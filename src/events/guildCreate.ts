@@ -15,6 +15,7 @@ export async function onGuildCreate(guild: DiscordGuild): Promise<void> {
       name: guild.name,
       icon: guild.icon,
       ownerId: guild.ownerId,
+      memberCount: guild.memberCount,
     });
 
     logger.info(
@@ -23,5 +24,20 @@ export async function onGuildCreate(guild: DiscordGuild): Promise<void> {
     );
   } catch (error) {
     logger.error({ err: error, guildId: guild.id }, '❌ Failed to initialize guild on join');
+  }
+}
+
+export async function onGuildAvailable(guild: DiscordGuild): Promise<void> {
+  try {
+    await GuildRepository.upsertGuild({
+      id: guild.id,
+      name: guild.name,
+      icon: guild.icon,
+      ownerId: guild.ownerId,
+      memberCount: guild.memberCount,
+    });
+    logger.info({ guildId: guild.id }, '✅ Guild became available and registry metadata was refreshed');
+  } catch (error) {
+    logger.error({ err: error, guildId: guild.id }, '❌ Failed to refresh available guild metadata');
   }
 }

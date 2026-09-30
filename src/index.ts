@@ -7,11 +7,12 @@ import { onReady } from './events/ready';
 import { onInteractionCreate } from './events/interactionCreate';
 import { onGuildMemberAdd } from './events/guildMemberAdd';
 import { onGuildMemberRemove } from './events/guildMemberRemove';
-import { onGuildCreate } from './events/guildCreate';
+import { onGuildAvailable, onGuildCreate } from './events/guildCreate';
 import { onGuildDelete } from './events/guildDelete';
 
 // Command imports
 import roleCommand from './commands/admin/role';
+import moderateCommand from './commands/admin/moderate';
 import configCommand from './commands/admin/config';
 import setupCommand from './commands/admin/setup';
 import announceCommand from './commands/announcements/announce';
@@ -32,6 +33,9 @@ import sayReplyCommand from './commands/utility/sayreply';
 import sayKeepCommand from './commands/utility/saykeep';
 import selfRoleCommand from './commands/roles/selfrole';
 import ticketCommand from './commands/tickets/ticket';
+import customCommand from './commands/utility/custom';
+import askCommand from './commands/utility/ask';
+import { onMessageCreate } from './events/messageCreate';
 
 async function bootstrap() {
   logger.info('Initializing KRAXX Discord Operations Bot...');
@@ -43,13 +47,15 @@ async function bootstrap() {
   const client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildMessages,
     ],
   });
 
   // 3. Register Commands Collection
   const commandMap = new Collection<string, any>();
   const commandsList = [
+    moderateCommand,
     roleCommand,
     configCommand,
     setupCommand,
@@ -71,6 +77,8 @@ async function bootstrap() {
     sayKeepCommand,
     selfRoleCommand,
     ticketCommand,
+    customCommand,
+    askCommand,
   ];
 
   for (const cmd of commandsList) {
@@ -80,9 +88,11 @@ async function bootstrap() {
   // 4. Bind Event Handlers
   client.once('ready', () => onReady(client));
   client.on('interactionCreate', interaction => onInteractionCreate(interaction, commandMap));
+  client.on('messageCreate', message => onMessageCreate(message));
   client.on('guildMemberAdd', member => onGuildMemberAdd(member));
   client.on('guildMemberRemove', member => onGuildMemberRemove(member));
   client.on('guildCreate', guild => onGuildCreate(guild));
+  client.on('guildAvailable', guild => onGuildAvailable(guild));
   client.on('guildDelete', guild => onGuildDelete(guild));
 
   // 5. Connect Gateway

@@ -1,15 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { withMutation } from '@/lib/mutation';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier } from '@/lib/permissions';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
+
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const currentUserId = session?.user?.discordId;
   if (!currentUserId) {
@@ -42,12 +39,8 @@ export async function GET() {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const currentUserId = session?.user?.discordId;
   if (!currentUserId) {
@@ -84,3 +77,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to update notifications.' }, { status: 500 });
   }
 }
+
+export const POST = withMutation('SESSION', handlePOST);

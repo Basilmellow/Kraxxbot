@@ -25,6 +25,7 @@ export const authOptions: NextAuthOptions = {
       // On initial sign-in, store Discord identity in JWT
       if (account && profile) {
         token.accessToken = account.access_token;
+        token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : Date.now();
         token.discordId = (profile as { id: string }).id;
         token.username = (profile as { username: string }).username;
         token.avatar = (profile as { avatar?: string }).avatar || null;
@@ -45,7 +46,6 @@ export const authOptions: NextAuthOptions = {
         username: token.username as string,
         displayName: (token.displayName as string) || (token.username as string),
         avatar: token.avatar as string | null,
-        accessToken: token.accessToken as string,
       };
 
       return session;

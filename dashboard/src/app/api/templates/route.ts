@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { NextRequest,NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   const category = request.nextUrl.searchParams.get('category');
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const body = await request.json();
     const { name, category, description, title, embedData, guildId: bodyGuildId } = body;
@@ -111,11 +112,13 @@ export async function POST(request: NextRequest) {
         embedData: JSON.parse(template.embedData),
       },
     });
-  } catch (error: any) {
-    console.error('[API] Create template error:', error);
+  } catch {
+    console.error('[API] Create template request failed.');
     return NextResponse.json(
-      { error: error.message || 'Failed to save template' },
+      { error: 'Failed to save template' },
       { status: 500 }
     );
   }
 }
+
+export const POST = withMutation('MANAGE_ANNOUNCEMENTS', handlePOST);

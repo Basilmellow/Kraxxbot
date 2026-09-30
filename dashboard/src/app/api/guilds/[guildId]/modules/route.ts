@@ -1,9 +1,11 @@
+import { withMutation } from '@/lib/mutation';
 // KRAXX Operations Platform — Guild Modules API
 // Get active modules and toggle individual modules for a specific guild tenant
 
-import { NextRequest, NextResponse } from 'next/server';
 import { requireGuildAccess } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
+import { assertModuleKey, getModuleState } from '@/lib/module-catalog';
+import { NextRequest,NextResponse } from 'next/server';
 
 export async function GET(
   _request: NextRequest,
@@ -21,13 +23,13 @@ export async function GET(
       orderBy: { module: 'asc' },
     });
 
-    return NextResponse.json({ modules });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ modules: modules.map((module) => ({ ...module, state: getModuleState(module.module, module.enabled) })) });
+  } catch {
+    return NextResponse.json({ error: 'Failed to read guild modules.' }, { status: 500 });
   }
 }
 
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ guildId: string }> }
 ) {
@@ -47,6 +49,8 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    if (typeof moduleName !== 'string') return NextResponse.json({ error: 'Invalid module key.' }, { status: 400 });
+    try { assertModuleKey(moduleName); } catch { return NextResponse.json({ error: 'Unknown module key.' }, { status: 400 }); }
 
     const updated = await prisma.guildModule.upsert({
       where: {
@@ -64,7 +68,9 @@ export async function PATCH(
     });
 
     return NextResponse.json({ success: true, module: updated });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Failed to update guild module.' }, { status: 500 });
   }
 }
+
+export const PATCH = withMutation('MANAGE_SETTINGS', handlePATCH);

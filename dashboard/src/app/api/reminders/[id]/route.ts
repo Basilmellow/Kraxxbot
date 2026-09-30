@@ -1,19 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { authOptions } from '@/lib/auth';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
 
-export async function DELETE(
+async function handleDELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const { id: reminderId } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
@@ -24,13 +21,13 @@ export async function DELETE(
 
   try {
     const reminder = await prisma.reminder.update({
-      where: { id: reminderId, guildId },
+      where: { id: reminderId, guildId, status: 'ACTIVE' },
       data: { status: 'CANCELLED' },
     });
 
     await logDashboardAction({
-      action: 'REMINDER_CANCEL',
       guildId,
+      action: 'REMINDER_CANCEL',
       executorId: currentUserId,
       targetId: reminderId,
       targetType: 'REMINDER',
@@ -38,8 +35,10 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true, message: 'Reminder cancelled.' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to cancel reminder:', error);
-    return NextResponse.json({ error: error.message || 'Failed to cancel reminder' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to cancel reminder' }, { status: 500 });
   }
 }
+
+export const DELETE = withMutation('MANAGE_SETTINGS', handleDELETE);

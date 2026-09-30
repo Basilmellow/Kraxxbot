@@ -18,6 +18,7 @@ export async function onReady(client: Client): Promise<void> {
   // 1. Sync all currently installed guilds into the database
   logger.info('🔄 Syncing guild registry with database...');
   let synced = 0;
+  let syncFailed = false;
   for (const [, guild] of client.guilds.cache) {
     try {
       await GuildRepository.upsertGuild({
@@ -25,10 +26,20 @@ export async function onReady(client: Client): Promise<void> {
         name: guild.name,
         icon: guild.icon,
         ownerId: guild.ownerId,
+        memberCount: guild.memberCount,
       });
+      if (!guild.available) await GuildRepository.markGuildUnavailable(guild.id);
       synced++;
     } catch (error) {
+      syncFailed = true;
       logger.error({ err: error, guildId: guild.id }, 'Failed to sync guild on ready');
+    }
+  }
+  if (!syncFailed) {
+    try {
+      await GuildRepository.markMissingGatewayGuildsUnavailable([...client.guilds.cache.keys()]);
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to reconcile guilds missing from the ready Gateway cache');
     }
   }
   logger.info(`✅ Guild sync complete: ${synced}/${client.guilds.cache.size} guilds registered`);

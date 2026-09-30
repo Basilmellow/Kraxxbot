@@ -1,5 +1,8 @@
 'use client';
 
+import { PageContainer } from '@/components/ui/Page';
+import { Checkbox, Select, Input, Textarea } from '@/components/ui/Form';
+
 import React, { useCallback, useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Topbar } from '@/components/layout/Topbar';
@@ -7,14 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
-import {
-  Save,
-  CheckCircle2,
-  AlertTriangle,
-  Mail,
-  UserPlus,
-  Loader2,
-} from 'lucide-react';
+import { Save, CheckCircle2, AlertTriangle, Mail, UserPlus, Loader2 } from 'lucide-react';
 
 interface PageProps {
   params: Promise<{ guildId: string }>;
@@ -158,13 +154,13 @@ export default function GuildWelcomePage({ params }: PageProps) {
     return (
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
-          title="Member Welcome & Gateway Onboarding"
-          subtitle="Automated greetings and onboarding settings for this server"
+          title="Welcome"
+          subtitle="Configure welcome messages, direct messages, and initial roles."
         />
         <div className="flex flex-1 items-center justify-center min-h-[60vh]">
           <div className="text-center">
-            <Loader2 className="w-7 h-7 animate-spin text-amber-500 mx-auto mb-3" />
-            <p className="text-xs text-[#716D65]">Loading welcome configuration...</p>
+            <Loader2 className="w-7 h-7 animate-spin text-[var(--accent)] mx-auto mb-3" />
+            <p className="text-[13px] text-[#716D65]">Loading welcome configuration...</p>
           </div>
         </div>
       </div>
@@ -174,10 +170,10 @@ export default function GuildWelcomePage({ params }: PageProps) {
   if (loadError) {
     return (
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar title="Member Welcome & Gateway Onboarding" subtitle="Automated greetings and onboarding settings for this server" />
-        <div className="mx-auto w-full max-w-3xl p-4 sm:p-6 lg:p-8">
+        <Topbar title="Welcome" subtitle="Configure welcome messages, direct messages, and initial roles." />
+        <PageContainer className="space-y-6">
           <ErrorState title="Welcome settings unavailable" message={loadError} onRetry={reloadConfig} />
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -185,24 +181,24 @@ export default function GuildWelcomePage({ params }: PageProps) {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Member Welcome & Gateway Onboarding"
-        subtitle="Automated Greeting Dispatches, Onboarding Direct Messages & Auto-Role Assignment"
+        title="Welcome"
+        subtitle="Configure welcome messages, direct messages, and initial roles."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
@@ -210,29 +206,29 @@ export default function GuildWelcomePage({ params }: PageProps) {
 
         <form onSubmit={handleSave} className="space-y-6">
           {/* Main Welcome Configuration Card */}
-          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
-            <div className="flex items-center justify-between pb-4 border-b border-[#F1F3F9]">
+          <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 sm:p-6  space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-[var(--border-base)]">
               <div className="flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-amber-600" />
-                <h3 className="text-sm font-semibold text-[#101828]">
+                <UserPlus className="w-4 h-4 text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                   Public Welcome Message Dispatch
                 </h3>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#344054]">
-                <input
-                  type="checkbox"
+              <label className="flex items-center gap-2 cursor-pointer text-[13px] font-semibold text-[var(--text-secondary)]">
+                <Checkbox
+
                   checked={enabled}
                   onChange={(e) => setEnabled(e.target.checked)}
-                  className="accent-amber-600 rounded"
+                  className=""
                 />
                 <span>Enable System</span>
               </label>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 text-xs">
-              <div className="space-y-3.5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 text-[13px]">
+              <div className="space-y-4">
                 <div>
-                  <label className="block font-semibold text-[#344054] mb-1">
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                     Welcome Target Channel
                   </label>
                   <ChannelSelector
@@ -243,7 +239,7 @@ export default function GuildWelcomePage({ params }: PageProps) {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#344054] mb-1">
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                     Departure / Leave Notification Channel
                   </label>
                   <ChannelSelector
@@ -254,13 +250,13 @@ export default function GuildWelcomePage({ params }: PageProps) {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#344054] mb-1">
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                     Auto-Assign Initial Role
                   </label>
-                  <select
+                  <Select aria-label="Auto-Assign Initial Role"
                     value={roleId}
                     onChange={(e) => setRoleId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    className="w-full"
                   >
                     <option value="">No Auto-Role</option>
                     {roles.map((r) => (
@@ -268,48 +264,48 @@ export default function GuildWelcomePage({ params }: PageProps) {
                         @{r.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#344054] mb-1">
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                     Welcome Card Banner Image URL (Optional)
                   </label>
-                  <input
+                  <Input aria-label="Welcome Card Banner Image URL (Optional)"
                     type="url"
                     placeholder="https://..."
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-2xs"
+                    className="w-full"
                   />
                 </div>
               </div>
 
-              <div className="space-y-3.5">
+              <div className="space-y-4">
                 <div>
-                  <label className="block font-semibold text-[#344054] mb-1">
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                     Welcome Broadcast Template
                   </label>
-                  <textarea
+                  <Textarea aria-label="Welcome Broadcast Template"
                     rows={4}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    className="w-full p-3.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-amber-500/20 leading-relaxed shadow-2xs resize-y"
+                    className="w-full resize-y"
                   />
-                  <div className="mt-1 text-[11px] text-[#667085]">
-                    Variables: <code className="bg-[#F3F5FA] px-1 py-0.5 rounded text-amber-600">{'{user}'}</code>, <code className="bg-[#F3F5FA] px-1 py-0.5 rounded text-amber-600">{'{username}'}</code>, <code className="bg-[#F3F5FA] px-1 py-0.5 rounded text-amber-600">{'{server}'}</code>, <code className="bg-[#F3F5FA] px-1 py-0.5 rounded text-amber-600">{'{memberCount}'}</code>
+                  <div className="mt-1 text-[13px] text-[var(--text-secondary)]">
+                    Variables: <code className="bg-[var(--surface-2)] px-1 py-0.5 rounded text-[var(--accent)]">{'{user}'}</code>, <code className="bg-[var(--surface-2)] px-1 py-0.5 rounded text-[var(--accent)]">{'{username}'}</code>, <code className="bg-[var(--surface-2)] px-1 py-0.5 rounded text-[var(--accent)]">{'{server}'}</code>, <code className="bg-[var(--surface-2)] px-1 py-0.5 rounded text-[var(--accent)]">{'{memberCount}'}</code>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#344054] mb-1">
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                     Departure Broadcast Template
                   </label>
-                  <textarea
+                  <Textarea aria-label="Departure Broadcast Template"
                     rows={2}
                     value={leaveMessage}
                     onChange={(e) => setLeaveMessage(e.target.value)}
-                    className="w-full p-3.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-amber-500/20 leading-relaxed shadow-2xs resize-y"
+                    className="w-full resize-y"
                   />
                 </div>
               </div>
@@ -317,34 +313,34 @@ export default function GuildWelcomePage({ params }: PageProps) {
           </Card>
 
           {/* DM Onboarding Card */}
-          <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-4 border-b border-[#F1F3F9]">
+          <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 sm:p-6  space-y-4">
+            <div className="flex items-center justify-between pb-4 border-b border-[var(--border-base)]">
               <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-amber-600" />
-                <h3 className="text-sm font-semibold text-[#101828]">
+                <Mail className="w-4 h-4 text-[var(--accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                   Automated Direct Message (DM) Onboarding
                 </h3>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#344054]">
-                <input
-                  type="checkbox"
+              <label className="flex items-center gap-2 cursor-pointer text-[13px] font-semibold text-[var(--text-secondary)]">
+                <Checkbox
+
                   checked={dmEnabled}
                   onChange={(e) => setDmEnabled(e.target.checked)}
-                  className="accent-amber-600 rounded"
+                  className=""
                 />
                 <span>Enable Member DMs</span>
               </label>
             </div>
 
-            <div className="text-xs">
-              <label className="block font-semibold text-[#344054] mb-1">
+            <div className="text-[13px]">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Direct Message Content
               </label>
-              <textarea
+              <Textarea aria-label="Direct Message Content"
                 rows={3}
                 value={dmMessage}
                 onChange={(e) => setDmMessage(e.target.value)}
-                className="w-full p-3.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-amber-500/20 leading-relaxed shadow-2xs resize-y"
+                className="w-full resize-y"
               />
             </div>
           </Card>
@@ -356,14 +352,14 @@ export default function GuildWelcomePage({ params }: PageProps) {
               variant="primary"
               size="md"
               isLoading={isSaving}
-              className="gap-1.5"
+              className="gap-2"
             >
               <Save className="w-4 h-4" />
               <span>Save Gateway Onboarding Settings</span>
             </Button>
           </div>
         </form>
-      </div>
+      </PageContainer>
     </div>
   );
 }

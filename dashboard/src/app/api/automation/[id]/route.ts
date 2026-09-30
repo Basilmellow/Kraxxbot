@@ -1,19 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
+import { Prisma } from '@prisma/client';
 import { logDashboardAction } from '@/lib/audit';
+import { authOptions } from '@/lib/auth';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
+import { validateAutomationConfig } from '../../../../../../src/services/automation-contract';
 
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const { id: ruleId } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
@@ -26,11 +25,25 @@ export async function PATCH(
     const body = await request.json();
     const { name, trigger, action, config, enabled } = body;
 
-    const dataToUpdate: any = {};
-    if (name !== undefined) dataToUpdate.name = name.trim();
-    if (trigger !== undefined) dataToUpdate.trigger = trigger;
-    if (action !== undefined) dataToUpdate.action = action;
-    if (config !== undefined) dataToUpdate.config = typeof config === 'string' ? config : JSON.stringify(config);
+    const existing = await prisma.automationRule.findFirst({ where: { id: ruleId, guildId } });
+    if (!existing) return NextResponse.json({ error: 'Automation rule not found.' }, { status: 404 });
+
+    const dataToUpdate: Prisma.AutomationRuleUpdateInput = {};
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) return NextResponse.json({ error: 'Name must be between 1 and 80 characters.' }, { status: 400 });
+      dataToUpdate.name = name.trim();
+    }
+    const nextTrigger = trigger ?? existing.trigger;
+    const nextAction = action ?? existing.action;
+    if (trigger !== undefined || action !== undefined || config !== undefined) {
+      try {
+        dataToUpdate.config = JSON.stringify(validateAutomationConfig(nextTrigger, nextAction, config ?? existing.config));
+      } catch {
+        return NextResponse.json({ error: 'Choose a supported member event and a valid message action configuration.' }, { status: 400 });
+      }
+      if (trigger !== undefined) dataToUpdate.trigger = nextTrigger;
+      if (action !== undefined) dataToUpdate.action = nextAction;
+    }
     if (enabled !== undefined) dataToUpdate.enabled = Boolean(enabled);
 
     const updated = await prisma.automationRule.update({
@@ -39,8 +52,8 @@ export async function PATCH(
     });
 
     await logDashboardAction({
-      action: 'AUTOMATION_UPDATE',
       guildId,
+      action: 'AUTOMATION_UPDATE',
       executorId: currentUserId,
       targetId: ruleId,
       targetType: 'AUTOMATION',
@@ -48,21 +61,17 @@ export async function PATCH(
     });
 
     return NextResponse.json({ success: true, rule: updated });
-  } catch (error: any) {
-    console.error('Failed to update automation rule:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update automation rule' }, { status: 500 });
+  } catch {
+    console.error('Failed to update automation rule.');
+    return NextResponse.json({ error: 'Failed to update automation rule' }, { status: 500 });
   }
 }
 
-export async function DELETE(
+async function handleDELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const { id: ruleId } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
@@ -77,8 +86,8 @@ export async function DELETE(
     });
 
     await logDashboardAction({
-      action: 'AUTOMATION_DELETE',
       guildId,
+      action: 'AUTOMATION_DELETE',
       executorId: currentUserId,
       targetId: ruleId,
       targetType: 'AUTOMATION',
@@ -86,8 +95,11 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true, message: 'Automation rule deleted.' });
-  } catch (error: any) {
-    console.error('Failed to delete automation rule:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete automation rule' }, { status: 500 });
+  } catch {
+    console.error('Failed to delete automation rule.');
+    return NextResponse.json({ error: 'Failed to delete automation rule' }, { status: 500 });
   }
 }
+
+export const PATCH = withMutation('MANAGE_AUTOMATIONS', handlePATCH);
+export const DELETE = withMutation('MANAGE_AUTOMATIONS', handleDELETE);

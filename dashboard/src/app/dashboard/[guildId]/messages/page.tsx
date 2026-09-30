@@ -1,31 +1,18 @@
 'use client';
 
+import { PageContainer } from '@/components/ui/Page';
+import { Input, Textarea, Select } from '@/components/ui/Form';
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
-import {
-  MessageSquare,
-  Send,
-  Edit3,
-  Trash2,
-  Bold,
-  Italic,
-  Code,
-  FileCode,
-  Quote,
-  Link as LinkIcon,
-  AtSign,
-  AlertTriangle,
-  CheckCircle2,
-  RefreshCw,
-  Terminal,
-  ShieldAlert,
-} from 'lucide-react';
+import { finishMessageOperationKey, messageOperationKey } from '@/lib/message-operation-key';
+import { Send, Edit3, Trash2, Bold, Italic, Code, FileCode, Quote, AtSign, AlertTriangle, CheckCircle2, RefreshCw, Terminal } from 'lucide-react';
 
 export default function MessageCenterPage() {
   const router = useRouter();
@@ -113,7 +100,7 @@ export default function MessageCenterPage() {
         const err = await res.json();
         setFeedback({ type: 'error', message: err.error || 'Message not found in channel.' });
       }
-    } catch (err: any) {
+    } catch {
       setFeedback({ type: 'error', message: 'Failed to connect to Discord gateway.' });
     } finally {
       setIsLoadingMessage(false);
@@ -130,20 +117,21 @@ export default function MessageCenterPage() {
 
     try {
       if (mode === 'send') {
+        const payload = {
+          channelId: selectedChannel.id, guildId, content,
+          mentionType: mentionType !== 'NONE' ? mentionType : undefined,
+          mentionRoleId: mentionType === 'ROLE' ? selectedRoleId : undefined,
+        };
         const res = await fetch('/api/messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channelId: selectedChannel.id,
-            guildId,
-            content,
-            mentionType: mentionType !== 'NONE' ? mentionType : undefined,
-            mentionRoleId: mentionType === 'ROLE' ? selectedRoleId : undefined,
-          }),
+          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': await messageOperationKey(payload) },
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json();
+        await finishMessageOperationKey(payload, data.operation?.status);
         if (!res.ok) throw new Error(data.error || 'Failed to dispatch message.');
+        if (data.operation?.status !== 'SUCCESS') throw new Error(data.message || `Message operation state: ${data.operation?.status || 'UNKNOWN'}.`);
 
         setFeedback({
           type: 'success',
@@ -152,32 +140,37 @@ export default function MessageCenterPage() {
         });
         setContent('');
       } else if (mode === 'edit') {
+        const payload = {
+          channelId: selectedChannel.id, guildId, content,
+          mentionType: mentionType !== 'NONE' ? mentionType : undefined,
+          mentionRoleId: mentionType === 'ROLE' ? selectedRoleId : undefined,
+        };
         const res = await fetch(`/api/messages/${targetMessageId.trim()}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channelId: selectedChannel.id,
-            guildId,
-            content,
-            mentionType: mentionType !== 'NONE' ? mentionType : undefined,
-            mentionRoleId: mentionType === 'ROLE' ? selectedRoleId : undefined,
-          }),
+          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': await messageOperationKey({ operation: 'EDIT', targetMessageId, ...payload }) },
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json();
+        await finishMessageOperationKey({ operation: 'EDIT', targetMessageId, ...payload }, data.operation?.status);
         if (!res.ok) throw new Error(data.error || 'Failed to update message.');
+        if (data.operation?.status !== 'SUCCESS') throw new Error(data.message || `Message operation state: ${data.operation?.status || 'UNKNOWN'}.`);
 
         setFeedback({
           type: 'success',
           message: `Message #${targetMessageId} modified in #${selectedChannel.name}.`,
         });
       } else if (mode === 'delete') {
+        const payload = { operation: 'DELETE', targetMessageId, channelId: selectedChannel.id, guildId };
         const res = await fetch(`/api/messages/${targetMessageId.trim()}?channelId=${selectedChannel.id}&guildId=${guildId}`, {
           method: 'DELETE',
+          headers: { 'Idempotency-Key': await messageOperationKey(payload) },
         });
 
         const data = await res.json();
+        await finishMessageOperationKey(payload, data.operation?.status);
         if (!res.ok) throw new Error(data.error || 'Failed to delete message.');
+        if (data.operation?.status !== 'SUCCESS') throw new Error(data.message || `Message operation state: ${data.operation?.status || 'UNKNOWN'}.`);
 
         setFeedback({
           type: 'success',
@@ -185,8 +178,8 @@ export default function MessageCenterPage() {
         });
         setTargetMessageId('');
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Operation failed.' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Operation failed.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -195,49 +188,49 @@ export default function MessageCenterPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Message Center"
-        subtitle="Direct Discord Channel Messaging & Content Operations"
+        title="Messages"
+        subtitle="Compose and manage messages in your Discord channels."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Mode Selector Tabs */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] w-fit shadow-2xs">
+        <div className="flex items-center gap-2 p-1 rounded-xl bg-[var(--surface-1)] border border-[var(--border-base)] w-fit ">
           <button
             type="button"
             onClick={() => { setMode('send'); setFeedback(null); }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
               mode === 'send'
-                ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
+                ? 'bg-[var(--accent-dim)] text-[var(--accent)] font-semibold'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]'
             }`}
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-4 h-4" />
             <span>Dispatch Message</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setMode('edit'); setFeedback(null); }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
               mode === 'edit'
-                ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
+                ? 'bg-[var(--accent-dim)] text-[var(--accent)] font-semibold'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]'
             }`}
           >
-            <Edit3 className="w-3.5 h-3.5" />
+            <Edit3 className="w-4 h-4" />
             <span>Edit Message</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setMode('delete'); setFeedback(null); }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
               mode === 'delete'
-                ? 'bg-red-50 text-red-600 font-semibold'
-                : 'text-[#667085] hover:text-red-600 hover:bg-[#F8FAFC]'
+                ? 'bg-[var(--danger-bg)] text-[var(--danger)] font-semibold'
+                : 'text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--surface-2)]'
             }`}
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 className="w-4 h-4" />
             <span>Delete Message</span>
           </button>
         </div>
@@ -245,21 +238,21 @@ export default function MessageCenterPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="flex-1">
               <div className="font-medium">{feedback.message}</div>
               {feedback.messageId && (
-                <div className="text-[11px] text-[#667085] mt-0.5 font-mono">
+                <div className="text-[13px] text-[var(--text-secondary)] mt-0.5 font-mono">
                   Message ID: {feedback.messageId}
                 </div>
               )}
@@ -270,10 +263,10 @@ export default function MessageCenterPage() {
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Controls Column */}
           <div className="lg:col-span-2 space-y-4">
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs">
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#F1F3F9]">
-                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-indigo-600" />
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 sm:p-6 ">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-[var(--border-base)]">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-[var(--accent)]" />
                   <span>
                     {mode === 'send' && 'Dispatch Message Console'}
                     {mode === 'edit' && 'Edit Bot Message Console'}
@@ -294,16 +287,16 @@ export default function MessageCenterPage() {
                 {/* Target Message ID for Edit/Delete */}
                 {mode !== 'send' && (
                   <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                    <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                       Target Discord Message ID
                     </label>
                     <div className="flex gap-2">
-                      <input
+                      <Input aria-label="Target Discord message ID"
                         type="text"
                         placeholder="e.g. 1198765432109876543"
                         value={targetMessageId}
                         onChange={(e) => setTargetMessageId(e.target.value)}
-                        className="flex-1 px-3.5 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                        className="flex-1 font-mono"
                         required
                       />
                       {mode === 'edit' && (
@@ -312,10 +305,11 @@ export default function MessageCenterPage() {
                           variant="outline"
                           size="sm"
                           onClick={handleLoadMessage}
+                          aria-label="Load message"
                           disabled={isLoadingMessage || !targetMessageId.trim() || !selectedChannel}
                         >
                           {isLoadingMessage ? (
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <RefreshCw className="w-4 h-4 animate-spin" />
                           ) : (
                             'Load'
                           )}
@@ -328,66 +322,66 @@ export default function MessageCenterPage() {
                 {/* Message Content (for Send and Edit) */}
                 {mode !== 'delete' && (
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-semibold text-[#344054]">
+                    <div className="flex items-center justify-between mb-2">
+                      <label htmlFor="message-composer" className="text-[13px] font-semibold text-[var(--text-secondary)]">
                         Message Content / Payload
                       </label>
-                      <span className="text-[11px] text-[#667085]">
+                      <span className="text-[13px] text-[var(--text-secondary)]">
                         {content.length} / 2000 chars
                       </span>
                     </div>
 
                     {/* Markdown Toolbar */}
-                    <div className="flex items-center gap-1 p-1 bg-[#F8FAFC] border-t border-x border-[#E5E7EB] rounded-t-xl text-[#667085]">
+                    <div className="flex items-center gap-1 p-1 bg-[var(--surface-2)] border-t border-x border-[var(--border-base)] rounded-t-xl text-[var(--text-secondary)]">
                       <button
                         type="button"
                         onClick={() => insertFormatting('**', '**')}
-                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
+                        className="p-2 rounded-md hover:bg-[var(--surface-1)] hover:text-[var(--text-primary)] transition-colors"
                         title="Bold (**text**)"
                       >
-                        <Bold className="w-3.5 h-3.5" />
+                        <Bold className="w-4 h-4" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('*', '*')}
-                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
+                        className="p-2 rounded-md hover:bg-[var(--surface-1)] hover:text-[var(--text-primary)] transition-colors"
                         title="Italic (*text*)"
                       >
-                        <Italic className="w-3.5 h-3.5" />
+                        <Italic className="w-4 h-4" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('`', '`')}
-                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
+                        className="p-2 rounded-md hover:bg-[var(--surface-1)] hover:text-[var(--text-primary)] transition-colors"
                         title="Inline Code (`code`)"
                       >
-                        <Code className="w-3.5 h-3.5" />
+                        <Code className="w-4 h-4" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('```\n', '\n```')}
-                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
+                        className="p-2 rounded-md hover:bg-[var(--surface-1)] hover:text-[var(--text-primary)] transition-colors"
                         title="Code Block (```)"
                       >
-                        <FileCode className="w-3.5 h-3.5" />
+                        <FileCode className="w-4 h-4" />
                       </button>
                       <button
                         type="button"
                         onClick={() => insertFormatting('> ')}
-                        className="p-1.5 rounded-md hover:bg-white hover:text-[#101828] transition-colors"
+                        className="p-2 rounded-md hover:bg-[var(--surface-1)] hover:text-[var(--text-primary)] transition-colors"
                         title="Blockquote (>)"
                       >
-                        <Quote className="w-3.5 h-3.5" />
+                        <Quote className="w-4 h-4" />
                       </button>
                     </div>
 
-                    <textarea
+                    <Textarea
                       id="message-composer"
                       rows={6}
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="Type your message payload here. Supports standard Discord markdown formatting..."
-                      className="w-full p-3.5 rounded-b-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed shadow-2xs"
+                      className="w-full"
                       required
                     />
                   </div>
@@ -395,9 +389,9 @@ export default function MessageCenterPage() {
 
                 {/* Mention Controls */}
                 {mode !== 'delete' && (
-                  <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-3">
-                    <label className="text-xs font-semibold text-[#344054] flex items-center gap-1.5">
-                      <AtSign className="w-3.5 h-3.5 text-indigo-600" />
+                  <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] space-y-3">
+                    <label className="text-[13px] font-semibold text-[var(--text-secondary)] flex items-center gap-2">
+                      <AtSign className="w-4 h-4 text-[var(--accent)]" />
                       <span>Ping & Mention Controls</span>
                     </label>
 
@@ -407,10 +401,10 @@ export default function MessageCenterPage() {
                           key={m}
                           type="button"
                           onClick={() => setMentionType(m)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          className={`px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                             mentionType === m
-                              ? 'bg-indigo-600 text-white font-semibold shadow-2xs'
-                              : 'bg-white border border-[#E5E7EB] text-[#475467] hover:bg-[#F3F5FA]'
+                              ? 'bg-[var(--accent)] text-[var(--text-inverse)] font-semibold '
+                              : 'bg-[var(--surface-1)] border border-[var(--border-base)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]'
                           }`}
                         >
                           {m === 'NONE' && 'None'}
@@ -423,10 +417,10 @@ export default function MessageCenterPage() {
 
                     {mentionType === 'ROLE' && (
                       <div className="pt-2">
-                        <select
+                        <Select aria-label="selected Role Id"
                           value={selectedRoleId}
                           onChange={(e) => setSelectedRoleId(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          className="w-full"
                           required
                         >
                           <option value="">Select target role to ping...</option>
@@ -435,7 +429,7 @@ export default function MessageCenterPage() {
                               @{r.name}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </div>
                     )}
                   </div>
@@ -462,19 +456,19 @@ export default function MessageCenterPage() {
 
           {/* Right Info & Live Preview Column */}
           <div className="lg:col-span-1 space-y-4">
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs">
-              <h4 className="text-xs font-semibold text-[#101828] uppercase tracking-wider mb-2">
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 ">
+              <h4 className="text-[13px] font-semibold text-[var(--text-primary)] uppercase tracking-wider mb-2">
                 Live Discord Message Preview
               </h4>
-              <div className="p-3.5 rounded-xl bg-[#313338] text-[#dbdee1] text-xs font-sans space-y-2">
+              <div className="p-4 rounded-xl bg-[#313338] text-[#dbdee1] text-[13px] font-sans space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px]">
+                  <div className="w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--text-inverse)] font-bold flex items-center justify-center text-[13px]">
                     K
                   </div>
-                  <span className="font-semibold text-white text-xs">KRAXX Bot</span>
+                  <span className="font-semibold text-white text-[13px]">KRAXX Bot</span>
                   <span className="bg-[#5865f2] text-white text-[9px] font-bold px-1 rounded">BOT</span>
                 </div>
-                <div className="text-xs whitespace-pre-wrap pl-8">
+                <div className="text-[13px] whitespace-pre-wrap pl-8">
                   {mentionType === 'EVERYONE' && <span className="text-[#c9cdfb] font-medium mr-1">@everyone</span>}
                   {mentionType === 'HERE' && <span className="text-[#c9cdfb] font-medium mr-1">@here</span>}
                   {mentionType === 'ROLE' && selectedRoleId && (
@@ -487,15 +481,15 @@ export default function MessageCenterPage() {
               </div>
             </Card>
 
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs text-xs space-y-2">
-              <h4 className="font-semibold text-[#101828]">Security & Clearance</h4>
-              <p className="text-[#667085] leading-relaxed">
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5  text-[13px] space-y-2">
+              <h4 className="font-semibold text-[var(--text-primary)]">Security & Clearance</h4>
+              <p className="text-[var(--text-secondary)] leading-relaxed">
                 Messages dispatched via this console are logged in the real-time audit trail and signed with your Discord credentials.
               </p>
             </Card>
           </div>
         </form>
-      </div>
+      </PageContainer>
     </div>
   );
 }

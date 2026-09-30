@@ -28,10 +28,11 @@ export function StatusDot({
         aria-hidden="true"
       />
       {label && (
-        <span className="text-[11px] font-medium text-[#475467]">
+        <span className="text-[11px] font-medium text-[var(--text-secondary)]">
           {label}
         </span>
       )}
+      {!label && <span className="sr-only">{status}</span>}
     </div>
   );
 }

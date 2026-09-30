@@ -1,28 +1,21 @@
 'use client';
+import { Tabs } from '@/components/ui/Tabs';
 
-import React, { useState, useEffect } from 'react';
+import { PageContainer } from '@/components/ui/Page';
+import { Input, Textarea, Select } from '@/components/ui/Form';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
-import {
-  CalendarClock,
-  Plus,
-  Calendar,
-  Clock,
-  MapPin,
-  Users,
-  CheckCircle2,
-  AlertTriangle,
-  Play,
-  Check,
-  Trash2,
-} from 'lucide-react';
+import { CalendarClock, Plus, Clock, MapPin, CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
 
 interface MeetingItem {
   id: string;
@@ -41,6 +34,7 @@ interface MeetingItem {
 const STATUSES = ['ALL', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
 export default function MeetingsPage() {
+  const confirm = useConfirm();
   const guildId = useGuildId();
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
   const [channels, setChannels] = useState<ChannelItem[]>([]);
@@ -60,12 +54,12 @@ export default function MeetingsPage() {
   const [duration, setDuration] = useState(60);
   const [selectedChannel, setSelectedChannel] = useState<ChannelItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const createRequestId = useRef<string | null>(null);
 
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const fetchMeetings = async () => {
     try {
-      setIsLoading(true);
       const url = statusFilter === 'ALL' ? `/api/meetings?guildId=${guildId}` : `/api/meetings?status=${statusFilter}&guildId=${guildId}`;
       const res = await fetch(url);
       if (res.ok) {
@@ -80,7 +74,7 @@ export default function MeetingsPage() {
   };
 
   useEffect(() => {
-    fetchMeetings();
+    void Promise.resolve().then(fetchMeetings);
   }, [statusFilter, guildId]);
 
   // Live timer tick every second for real-time countdown
@@ -114,6 +108,7 @@ export default function MeetingsPage() {
 
     const startDateTime = new Date(`${startDate}T${startTimeStr}`);
     const endDateTime = new Date(startDateTime.getTime() + duration * 60 * 1000);
+    createRequestId.current ||= crypto.randomUUID();
 
     try {
       const res = await fetch('/api/meetings', {
@@ -126,28 +121,36 @@ export default function MeetingsPage() {
           startTime: startDateTime.toISOString(),
           endTime: endDateTime.toISOString(),
           locationChannelId: selectedChannel?.id || undefined,
+          requestId: createRequestId.current,
           guildId,
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setFeedback({ type: 'success', message: 'Meeting scheduled successfully.' });
+        const message = data.announcementState === 'SENT'
+          ? 'Meeting saved. Its announcement was already sent to the selected Discord channel.'
+          : data.announcementQueued
+            ? 'Meeting saved. Its announcement is queued for the selected Discord channel.'
+            : `Meeting already exists. Announcement status: ${data.announcementState || 'unknown'}.`;
+        setFeedback({ type: 'success', message });
+        createRequestId.current = null;
         setShowCreateModal(false);
         setTitle('');
         setAgenda('');
         fetchMeetings();
       } else {
+        if (res.status === 409) createRequestId.current = null;
         setFeedback({ type: 'error', message: data.error || 'Failed to schedule meeting' });
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Meeting creation error' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Meeting creation error' });
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleUpdateStatus = async (id: string, newStatus: string) => {
+  const handleUpdateStatus = async (id: string, newStatus: MeetingItem['status']) => {
     try {
       const res = await fetch(`/api/meetings/${id}?guildId=${guildId}`, {
         method: 'PATCH',
@@ -155,7 +158,16 @@ export default function MeetingsPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) {
-        setMeetings(meetings.map((m) => (m.id === id ? { ...m, status: newStatus as any } : m)));
+        setMeetings(meetings.map((m) => (m.id === id ? { ...m, status: newStatus } : m)));
+        const data = await res.json();
+        if (data.announcementQueued) {
+          setFeedback({ type: 'success', message: newStatus === 'IN_PROGRESS'
+            ? 'Meeting started. Its channel announcement is queued.'
+            : 'Meeting concluded. Its channel announcement is queued.' });
+        }
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setFeedback({ type: 'error', message: data.error || 'Could not update the meeting.' });
       }
     } catch (err) {
       console.error('Failed to update meeting status:', err);
@@ -163,7 +175,7 @@ export default function MeetingsPage() {
   };
 
   const handleDeleteMeeting = async (id: string) => {
-    if (!confirm('Confirm deletion of this meeting schedule?')) return;
+    if (!await confirm('Confirm deletion of this meeting schedule?')) return;
     try {
       const res = await fetch(`/api/meetings/${id}?guildId=${guildId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -193,37 +205,22 @@ export default function MeetingsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Operations Cadence & Meetings"
-        subtitle="HQ Voice Channels, Standups, Briefings & Calendar Sync"
+        title="Meetings"
+        subtitle="Schedule meetings and manage their Discord delivery."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Filter Controls & Create Action */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
-            {STATUSES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  statusFilter === s
-                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          <Tabs label="Filter by status" items={STATUSES.map(item => ({ value: item, label: item }))} value={statusFilter} onChange={setStatusFilter} />
 
           <Button
             variant="primary"
             size="sm"
             onClick={() => setShowCreateModal(true)}
-            className="gap-1.5"
+            className="gap-2"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
             <span>Schedule Meeting</span>
           </Button>
         </div>
@@ -231,16 +228,16 @@ export default function MeetingsPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
@@ -271,50 +268,50 @@ export default function MeetingsPage() {
               return (
                 <Card
                   key={m.id}
-                  className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all"
+                  className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5  flex flex-col justify-between hover:border-[var(--accent-border)] transition-colors"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <h4 className="text-sm font-semibold text-[#101828] truncate">
+                      <h4 className="text-sm font-semibold text-[var(--text-primary)] truncate">
                         {m.title}
                       </h4>
                       {getStatusBadge(m.status)}
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs text-[#667085] mb-3">
-                      <span className="font-medium text-[#101828]">{m.department}</span>
+                    <div className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)] mb-3">
+                      <span className="font-medium text-[var(--text-primary)]">{m.department}</span>
                       <span>•</span>
                       <span>{start.toLocaleDateString()}</span>
                     </div>
 
                     {m.agenda && (
-                      <p className="text-xs text-[#667085] line-clamp-2 mb-4 leading-relaxed">
+                      <p className="text-[13px] text-[var(--text-secondary)] line-clamp-2 mb-4 leading-relaxed">
                         {m.agenda}
                       </p>
                     )}
 
-                    <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-1.5 text-xs text-[#475467]">
+                    <div className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] space-y-2 text-[13px] text-[var(--text-secondary)]">
                       <div className="flex items-center gap-2">
-                        <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                        <Clock className="w-4 h-4 text-[var(--accent)]" />
                         <span>{start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       {m.locationChannelId && (
                         <div className="flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="font-mono text-[11px]">Channel: #{m.locationChannelId}</span>
+                          <MapPin className="w-4 h-4 text-[var(--success)]" />
+                          <span className="font-mono text-[13px]">Channel: #{m.locationChannelId}</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-[#F1F3F9] flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
+                  <div className="pt-4 mt-4 border-t border-[var(--border-base)] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                       {m.status === 'SCHEDULED' && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleUpdateStatus(m.id, 'IN_PROGRESS')}
-                          className="text-xs py-1"
+                          className="text-[13px] py-1"
                         >
                           Start Meeting
                         </Button>
@@ -324,7 +321,7 @@ export default function MeetingsPage() {
                           variant="primary"
                           size="sm"
                           onClick={() => handleUpdateStatus(m.id, 'COMPLETED')}
-                          className="text-xs py-1 bg-emerald-600 hover:bg-emerald-700"
+                          className="text-[13px] py-1 bg-[var(--success)] hover:bg-[var(--success)]"
                         >
                           Conclude
                         </Button>
@@ -334,7 +331,7 @@ export default function MeetingsPage() {
                     <button
                       type="button"
                       onClick={() => handleDeleteMeeting(m.id)}
-                      className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                       title="Delete Meeting"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -350,102 +347,102 @@ export default function MeetingsPage() {
         <Modal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          title="Schedule Operations Meeting"
-          subtitle="Set agenda, time, department, and link to Discord voice channel"
+          title="Schedule Meeting"
+          subtitle="Set the agenda, time, department, and Discord channel for meeting announcements"
         >
-          <form onSubmit={handleCreateMeeting} className="space-y-4 text-xs">
+          <form onSubmit={handleCreateMeeting} className="space-y-4 text-[13px]">
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Meeting Title / Subject
               </label>
-              <input
+              <Input aria-label="Meeting Title / Subject"
                 type="text"
                 required
                 placeholder="e.g. KRAXX Weekly Operations Sync"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Agenda & Briefing Notes
               </label>
-              <textarea
+              <Textarea aria-label="Agenda & Briefing Notes"
                 rows={3}
                 placeholder="Topics, agenda items, objectives..."
                 value={agenda}
                 onChange={(e) => setAgenda(e.target.value)}
-                className="w-full p-3 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-y"
+                className="w-full resize-y"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Department
                 </label>
-                <select
+                <Select aria-label="Department"
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 >
                   <option value="GENERAL">KRAXX HQ</option>
                   <option value="KRAXXSEC">KRAXXSEC</option>
                   <option value="STUDIO">KRAXX STUDIO</option>
-                </select>
+                </Select>
               </div>
 
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Duration
                 </label>
-                <select
+                <Select aria-label="Duration"
                   value={duration}
                   onChange={(e) => setDuration(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 >
                   <option value={15}>15 Minutes (Standup)</option>
                   <option value={30}>30 Minutes (Briefing)</option>
                   <option value={45}>45 Minutes</option>
                   <option value={60}>60 Minutes (Standard)</option>
                   <option value={90}>90 Minutes (Deep Dive)</option>
-                </select>
+                </Select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Date
                 </label>
-                <input
+                <Input aria-label="Date"
                   type="date"
                   required
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Start Time
                 </label>
-                <input
+                <Input aria-label="Start Time"
                   type="time"
                   required
                   value={startTimeStr}
                   onChange={(e) => setStartTimeStr(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
-                Discord Voice Channel (Optional)
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
+                Discord Announcement Channel (Required)
               </label>
               <ChannelSelector
                 channels={channels}
@@ -474,7 +471,7 @@ export default function MeetingsPage() {
             </div>
           </form>
         </Modal>
-      </div>
+      </PageContainer>
     </div>
   );
 }

@@ -13,7 +13,6 @@ declare module 'next-auth' {
       username: string;
       displayName: string;
       avatar: string | null;
-      accessToken?: string;
       isMember?: boolean;
       roleTier?: number;
       roleTierName?: string;
@@ -26,6 +25,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     accessToken?: string;
+    accessTokenExpires?: number;
     discordId?: string;
     username?: string;
     displayName?: string;

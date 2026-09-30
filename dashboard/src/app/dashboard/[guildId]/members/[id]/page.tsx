@@ -1,27 +1,16 @@
 'use client';
 
+import { PageContainer } from '@/components/ui/Page';
+import { Select } from '@/components/ui/Form';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { EmptyState } from '@/components/ui/EmptyState';
-import {
-  Users,
-  Shield,
-  ShieldCheck,
-  Calendar,
-  Ticket,
-  CheckSquare,
-  Plus,
-  X,
-  ArrowLeft,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  ExternalLink,
-} from 'lucide-react';
+
+import { Ticket, CheckSquare, X, ArrowLeft, CheckCircle2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useGuildId } from '@/lib/useGuildId';
 
@@ -137,7 +126,7 @@ export default function MemberDetailPage() {
     return (
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar title="Personnel Dossier" subtitle="Retrieving telemetry..." />
-        <div className="p-12 text-center text-xs text-[#667085]">
+        <div className="p-12 text-center text-[13px] text-[var(--text-secondary)]">
           Loading operator dossier profile...
         </div>
       </div>
@@ -163,14 +152,14 @@ export default function MemberDetailPage() {
         subtitle="Operational Profile, Discord Hierarchy & System Activity"
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Back Link */}
         <div>
           <Link
             href={`/dashboard/${guildId}/members`}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+            className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--accent)] hover:text-[var(--accent)]"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="w-4 h-4" />
             <span>Back to Personnel Directory</span>
           </Link>
         </div>
@@ -178,16 +167,16 @@ export default function MemberDetailPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
@@ -196,44 +185,44 @@ export default function MemberDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Profile Card (5 cols) */}
           <div className="lg:col-span-5 space-y-4">
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs">
-              <div className="flex items-center gap-4 pb-5 border-b border-[#F1F3F9]">
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-6 ">
+              <div className="flex items-center gap-4 pb-5 border-b border-[var(--border-base)]">
                 {member?.avatar ? (
                   <img
                     src={member.avatar}
                     alt={member.displayName}
-                    className="w-16 h-16 rounded-full object-cover border border-[#E5E7EB]"
+                    className="w-16 h-16 rounded-full object-cover border border-[var(--border-base)]"
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xl font-bold text-indigo-600">
+                  <div className="w-16 h-16 rounded-full bg-[var(--accent-dim)] border border-[var(--accent-border)] flex items-center justify-center text-xl font-bold text-[var(--accent)]">
                     {member?.displayName?.charAt(0) || 'U'}
                   </div>
                 )}
                 <div>
-                  <h3 className="text-base font-bold text-[#101828]">
+                  <h3 className="text-base font-bold text-[var(--text-primary)]">
                     {member?.displayName}
                   </h3>
-                  <div className="text-xs text-[#667085]">
+                  <div className="text-[13px] text-[var(--text-secondary)]">
                     @{member?.username}
                   </div>
-                  <div className="mt-1 font-mono text-[11px] text-[#98A2B3]">
+                  <div className="mt-1 font-mono text-[13px] text-[var(--text-secondary)]">
                     ID: {member?.id}
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-3 py-4 border-b border-[#F1F3F9] text-xs">
+              <div className="space-y-3 py-4 border-b border-[var(--border-base)] text-[13px]">
                 <div className="flex items-center justify-between">
-                  <span className="text-[#667085]">Clearance Level</span>
+                  <span className="text-[var(--text-secondary)]">Clearance Level</span>
                   <Badge variant="brand">{member?.roleTier || 'MEMBER'}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[#667085]">Department</span>
-                  <span className="font-medium text-[#101828]">{member?.department || 'HQ Operations'}</span>
+                  <span className="text-[var(--text-secondary)]">Department</span>
+                  <span className="font-medium text-[var(--text-primary)]">{member?.department || 'HQ Operations'}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[#667085]">Joined Guild</span>
-                  <span className="text-[#101828]">
+                  <span className="text-[var(--text-secondary)]">Joined Guild</span>
+                  <span className="text-[var(--text-primary)]">
                     {member?.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
@@ -242,17 +231,17 @@ export default function MemberDetailPage() {
               {/* Roles Section */}
               <div className="pt-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#101828]">Assigned Discord Roles</span>
+                  <span className="text-[13px] font-semibold text-[var(--text-primary)]">Assigned Discord Roles</span>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {member?.roles?.map((r) => (
                     <span
                       key={r.id}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#F8FAFC] border border-[#E5E7EB] text-xs text-[#475467]"
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[var(--surface-2)] border border-[var(--border-base)] text-[13px] text-[var(--text-secondary)]"
                     >
                       <span>@{r.name}</span>
-                      <span className="text-[10px] text-[#667085]">
+                      <span className="text-[13px] text-[var(--text-secondary)]">
                         Already assigned · {roleReason(r)}
                       </span>
                       <button
@@ -261,7 +250,7 @@ export default function MemberDetailPage() {
                         disabled={!r.manageable || isMutatingRole}
                         title={r.manageable ? 'Remove role' : `Cannot manage: ${roleReason(r)}`}
                         aria-label={`Remove ${r.name}: ${roleReason(r)}`}
-                        className="text-[#98A2B3] hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                        className="text-[var(--text-secondary)] hover:text-[var(--danger)] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -271,10 +260,10 @@ export default function MemberDetailPage() {
 
                 {/* Add Role Control */}
                 <div className="pt-2 flex gap-2">
-                  <select
+                  <Select aria-label="selected New Role"
                     value={selectedNewRole}
                     onChange={(e) => setSelectedNewRole(e.target.value)}
-                    className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    className="flex-1"
                   >
                     <option value="">Select role to assign...</option>
                     {(data?.allRoles || []).map((r) => {
@@ -284,7 +273,7 @@ export default function MemberDetailPage() {
                         @{r.name} — {isAssigned ? 'Already assigned' : 'Not assigned'} · {roleReason(r)}
                       </option>
                     );})}
-                  </select>
+                  </Select>
                   <Button
                     variant="primary"
                     size="sm"
@@ -302,16 +291,16 @@ export default function MemberDetailPage() {
           {/* Right Column: Activity / Associated Entities (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
             {/* Associated Tasks Card */}
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs">
-              <div className="pb-3 mb-3 border-b border-[#F1F3F9] flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-                  <CheckSquare className="w-4 h-4 text-indigo-600" />
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 ">
+              <div className="pb-3 mb-3 border-b border-[var(--border-base)] flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-[var(--accent)]" />
                   <span>Assigned Operations Tasks</span>
                 </h4>
               </div>
 
               {(!data?.tasks || data.tasks.length === 0) ? (
-                <div className="text-xs text-[#667085] py-4 text-center">
+                <div className="text-[13px] text-[var(--text-secondary)] py-4 text-center">
                   No active tasks assigned to this operator.
                 </div>
               ) : (
@@ -319,11 +308,11 @@ export default function MemberDetailPage() {
                   {data.tasks.map((t) => (
                     <div
                       key={t.id}
-                      className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] flex items-center justify-between text-xs"
+                      className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] flex items-center justify-between text-[13px]"
                     >
                       <div>
-                        <div className="font-semibold text-[#101828]">#{t.taskNumber} {t.title}</div>
-                        <div className="text-[11px] text-[#667085]">{t.department} • Priority: {t.priority}</div>
+                        <div className="font-semibold text-[var(--text-primary)]">#{t.taskNumber} {t.title}</div>
+                        <div className="text-[13px] text-[var(--text-secondary)]">{t.department} • Priority: {t.priority}</div>
                       </div>
                       <Badge variant={t.status === 'COMPLETED' ? 'success' : 'warning'}>
                         {t.status}
@@ -335,16 +324,16 @@ export default function MemberDetailPage() {
             </Card>
 
             {/* Associated Tickets Card */}
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs">
-              <div className="pb-3 mb-3 border-b border-[#F1F3F9] flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-                  <Ticket className="w-4 h-4 text-indigo-600" />
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 ">
+              <div className="pb-3 mb-3 border-b border-[var(--border-base)] flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Ticket className="w-4 h-4 text-[var(--accent)]" />
                   <span>Associated Tickets</span>
                 </h4>
               </div>
 
               {(!data?.tickets || data.tickets.length === 0) ? (
-                <div className="text-xs text-[#667085] py-4 text-center">
+                <div className="text-[13px] text-[var(--text-secondary)] py-4 text-center">
                   No ticket records on file for this user.
                 </div>
               ) : (
@@ -352,11 +341,11 @@ export default function MemberDetailPage() {
                   {data.tickets.map((tk) => (
                     <div
                       key={tk.id}
-                      className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] flex items-center justify-between text-xs"
+                      className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] flex items-center justify-between text-[13px]"
                     >
                       <div>
-                        <div className="font-semibold text-[#101828]">#{tk.ticketNumber} {tk.subject}</div>
-                        <div className="text-[11px] text-[#667085]">{tk.category} • {new Date(tk.createdAt).toLocaleDateString()}</div>
+                        <div className="font-semibold text-[var(--text-primary)]">#{tk.ticketNumber} {tk.subject}</div>
+                        <div className="text-[13px] text-[var(--text-secondary)]">{tk.category} • {new Date(tk.createdAt).toLocaleDateString()}</div>
                       </div>
                       <Badge variant={tk.status === 'RESOLVED' ? 'success' : 'brand'}>
                         {tk.status}
@@ -368,7 +357,7 @@ export default function MemberDetailPage() {
             </Card>
           </div>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

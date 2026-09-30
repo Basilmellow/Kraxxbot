@@ -1,8 +1,8 @@
-import { ChatInputCommandInteraction, GuildMember, Role } from 'discord.js';
+import { ChatInputCommandInteraction,GuildMember,Role } from 'discord.js';
 import { canManageDiscordRole } from '../config/roles';
-import { AuditService } from './audit.service';
 import { KraxxEmbedBuilder } from '../embeds/kraxxEmbedBuilder';
 import { logger } from '../utils/logger';
+import { AuditService } from './audit.service';
 
 export class RoleService {
   /**
@@ -19,8 +19,14 @@ export class RoleService {
       return;
     }
 
+    await executor.fetch();
+    await executor.guild.members.fetchMe();
+    await executor.guild.roles.fetch();
     // Check authority bounds
-    const authCheck = canManageDiscordRole(executor, role);
+    await executor.fetch();
+    await executor.guild.members.fetchMe();
+    await executor.guild.roles.fetch();
+    const authCheck = canManageDiscordRole(executor, executor.guild.roles.cache.get(role.id) ?? role);
     if (!authCheck.allowed) {
       const errEmbed = KraxxEmbedBuilder.error('Access Denied', authCheck.reason || 'Hierarchy check failed.');
       await interaction.reply({ embeds: [errEmbed], ephemeral: true });

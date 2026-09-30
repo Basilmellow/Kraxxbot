@@ -1,9 +1,14 @@
 'use client';
 
+import { PageContainer } from '@/components/ui/Page';
+import { Select, SearchField } from '@/components/ui/Form';
+import { Table } from '@/components/ui/Table';
+
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useGuildId } from '@/lib/useGuildId';
+import { Pagination } from '@/components/ui/Pagination';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -37,6 +42,8 @@ export default function MembersPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isCapped, setIsCapped] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const requestMembers = useCallback(async () => {
       const params = new URLSearchParams({ guildId, limit: '1000' });
@@ -102,6 +109,9 @@ export default function MembersPage() {
   }, [members, searchQuery, selectedRole]);
 
   const verifiedCount = members.filter((member) => member.isVerified).length;
+  const pageCount = Math.max(1, Math.ceil(filteredMembers.length / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const paginatedMembers = filteredMembers.slice((safeCurrentPage - 1) * PAGE_SIZE, safeCurrentPage * PAGE_SIZE);
   const botCount = members.filter((member) => member.isBot).length;
   const humanCount = members.length - botCount;
   const summary = [
@@ -125,11 +135,11 @@ export default function MembersPage() {
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <Topbar
-        title="Operator & Guild Directory"
-        subtitle="Manage member roles and personnel information for this server"
+        title="Members"
+        subtitle="Find members and manage their server roles."
       />
 
-      <div className="mx-auto w-full max-w-[1440px] space-y-6 p-4 sm:p-6 lg:p-8">
+      <PageContainer className="space-y-6">
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
           {summary.map(({ label, value, icon: Icon }) => (
             <Card key={label} className="flex min-w-0 items-center gap-3 p-4 sm:p-5">
@@ -137,7 +147,7 @@ export default function MembersPage() {
                 <Icon className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-xs text-[var(--text-secondary)]">{label}</p>
+                <p className="truncate text-[13px] text-[var(--text-secondary)]">{label}</p>
                 <p className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{value}</p>
               </div>
             </Card>
@@ -148,38 +158,38 @@ export default function MembersPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <label className="relative min-w-0 flex-1">
               <span className="sr-only">Search members</span>
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-              <input
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
+              <SearchField label="Search members"
                 type="search"
                 placeholder="Search name, username, or Discord ID"
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="h-11 w-full rounded-xl border border-[var(--border-base)] bg-[var(--surface-1)] pl-10 pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-accent-strong)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-dim)]"
+                onChange={(event) => { setSearchQuery(event.target.value); setCurrentPage(1); }}
+                className="w-full pl-10 pr-4"
               />
             </label>
             <label className="sm:w-64">
               <span className="sr-only">Filter by Discord role</span>
-              <select
+              <Select
                 value={selectedRole}
-                onChange={(event) => setSelectedRole(event.target.value)}
-                className="h-11 w-full rounded-xl border border-[var(--border-base)] bg-[var(--surface-1)] px-3.5 text-sm text-[var(--text-primary)] focus:border-[var(--border-accent-strong)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-dim)]"
+                onChange={(event) => { setSelectedRole(event.target.value); setCurrentPage(1); }}
+                className="w-full"
               >
                 <option value="">All guild roles</option>
                 {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-              </select>
+              </Select>
             </label>
             <Button variant="outline" onClick={fetchMembers} disabled={isRefreshing} className="h-11 justify-center px-4">
               <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-[var(--text-secondary)]">
             <span>{filteredMembers.length} {searchQuery || selectedRole ? 'matching members' : 'members shown'}</span>
             {isCapped && <span>Showing the first 1,000 Discord members. Narrow the search to find a member.</span>}
           </div>
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden p-0">
           {isLoading ? (
             <div className="p-4"><SkeletonTable rows={8} /></div>
           ) : loadError ? (
@@ -201,7 +211,7 @@ export default function MembersPage() {
           ) : (
             <>
             <div className="grid gap-3 p-3 md:hidden">
-              {filteredMembers.map((member) => (
+              {paginatedMembers.map((member) => (
                 <article key={member.id} className="rounded-xl border border-[var(--border-base)] bg-[var(--surface-1)] p-4">
                   <div className="flex min-w-0 items-start gap-3">
                     {member.avatar ? (
@@ -212,30 +222,28 @@ export default function MembersPage() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h2 className="max-w-full truncate text-sm font-semibold text-[var(--text-primary)]">{member.displayName}</h2>
                         {member.isBot && <Badge variant="cyan">BOT</Badge>}
                         {member.isVerified && <Badge variant="success">Verified</Badge>}
                       </div>
-                      <p className="truncate text-xs text-[var(--text-secondary)]">@{member.username}</p>
-                      <p className="mt-1 break-all font-mono text-[10px] text-[var(--text-muted)]">{member.id}</p>
+                      <p className="truncate text-[13px] text-[var(--text-secondary)]">@{member.username}</p>
+                      <p className="mt-1 break-all font-mono text-[13px] text-[var(--text-secondary)]">{member.id}</p>
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {member.roles.length ? member.roles.slice(0, 5).map((role) => <Badge key={role.id} variant="neutral">{role.name}</Badge>) : <span className="text-xs text-[var(--text-muted)]">No roles</span>}
-                    {member.roles.length > 5 && <span className="text-xs text-[var(--text-muted)]">+{member.roles.length - 5}</span>}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {member.roles.length ? member.roles.slice(0, 5).map((role) => <Badge key={role.id} variant="neutral">{role.name}</Badge>) : <span className="text-[13px] text-[var(--text-secondary)]">No roles</span>}
+                    {member.roles.length > 5 && <span className="text-[13px] text-[var(--text-secondary)]">+{member.roles.length - 5}</span>}
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border-base)] pt-3">
-                    <span className="text-xs text-[var(--text-secondary)]">Joined {member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : 'date unavailable'}</span>
-                    <Link href={`/dashboard/${guildId}/members/${member.id}`}>
-                      <Button variant="outline" size="sm">Profile <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
-                    </Link>
+                    <span className="text-[13px] text-[var(--text-secondary)]">Joined {member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : 'date unavailable'}</span>
+                    <Link href={`/dashboard/${guildId}/members/${member.id}`} className="kraxx-btn kraxx-btn-secondary kraxx-btn-sm ">Profile <ChevronRight className="ml-1 h-4 w-4" /></Link>
                   </div>
                 </article>
               ))}
             </div>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="kraxx-table min-w-[980px]">
+            <div tabIndex={0} role="region" aria-label="Scrollable table" className="hidden overflow-x-auto md:block table-scroll">
+              <Table className="kraxx-table min-w-[980px]">
                 <thead>
                   <tr>
                     <th>Member</th>
@@ -248,7 +256,7 @@ export default function MembersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredMembers.map((member) => (
+                  {paginatedMembers.map((member) => (
                     <tr key={member.id}>
                       <td>
                         <div className="flex items-center gap-3 py-1">
@@ -261,19 +269,19 @@ export default function MembersPage() {
                           )}
                           <div className="min-w-0">
                             <div className="truncate text-sm font-medium text-[var(--text-primary)]">{member.displayName}</div>
-                            <div className="truncate text-xs text-[var(--text-secondary)]">@{member.username}</div>
+                            <div className="truncate text-[13px] text-[var(--text-secondary)]">@{member.username}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="font-mono text-xs text-[var(--text-secondary)]">{member.id}</td>
+                      <td className="font-mono text-[13px] text-[var(--text-secondary)]">{member.id}</td>
                       <td>{getTierBadge(member.roleTier)}</td>
                       <td>
-                        <div className="flex max-w-sm flex-wrap gap-1.5">
+                        <div className="flex max-w-sm flex-wrap gap-2">
                           {member.roles.slice(0, 4).map((role) => (
                             <Badge key={role.id} variant="neutral">{role.name}</Badge>
                           ))}
-                          {member.roles.length > 4 && <span className="text-xs text-[var(--text-muted)]">+{member.roles.length - 4}</span>}
-                          {member.roles.length === 0 && <span className="text-xs text-[var(--text-muted)]">No roles</span>}
+                          {member.roles.length > 4 && <span className="text-[13px] text-[var(--text-secondary)]">+{member.roles.length - 4}</span>}
+                          {member.roles.length === 0 && <span className="text-[13px] text-[var(--text-secondary)]">No roles</span>}
                         </div>
                       </td>
                       <td>
@@ -281,26 +289,25 @@ export default function MembersPage() {
                           ? <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3" />Verified</Badge>
                           : <Badge variant="neutral">Not verified</Badge>}
                       </td>
-                      <td className="text-xs text-[var(--text-secondary)]">
+                      <td className="text-[13px] text-[var(--text-secondary)]">
                         {member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : 'Unavailable'}
                       </td>
                       <td className="text-right">
-                        <Link href={`/dashboard/${guildId}/members/${member.id}`}>
-                          <Button variant="outline" size="sm" className="px-3">
-                            Profile <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                          </Button>
-                        </Link>
+                        <Link href={`/dashboard/${guildId}/members/${member.id}`} className="kraxx-btn kraxx-btn-secondary kraxx-btn-sm px-3">
+                            Profile <ChevronRight className="ml-1 h-4 w-4" />
+                          </Link>
                       </td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
+            {pageCount > 1 && <Pagination page={safeCurrentPage} pageCount={pageCount} onChange={setCurrentPage}><span>Showing {(safeCurrentPage - 1) * PAGE_SIZE + 1}–{Math.min(safeCurrentPage * PAGE_SIZE, filteredMembers.length)} of {filteredMembers.length}</span></Pagination>}
             </>
           )}
         </Card>
-        <p className="text-xs text-[var(--text-muted)]">Discord presence status is not available in this dashboard. Member details and join dates are shown only when Discord provides them.</p>
-      </div>
+        <p className="text-[13px] text-[var(--text-secondary)]">Discord presence status is not available in this dashboard. Member details and join dates are shown only when Discord provides them.</p>
+      </PageContainer>
     </div>
   );
 }

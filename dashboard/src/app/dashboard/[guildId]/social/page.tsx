@@ -1,34 +1,32 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { PageContainer } from '@/components/ui/Page';
+import { Select, Input } from '@/components/ui/Form';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
-import {
-  Vote,
-  Plus,
-  Lightbulb,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Trash2,
-  MessageSquare,
-} from 'lucide-react';
+import { finishMessageOperationKey, messageOperationKey } from '@/lib/message-operation-key';
+import { Vote, Plus, Lightbulb, CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
 
 interface PollItem {
   id: string;
   question: string;
-  options: string;
+  options: string[];
+  results: { option: string; votes: number; percentage: number }[];
+  totalVotes: number;
   channelId: string;
   isAnonymous: boolean;
   expiresAt: string | null;
-  status: 'ACTIVE' | 'CLOSED';
+  status: 'PENDING' | 'ACTIVE' | 'CLOSED' | 'UNKNOWN' | 'FAILED';
+  messageSyncStatus: 'SYNCED' | 'NEEDS_UPDATE';
   createdAt: string;
 }
 
@@ -38,9 +36,16 @@ interface SuggestionItem {
   content: string;
   authorId: string;
   status: 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'IMPLEMENTED';
+  deliveryStatus: 'NOT_SENT' | 'PENDING' | 'SYNCED' | 'FAILURE' | 'UNKNOWN';
+  messageSyncStatus: 'SYNCED' | 'NEEDS_UPDATE' | 'FAILURE' | 'UNKNOWN';
+  channelId: string | null;
+  messageId: string | null;
   reviewerNotes: string | null;
   createdAt: string;
 }
+
+const isSuggestionStatus = (value: string): value is SuggestionItem['status'] =>
+  value === 'SUBMITTED' || value === 'UNDER_REVIEW' || value === 'APPROVED' || value === 'REJECTED' || value === 'IMPLEMENTED';
 
 export default function SocialPage() {
   const guildId = useGuildId();
@@ -48,6 +53,9 @@ export default function SocialPage() {
   const [polls, setPolls] = useState<PollItem[]>([]);
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [channels, setChannels] = useState<ChannelItem[]>([]);
+  const [suggestionChannelId, setSuggestionChannelId] = useState('');
+  const [suggestionPanelStatus, setSuggestionPanelStatus] = useState('NOT_CONFIGURED');
+  const [isPublishingSuggestionPanel, setIsPublishingSuggestionPanel] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Create Poll Modal State
@@ -55,15 +63,13 @@ export default function SocialPage() {
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>(['Option 1', 'Option 2']);
   const [selectedChannel, setSelectedChannel] = useState<ChannelItem | null>(null);
-  const [durationHours, setDurationHours] = useState(24);
-  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [durationHours, setDurationHours] = useState<number | null>(24);
   const [isCreatingPoll, setIsCreatingPoll] = useState(false);
 
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      setIsLoading(true);
       const [pollsRes, suggRes, metaRes] = await Promise.all([
         fetch(`/api/social/polls?guildId=${guildId}`),
         fetch(`/api/social/suggestions?guildId=${guildId}`),
@@ -77,6 +83,8 @@ export default function SocialPage() {
       if (suggRes.ok) {
         const sData = await suggRes.json();
         setSuggestions(sData.suggestions || []);
+        setSuggestionChannelId(sData.suggestionConfig?.channelId || '');
+        setSuggestionPanelStatus(sData.suggestionConfig?.panelStatus || 'NOT_CONFIGURED');
       }
       if (metaRes.ok) {
         const mData = await metaRes.json();
@@ -88,11 +96,11 @@ export default function SocialPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [guildId]);
 
   useEffect(() => {
-    fetchData();
-  }, [guildId]);
+    void Promise.resolve().then(fetchData);
+  }, [fetchData]);
 
   const handleCreatePoll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,85 +111,153 @@ export default function SocialPage() {
     setIsCreatingPoll(true);
     setFeedback(null);
 
+    const payload = {
+      question: pollQuestion.trim(), guildId, options: validOpts, channelId: selectedChannel.id, durationHours, isAnonymous: true,
+    };
     try {
+      const idempotencyKey = await messageOperationKey(payload);
       const res = await fetch('/api/social/polls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: pollQuestion.trim(),
-          guildId,
-          options: validOpts,
-          channelId: selectedChannel.id,
-          durationHours,
-          isAnonymous,
-        }),
+        body: JSON.stringify({ ...payload, idempotencyKey }),
       });
 
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.operationStatus === 'SUCCESS') {
+        await finishMessageOperationKey(payload, 'SUCCESS');
         setFeedback({ type: 'success', message: 'Interactive poll published.' });
         setShowPollModal(false);
         setPollQuestion('');
         setPollOptions(['Option 1', 'Option 2']);
-        fetchData();
+        await fetchData();
+      } else if (data.operationStatus === 'UNKNOWN' || data.operationStatus === 'PENDING') {
+        setFeedback({ type: 'error', message: 'Poll delivery is not confirmed. Keep this request open and retry to safely check its status.' });
+        await fetchData();
       } else {
+        if (data.operationStatus === 'FAILURE') await finishMessageOperationKey(payload, 'FAILURE');
         setFeedback({ type: 'error', message: data.error || 'Failed to dispatch poll' });
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Poll creation error' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Poll creation error' });
     } finally {
       setIsCreatingPoll(false);
     }
   };
 
-  const handleUpdateSuggestionStatus = async (id: string, status: string) => {
+  const handleClosePoll = async (pollId: string) => {
+    try {
+      const res = await fetch(`/api/social/polls/${pollId}/close?guildId=${guildId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId }),
+      });
+      const data = await res.json();
+      if (data.operationStatus === 'SUCCESS') setFeedback({ type: 'success', message: 'Poll closed. Final results are shown below.' });
+      else setFeedback({ type: 'error', message: data.error || 'Poll closure is recorded; Discord message synchronization is pending.' });
+      await fetchData();
+    } catch {
+      setFeedback({ type: 'error', message: 'Could not confirm poll closure. Refresh to verify its state.' });
+    }
+  };
+
+  const handleRetryPoll = async (pollId: string) => {
+    try {
+      const res = await fetch(`/api/social/polls/${pollId}/retry?guildId=${guildId}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guildId }),
+      });
+      const data = await res.json();
+      setFeedback(data.operationStatus === 'SUCCESS'
+        ? { type: 'success', message: 'Poll delivery was confirmed.' }
+        : { type: 'error', message: data.error || 'Poll delivery remains unconfirmed. No duplicate message was sent.' });
+      await fetchData();
+    } catch {
+      setFeedback({ type: 'error', message: 'Could not confirm poll delivery. Retry status to verify safely.' });
+    }
+  };
+
+  const handleUpdateSuggestionStatus = async (id: string, status: SuggestionItem['status']) => {
     try {
       const res = await fetch(`/api/social/suggestions/${id}?guildId=${guildId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      if (res.ok) {
-        setSuggestions(suggestions.map((s) => (s.id === id ? { ...s, status: status as any } : s)));
-      }
+      const data = await res.json();
+      setFeedback(data.operationStatus === 'SUCCESS'
+        ? { type: 'success', message: 'Suggestion review saved and Discord message synchronized.' }
+        : { type: 'error', message: data.error || 'Review saved, but Discord synchronization is unconfirmed.' });
+      await fetchData();
     } catch (err) {
       console.error('Failed to update suggestion status:', err);
     }
   };
 
+  const handleRecoverSuggestion = async (id: string) => {
+    try {
+      const response = await fetch(`/api/social/suggestions/${id}/recover?guildId=${guildId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await response.json();
+      setFeedback(data.operationStatus === 'SYNCED'
+        ? { type: 'success', message: 'Existing Discord submission was confirmed.' }
+        : { type: 'error', message: data.operationStatus === 'FAILURE' ? 'Discord rejected the existing submission.' : 'Delivery remains uncertain; no new message was sent.' });
+      await fetchData();
+    } catch { setFeedback({ type: 'error', message: 'Recovery could not be confirmed. No new message was sent.' }); }
+  };
+
+  const handleSuggestionPanel = async () => {
+    if (!suggestionChannelId) return;
+    setIsPublishingSuggestionPanel(true);
+    const payload = { guildId, channelId: suggestionChannelId };
+    try {
+      const idempotencyKey = await messageOperationKey(payload);
+      const res = await fetch('/api/social/suggestions/panel', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, idempotencyKey }) });
+      const data = await res.json();
+      if (data.operationStatus === 'SUCCESS') {
+        await finishMessageOperationKey(payload, 'SUCCESS');
+        setSuggestionPanelStatus('SYNCED');
+        setFeedback({ type: 'success', message: 'Suggestion panel delivery was confirmed.' });
+      } else {
+        if (data.operationStatus === 'FAILURE') await finishMessageOperationKey(payload, 'FAILURE');
+        setSuggestionPanelStatus(data.operationStatus || 'UNKNOWN');
+        setFeedback({ type: 'error', message: data.error || 'Panel delivery is unconfirmed. Retry to safely check the same operation.' });
+      }
+      await fetchData();
+    } catch {
+      setFeedback({ type: 'error', message: 'Could not confirm panel delivery. Retry without changing the channel to check the same operation.' });
+    } finally { setIsPublishingSuggestionPanel(false); }
+  };
+
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Community Engagement & Social Signals"
-        subtitle="Live Polls, Operator Suggestions & Guild Sentiment Engine"
+        title="Social"
+        subtitle="Manage polls, suggestions, and community feedback."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Navigation Tabs & Actions */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
+          <div className="flex items-center gap-2 p-1 rounded-xl bg-[var(--surface-1)] border border-[var(--border-base)] ">
             <button
               type="button"
               onClick={() => setActiveTab('POLLS')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
                 activeTab === 'POLLS'
-                  ? 'bg-indigo-50 text-indigo-600'
-                  : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
+                  ? 'bg-[var(--accent-dim)] text-[var(--accent)]'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]'
               }`}
             >
-              <Vote className="w-3.5 h-3.5" />
+              <Vote className="w-4 h-4" />
               <span>Interactive Polls ({polls.length})</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('SUGGESTIONS')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
                 activeTab === 'SUGGESTIONS'
-                  ? 'bg-indigo-50 text-indigo-600'
-                  : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
+                  ? 'bg-[var(--accent-dim)] text-[var(--accent)]'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]'
               }`}
             >
-              <Lightbulb className="w-3.5 h-3.5" />
+              <Lightbulb className="w-4 h-4" />
               <span>Operator Suggestions ({suggestions.length})</span>
             </button>
           </div>
@@ -191,9 +267,9 @@ export default function SocialPage() {
               variant="primary"
               size="sm"
               onClick={() => setShowPollModal(true)}
-              className="gap-1.5"
+              className="gap-2"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
               <span>Create New Poll</span>
             </Button>
           )}
@@ -202,16 +278,16 @@ export default function SocialPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
@@ -236,21 +312,14 @@ export default function SocialPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {polls.map((p) => {
-                let optionsArr: string[] = [];
-                try {
-                  optionsArr = JSON.parse(p.options);
-                } catch {
-                  optionsArr = [p.options];
-                }
-
                 return (
                   <Card
                     key={p.id}
-                    className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between"
+                    className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5  flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2 mb-3">
-                        <h4 className="text-sm font-semibold text-[#101828]">
+                        <h4 className="text-sm font-semibold text-[var(--text-primary)]">
                           {p.question}
                         </h4>
                         <Badge variant={p.status === 'ACTIVE' ? 'success' : 'neutral'}>
@@ -258,22 +327,27 @@ export default function SocialPage() {
                         </Badge>
                       </div>
 
-                      <div className="space-y-1.5 mb-4">
-                        {optionsArr.map((opt, i) => (
+                      <div className="space-y-2 mb-4">
+                        {p.results.map((result, i) => (
                           <div
                             key={i}
-                            className="p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs text-[#344054] flex items-center justify-between"
+                            className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] text-[13px] text-[var(--text-secondary)] flex items-center justify-between"
                           >
-                            <span>{opt}</span>
-                            <span className="text-[10px] text-[#98A2B3] font-mono">Option {i + 1}</span>
+                            <span>{result.option}</span>
+                            <span className="text-[13px] text-[var(--text-secondary)] font-mono">
+                              {p.status === 'CLOSED' ? `${result.votes} votes · ${result.percentage}%` : `Option ${i + 1} · ${result.votes} votes`}
+                            </span>
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-[#F1F3F9] text-xs text-[#667085] flex items-center justify-between">
-                      <span>Channel: #{p.channelId}</span>
-                      <span>{new Date(p.createdAt).toLocaleDateString()}</span>
+                    <div className="pt-3 border-t border-[var(--border-base)] text-[13px] text-[var(--text-secondary)] flex items-center justify-between gap-2">
+                      <span>{p.totalVotes} total votes · #{p.channelId}</span>
+                      {p.status === 'ACTIVE' ? <Button variant="ghost" size="sm" onClick={() => void handleClosePoll(p.id)}>Close poll</Button>
+                        : p.status === 'PENDING' || p.status === 'UNKNOWN'
+                          ? <Button variant="ghost" size="sm" onClick={() => void handleRetryPoll(p.id)}>Check / resume delivery</Button>
+                          : <span>{p.messageSyncStatus === 'NEEDS_UPDATE' ? 'Message update pending' : new Date(p.createdAt).toLocaleDateString()}</span>}
                     </div>
                   </Card>
                 );
@@ -282,15 +356,28 @@ export default function SocialPage() {
           )
         ) : (
           /* Suggestions Tab */
+          <div className="space-y-5">
+          <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 ">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+              <div><ChannelSelector channels={channels} selectedChannelId={suggestionChannelId}
+                onSelectChannel={(channel) => setSuggestionChannelId(channel.id)} isLoading={isLoading} /></div>
+              <Button variant="primary" size="sm" disabled={!suggestionChannelId || isPublishingSuggestionPanel} onClick={() => void handleSuggestionPanel()}>
+                {isPublishingSuggestionPanel ? 'Checking delivery…' : suggestionPanelStatus === 'SYNCED' ? 'Verify / publish panel' : 'Configure & publish panel'}
+              </Button>
+            </div>
+            <p className="mt-3 text-[13px] text-[var(--text-secondary)]">Panel state: {suggestionPanelStatus}. Community members submit through Discord; staff decisions are managed below.</p>
+          </Card>
+          {isLoading ? <div className="text-sm text-[var(--text-secondary)]">Loading suggestions…</div> : suggestions.length === 0 ?
+            <EmptyState icon={Lightbulb} title="No suggestions yet" description="Publish the panel above to accept community suggestions." /> :
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {suggestions.map((s) => (
               <Card
                 key={s.id}
-                className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between"
+                className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5  flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <h4 className="text-sm font-semibold text-[#101828]">
+                    <h4 className="text-sm font-semibold text-[var(--text-primary)]">
                       {s.title}
                     </h4>
                     <Badge variant={s.status === 'APPROVED' ? 'success' : s.status === 'IMPLEMENTED' ? 'cyan' : 'neutral'}>
@@ -298,30 +385,36 @@ export default function SocialPage() {
                     </Badge>
                   </div>
 
-                  <p className="text-xs text-[#667085] line-clamp-3 mb-4 leading-relaxed">
+                  <p className="text-[13px] text-[var(--text-secondary)] line-clamp-3 mb-4 leading-relaxed">
                     {s.content}
                   </p>
+                  {s.deliveryStatus !== 'SYNCED' && <p className="text-[13px] text-[var(--accent)] mb-2">Discord delivery: {s.deliveryStatus}. Do not resubmit; staff should verify the existing message operation.</p>}
+                  {s.messageSyncStatus !== 'SYNCED' && <p className="text-[13px] text-[var(--accent)] mb-2">Discord review update: {s.messageSyncStatus}; local status is authoritative, message update is not confirmed.</p>}
                 </div>
 
-                <div className="pt-3 border-t border-[#F1F3F9] flex items-center justify-between">
-                  <select
+                <div className="pt-3 border-t border-[var(--border-base)] flex items-center justify-between">
+                  <Select aria-label="status"
                     value={s.status}
-                    onChange={(e) => handleUpdateSuggestionStatus(s.id, e.target.value)}
-                    className="px-2.5 py-1 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    onChange={(e) => { if (isSuggestionStatus(e.target.value)) void handleUpdateSuggestionStatus(s.id, e.target.value); }}
+                    className=""
                   >
-                    <option value="SUBMITTED">Submitted</option>
-                    <option value="UNDER_REVIEW">Under Review</option>
-                    <option value="APPROVED">Approved</option>
-                    <option value="IMPLEMENTED">Implemented</option>
-                    <option value="REJECTED">Rejected</option>
-                  </select>
+                    {(s.status === 'SUBMITTED' ? ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED']
+                      : s.status === 'UNDER_REVIEW' ? ['UNDER_REVIEW', 'APPROVED', 'REJECTED']
+                      : s.status === 'APPROVED' ? ['APPROVED', 'IMPLEMENTED', 'REJECTED'] : [s.status]).map(status =>
+                      <option key={status} value={status}>{status.replace('_', ' ')}</option>)}
+                  </Select>
 
-                  <span className="text-[11px] text-[#98A2B3]">
+                  <span className="text-[13px] text-[var(--text-secondary)]">
                     {new Date(s.createdAt).toLocaleDateString()}
                   </span>
                 </div>
+                {(s.deliveryStatus === 'PENDING' || s.deliveryStatus === 'UNKNOWN') &&
+                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => void handleRecoverSuggestion(s.id)}>Check existing delivery</Button>}
+                {s.messageSyncStatus !== 'SYNCED' &&
+                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => void handleUpdateSuggestionStatus(s.id, s.status)}>Retry Discord status sync</Button>}
               </Card>
             ))}
+          </div>}
           </div>
         )}
 
@@ -332,23 +425,33 @@ export default function SocialPage() {
           title="Create Interactive Poll"
           subtitle="Deploy a real-time community poll to target Discord channel"
         >
-          <form onSubmit={handleCreatePoll} className="space-y-4 text-xs">
+          <form onSubmit={handleCreatePoll} className="space-y-4 text-[13px]">
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Poll Question / Prompt
               </label>
-              <input
+              <Input aria-label="Poll Question / Prompt"
                 type="text"
                 required
                 placeholder="e.g. Preferred time for security sync?"
                 value={pollQuestion}
                 onChange={(e) => setPollQuestion(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">Expires after</label>
+              <Select aria-label="Expires after" value={durationHours ?? ''} onChange={event => setDurationHours(event.target.value ? Number(event.target.value) : null)}
+                className="w-full">
+                <option value="">No expiry</option>
+                <option value={1}>1 hour</option><option value={6}>6 hours</option><option value={24}>24 hours</option>
+                <option value={72}>3 days</option><option value={168}>7 days</option>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Target Channel
               </label>
               <ChannelSelector
@@ -359,12 +462,12 @@ export default function SocialPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="block font-semibold text-[#344054]">
+              <label className="block font-semibold text-[var(--text-secondary)]">
                 Voting Options (2-5)
               </label>
               {pollOptions.map((opt, idx) => (
                 <div key={idx} className="flex gap-2">
-                  <input
+                  <Input aria-label={`Option ${idx + 1}`}
                     type="text"
                     required
                     value={opt}
@@ -374,15 +477,16 @@ export default function SocialPage() {
                       setPollOptions(updated);
                     }}
                     placeholder={`Option ${idx + 1}`}
-                    className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    className="flex-1"
                   />
                   {pollOptions.length > 2 && (
                     <button
                       type="button"
+                      aria-label={`Remove poll option ${idx + 1}`}
                       onClick={() => setPollOptions(pollOptions.filter((_, i) => i !== idx))}
-                      className="p-2 text-[#98A2B3] hover:text-red-600"
+                      className="p-2 text-[var(--text-secondary)] hover:text-[var(--danger)]"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
@@ -391,7 +495,7 @@ export default function SocialPage() {
                 <button
                   type="button"
                   onClick={() => setPollOptions([...pollOptions, `Option ${pollOptions.length + 1}`])}
-                  className="text-xs text-indigo-600 font-semibold hover:underline"
+                  className="text-[13px] text-[var(--accent)] font-semibold hover:underline"
                 >
                   + Add Option
                 </button>
@@ -418,7 +522,7 @@ export default function SocialPage() {
             </div>
           </form>
         </Modal>
-      </div>
+      </PageContainer>
     </div>
   );
 }

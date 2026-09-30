@@ -1,12 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { logDashboardAction } from '@/lib/audit';
 import { authOptions } from '@/lib/auth';
-import { fetchGuildById, fetchUserGuilds, isBotInstalledInGuild } from '@/lib/discord';
+import { fetchGuildById,fetchUserGuilds,isBotInstalledInGuild } from '@/lib/discord';
 import { reconcileInstalledGuild } from '@/lib/guild-registry';
+import { withMutation } from '@/lib/mutation';
+import { getDiscordAccessToken } from '@/lib/server-session';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const accessToken = session?.user?.accessToken;
+  const serverAccessToken = await getDiscordAccessToken();
+  const accessToken = serverAccessToken;
   if (!accessToken) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -33,9 +37,12 @@ export async function POST(request: NextRequest) {
 
     const discordGuild = await fetchGuildById(guildId);
     await reconcileInstalledGuild(discordGuild);
+    await logDashboardAction({guildId,executorId:session!.user.discordId,action:"GUILD_SYNC",targetId:guildId});
     return NextResponse.json({ success: true, guildId });
   } catch (error) {
     console.error('Failed to synchronize guild registry:', error);
     return NextResponse.json({ error: 'Unable to synchronize this server. Please retry.' }, { status: 502 });
   }
 }
+
+export const POST = withMutation('SYNC', handlePOST);

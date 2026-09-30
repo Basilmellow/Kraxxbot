@@ -1,6 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import { Input } from '@/components/ui/Form';
+
+import React, { useState, useMemo, useId } from 'react';
+import { Dropdown } from '@/components/ui/Dropdown';
 import { Hash, Megaphone, Search, ChevronDown, Check } from 'lucide-react';
 
 export interface ChannelItem {
@@ -25,6 +28,7 @@ export function ChannelSelector({
 }: ChannelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const labelId = useId();
 
   const selectedChannel = useMemo(
     () => channels.find((c) => c.id === selectedChannelId),
@@ -51,51 +55,53 @@ export function ChannelSelector({
 
   return (
     <div className="relative w-full">
-      <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+      <p id={labelId} className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1.5">
         Target Discord Channel
-      </label>
+      </p>
 
       {/* Selector Trigger Button */}
       <button
         type="button"
+        aria-labelledby={labelId}
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
-        className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white border border-[#E5E7EB] hover:border-indigo-300 text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50 shadow-xs"
+        className="w-full flex items-center justify-between p-2.5 rounded-xl bg-[var(--surface-1)] border border-[var(--border-base)] hover:border-[var(--accent-border)] text-[13px] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-border)] transition-colors disabled:opacity-50 "
       >
         <div className="flex items-center gap-2 truncate">
           {selectedChannel ? (
             <>
               {selectedChannel.type === 'announcement' ? (
-                <Megaphone className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                <Megaphone className="w-3.5 h-3.5 text-[var(--accent)] flex-shrink-0" />
               ) : (
-                <Hash className="w-3.5 h-3.5 text-[#667085] flex-shrink-0" />
+                <Hash className="w-3.5 h-3.5 text-[var(--text-secondary)] flex-shrink-0" />
               )}
-              <span className="font-medium text-[#101828] truncate">#{selectedChannel.name}</span>
-              <span className="text-[10px] text-[#667085] bg-[#F3F5FA] px-1.5 py-0.5 rounded-md border border-[#E5E7EB]">
+              <span className="font-medium text-[var(--text-primary)] truncate">#{selectedChannel.name}</span>
+              <span className="text-[13px] text-[var(--text-secondary)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded-md border border-[var(--border-base)]">
                 {selectedChannel.category}
               </span>
             </>
           ) : (
-            <span className="text-[#98A2B3]">Select target Discord channel...</span>
+            <span className="text-[var(--text-secondary)]">Select target Discord channel...</span>
           )}
         </div>
-        <ChevronDown className={`w-3.5 h-3.5 text-[#667085] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-secondary)] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown Menu */}
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-2xl bg-white border border-[#E5E7EB] shadow-xl p-2 max-h-72 flex flex-col">
+          <Dropdown label="Channel selection" onClose={() => setIsOpen(false)} className="right-0 p-2 max-h-72 flex flex-col">
             {/* Search Input */}
             <div className="relative mb-2">
-              <Search className="w-3.5 h-3.5 text-[#667085] absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
+              <Search className="w-3.5 h-3.5 text-[var(--text-secondary)] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Input aria-label="Search channels..."
                 type="text"
                 placeholder="Search channels..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#F8FAFC] border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full pl-8 pr-3"
                 autoFocus
               />
             </div>
@@ -103,11 +109,11 @@ export function ChannelSelector({
             {/* Channels List */}
             <div className="overflow-y-auto flex-1 space-y-2 pr-1">
               {groupedChannels.length === 0 ? (
-                <div className="text-center py-5 text-xs text-[#667085]">No channels found</div>
+                <div className="text-center py-5 text-[13px] text-[var(--text-secondary)]">No channels found</div>
               ) : (
                 groupedChannels.map(([cat, list]) => (
                   <div key={cat} className="space-y-0.5">
-                    <div className="text-[10px] font-semibold text-[#98A2B3] uppercase tracking-wider px-2 pt-1 flex items-center justify-between">
+                    <div className="text-[13px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider px-2 pt-1 flex items-center justify-between">
                       <span>{cat}</span>
                       <span>{list.length}</span>
                     </div>
@@ -121,21 +127,21 @@ export function ChannelSelector({
                             onSelectChannel(c);
                             setIsOpen(false);
                           }}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] transition-colors ${
                             isSelected
-                              ? 'bg-indigo-50 text-indigo-900 font-semibold'
-                              : 'text-[#475467] hover:bg-[#F8FAFC] hover:text-[#101828]'
+                              ? 'bg-[var(--accent-dim)] text-[var(--accent)] font-semibold'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]'
                           }`}
                         >
                           <div className="flex items-center gap-2 truncate">
                             {c.type === 'announcement' ? (
-                              <Megaphone className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                              <Megaphone className="w-3.5 h-3.5 text-[var(--accent)] flex-shrink-0" />
                             ) : (
-                              <Hash className="w-3.5 h-3.5 text-[#667085] flex-shrink-0" />
+                              <Hash className="w-3.5 h-3.5 text-[var(--text-secondary)] flex-shrink-0" />
                             )}
                             <span className="truncate">#{c.name}</span>
                           </div>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[var(--accent)]" />}
                         </button>
                       );
                     })}
@@ -143,7 +149,7 @@ export function ChannelSelector({
                 ))
               )}
             </div>
-          </div>
+          </Dropdown>
         </>
       )}
     </div>

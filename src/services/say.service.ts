@@ -8,11 +8,67 @@ import {
   TextInputStyle,
   ActionRowBuilder,
   Guild,
+  GuildMember,
+  PermissionFlagsBits,
+  Message,
 } from 'discord.js';
 import { KraxxEmbedBuilder, KRAXX_COLORS } from '../embeds/kraxxEmbedBuilder';
 import { logger } from '../utils/logger';
+import { MessageOperationService, type MessageOperationAdapter } from './message-operation.service';
+import { PolicyError } from '../security/policy';
+import { PermissionsService } from './permissions.service';
 
 export class SayService {
+  private static async executeOperation(
+    interaction: ChatInputCommandInteraction | ModalSubmitInteraction,
+    channel: TextChannel,
+    operationType: 'SEND' | 'EDIT' | 'REPLY' | 'PIN',
+    content: string | undefined,
+    embeds: object[] | undefined,
+    targetMessageId?: string,
+  ) {
+    const guild = interaction.guild;
+    if (!guild || channel.guildId !== guild.id) throw new PolicyError('Target channel must belong to this server.');
+    const member = interaction.member as GuildMember;
+    if (!PermissionsService.requireTeamLead(member).authorized) throw new PolicyError('Insufficient permission to manage messages.');
+    let targetMessage: Message | undefined;
+    const adapter: MessageOperationAdapter = {
+      async authorize() {
+        const bot = guild.members.me;
+        const permissions = bot && channel.permissionsFor(bot);
+        if (!permissions?.has(PermissionFlagsBits.ViewChannel)) throw new PolicyError('KRAXXBot cannot view this channel.');
+        if (operationType === 'PIN') {
+          if (!permissions.has(PermissionFlagsBits.ManageMessages)) throw new PolicyError('KRAXXBot lacks Manage Messages permission.');
+        } else if (!permissions.has(PermissionFlagsBits.SendMessages) || (embeds?.length && !permissions.has(PermissionFlagsBits.EmbedLinks))) {
+          throw new PolicyError('KRAXXBot lacks channel permissions.');
+        }
+        if (operationType === 'EDIT' || operationType === 'REPLY' || operationType === 'PIN') {
+          targetMessage = await channel.messages.fetch(targetMessageId!);
+          if (operationType === 'EDIT' && targetMessage.author.id !== interaction.client.user?.id) throw new PolicyError('Only KRAXXBot messages can be edited.');
+        }
+      },
+      async send(args) {
+        const sent = await channel.send({ content: args.content, embeds: args.embeds as never[], allowedMentions: args.allowedMentions as never,
+          nonce: args.nonce, enforceNonce: true,
+          ...(args.replyToMessageId ? { reply: { messageReference: args.replyToMessageId, failIfNotExists: true } } : {}) });
+        return { messageId: sent.id };
+      },
+      async edit(args) {
+        if (!targetMessage || targetMessage.id !== args.messageId) throw new PolicyError('Message is not available in this channel.');
+        const edited = await targetMessage.edit({ content: args.content, embeds: args.embeds as never[], allowedMentions: args.allowedMentions as never });
+        return { messageId: edited.id };
+      },
+      async pin(args) {
+        if (!targetMessage || targetMessage.id !== args.messageId) throw new PolicyError('Message is not available in this channel.');
+        await targetMessage.pin();
+      },
+      async delete() { throw new PolicyError('Delete is not enabled for this command.'); },
+    };
+    return MessageOperationService.execute({ guildId: guild.id, actorId: interaction.user.id, source: 'BOT', operationType,
+      idempotencyKey: interaction.id, channelId: channel.id, ...(targetMessageId ? { targetMessageId } : {}),
+      ...(content !== undefined ? { content } : {}), ...(embeds ? { embeds } : {}), mentionMode: 'NONE' }, adapter);
+  }
+
   /**
    * Resolves plain text #channel, @user, and @role references into Discord mention format (<#id>, <@id>, <@&id>).
    */
@@ -104,10 +160,12 @@ export class SayService {
 
     const formattedMessage = this.parseAndResolveMentions(message, interaction.guild || undefined);
 
-    // Send message preserving all newlines, markdown, tags, and spaces
-    await channel.send({ content: formattedMessage });
-
-    const successEmbed = KraxxEmbedBuilder.success('Message Dispatched', `Message successfully sent to ${channel}.`);
+    const result = await this.executeOperation(interaction, channel, 'SEND', formattedMessage, undefined);
+    const successEmbed = result.status === 'SUCCESS'
+      ? KraxxEmbedBuilder.success('Message Dispatched', `Message sent to ${channel}.`)
+      : KraxxEmbedBuilder.error('Message State ' + result.status, result.status === 'UNKNOWN' || result.status === 'PENDING'
+        ? 'Discord may have accepted this message, but KRAXXBot could not confirm it. Do not retry with a new operation key.'
+        : `Discord rejected this request (${result.errorCode || 'MESSAGE_FAILED'}).`);
 
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp({ embeds: [successEmbed], ephemeral: true });
@@ -115,7 +173,8 @@ export class SayService {
       await interaction.reply({ embeds: [successEmbed], ephemeral: true });
     }
 
-    logger.info({ executor: interaction.user.tag, channel: channel.name }, 'Bot /say message dispatched');
+    if (result.status === 'SUCCESS') logger.info({ executor: interaction.user.tag, channel: channel.name }, 'Bot /say message dispatched');
+    else logger.warn({ executor: interaction.user.tag, channel: channel.name, operationId: result.operationId, status: result.status }, 'Bot /say result requires verification');
   }
 
   /**
@@ -156,9 +215,12 @@ export class SayService {
     embed.setTitle(formattedTitle);
     embed.setDescription(formattedDesc);
 
-    await channel.send({ embeds: [embed] });
-
-    const successEmbed = KraxxEmbedBuilder.success('Embed Dispatched', `Embed successfully sent to ${channel}.`);
+    const result = await this.executeOperation(interaction, channel, 'SEND', undefined, [embed.toJSON()]);
+    const successEmbed = result.status === 'SUCCESS'
+      ? KraxxEmbedBuilder.success('Embed Dispatched', `Embed sent to ${channel}.`)
+      : KraxxEmbedBuilder.error('Message State ' + result.status, result.status === 'UNKNOWN' || result.status === 'PENDING'
+        ? 'Discord may have accepted this embed, but KRAXXBot could not confirm it. Do not retry with a new operation key.'
+        : `Discord rejected this request (${result.errorCode || 'MESSAGE_FAILED'}).`);
 
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp({ embeds: [successEmbed], ephemeral: true });
@@ -166,7 +228,8 @@ export class SayService {
       await interaction.reply({ embeds: [successEmbed], ephemeral: true });
     }
 
-    logger.info({ executor: interaction.user.tag, channel: channel.name }, 'Bot /sayembed dispatched');
+    if (result.status === 'SUCCESS') logger.info({ executor: interaction.user.tag, channel: channel.name }, 'Bot /sayembed dispatched');
+    else logger.warn({ executor: interaction.user.tag, channel: channel.name, operationId: result.operationId, status: result.status }, 'Bot /sayembed result requires verification');
   }
 
   /**
@@ -198,14 +261,18 @@ export class SayService {
 
       const formattedContent = this.parseAndResolveMentions(newContent, interaction.guild || undefined);
 
-      await msg.edit({ content: formattedContent });
+      const result = await this.executeOperation(interaction, channel, 'EDIT', formattedContent, undefined, messageId);
       await interaction.reply({
-        embeds: [KraxxEmbedBuilder.success('Message Updated', `Message \`${messageId}\` updated successfully.`)],
+        embeds: [result.status === 'SUCCESS'
+          ? KraxxEmbedBuilder.success('Message Updated', `Message \`${messageId}\` updated successfully.`)
+          : KraxxEmbedBuilder.error('Message State ' + result.status, result.status === 'UNKNOWN' || result.status === 'PENDING'
+            ? 'The edit may have reached Discord. Do not retry it with a new operation key.'
+            : `Discord rejected this edit (${result.errorCode || 'EDIT_FAILED'}).`)],
         ephemeral: true,
       });
     } catch {
       await interaction.reply({
-        embeds: [KraxxEmbedBuilder.error('Message Not Found', `Could not find message \`${messageId}\` in this channel.`)],
+        embeds: [KraxxEmbedBuilder.error('Message Edit Unavailable', `KRAXXBot could not start or verify the edit for message \`${messageId}\`. Check the message and permissions, then try again.`)],
         ephemeral: true,
       });
     }
@@ -229,14 +296,14 @@ export class SayService {
     }
 
     try {
-      const targetMsg = await channel.messages.fetch(messageId);
       const formattedContent = this.parseAndResolveMentions(replyContent, interaction.guild || undefined);
-
-      await targetMsg.reply({ content: formattedContent });
-      await interaction.reply({
-        embeds: [KraxxEmbedBuilder.success('Reply Dispatched', `Replied to message \`${messageId}\` successfully.`)],
-        ephemeral: true,
-      });
+      const result = await this.executeOperation(interaction, channel, 'REPLY', formattedContent, undefined, messageId);
+      const response = result.status === 'SUCCESS'
+        ? KraxxEmbedBuilder.success('Reply Dispatched', `Replied to message \`${messageId}\`.`)
+        : KraxxEmbedBuilder.error('Reply State ' + result.status, result.status === 'UNKNOWN' || result.status === 'PENDING'
+          ? 'The reply may have reached Discord. Do not retry with a new operation key.'
+          : `Discord rejected this reply (${result.errorCode || 'REPLY_FAILED'}).`);
+      await interaction.reply({ embeds: [response], ephemeral: true });
     } catch {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Message Not Found', `Could not find message \`${messageId}\` to reply to.`)],
@@ -262,15 +329,16 @@ export class SayService {
     }
 
     try {
-      const msg = await channel.messages.fetch(messageId);
-      await msg.pin();
-      await interaction.reply({
-        embeds: [KraxxEmbedBuilder.success('Message Pinned', `Message \`${messageId}\` has been pinned and kept.`)],
-        ephemeral: true,
-      });
+      const result = await this.executeOperation(interaction, channel, 'PIN', undefined, undefined, messageId);
+      const response = result.status === 'SUCCESS'
+        ? KraxxEmbedBuilder.success('Message Pinned', `Message \`${messageId}\` has been pinned and kept.`)
+        : KraxxEmbedBuilder.error('Pin State ' + result.status, result.status === 'UNKNOWN' || result.status === 'PENDING'
+          ? 'The pin may have reached Discord. Do not retry with a new operation key.'
+          : `Discord rejected the pin (${result.errorCode || 'PIN_FAILED'}).`);
+      await interaction.reply({ embeds: [response], ephemeral: true });
     } catch {
       await interaction.reply({
-        embeds: [KraxxEmbedBuilder.error('Pin Failed', `Could not find or pin message \`${messageId}\`.`)],
+        embeds: [KraxxEmbedBuilder.error('Pin Unavailable', `KRAXXBot could not safely start or verify the pin for message \`${messageId}\`.`)],
         ephemeral: true,
       });
     }

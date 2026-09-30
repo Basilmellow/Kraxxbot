@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { Prisma } from '@prisma/client';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { NextRequest,NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const whereClause: any = { guildId };
+    const whereClause: Prisma.TaskWhereInput = { guildId };
     if (statusFilter && statusFilter !== 'ALL') whereClause.status = statusFilter;
     if (departmentFilter && departmentFilter !== 'ALL') whereClause.department = departmentFilter;
     if (priorityFilter && priorityFilter !== 'ALL') whereClause.priority = priorityFilter;
@@ -66,13 +66,13 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({ tasks: enriched, total: enriched.length });
-  } catch (error: any) {
-    console.error('Failed to fetch tasks:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch tasks' }, { status: 500 });
+  } catch {
+    console.error('Failed to fetch tasks.');
+    return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const body = await request.json();
     const { title, description, department = 'GENERAL', priority = 'MEDIUM', assigneeId, dueDate, guildId: bodyGuildId } = body;
@@ -125,8 +125,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, task });
-  } catch (error: any) {
-    console.error('Failed to create task:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create task' }, { status: 500 });
+  } catch {
+    console.error('Failed to create task.');
+    return NextResponse.json({ error: 'Failed to create task' }, { status: 500 });
   }
 }
+
+export const POST = withMutation('MANAGE_SETTINGS', handlePOST);

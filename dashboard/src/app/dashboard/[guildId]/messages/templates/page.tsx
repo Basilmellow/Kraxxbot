@@ -1,10 +1,13 @@
 'use client';
 
+import { PageContainer } from '@/components/ui/Page';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -12,18 +15,8 @@ import { SkeletonCard } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { DiscordEmbedPreview, DiscordEmbedData } from '@/components/discord/DiscordEmbedPreview';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
-import {
-  Layers,
-  Plus,
-  Send,
-  Eye,
-  Trash2,
-  CheckCircle2,
-  AlertTriangle,
-  FolderOpen,
-  Calendar,
-  Sparkles,
-} from 'lucide-react';
+import { finishMessageOperationKey, messageOperationKey } from '@/lib/message-operation-key';
+import { Plus, Send, Eye, Trash2, CheckCircle2, AlertTriangle, FolderOpen } from 'lucide-react';
 import Link from 'next/link';
 
 interface TemplateItem {
@@ -49,6 +42,7 @@ const CATEGORIES = [
 ];
 
 export default function EmbedTemplatesPage() {
+  const confirm = useConfirm();
   const router = useRouter();
   const guildId = useGuildId();
 
@@ -74,7 +68,6 @@ export default function EmbedTemplatesPage() {
   const fetchTemplates = async () => {
     if (!guildId) return;
     try {
-      setIsLoading(true);
       const url = selectedCategory === 'ALL'
         ? `/api/templates?guildId=${guildId}`
         : `/api/templates?category=${selectedCategory}&guildId=${guildId}`;
@@ -91,7 +84,7 @@ export default function EmbedTemplatesPage() {
   };
 
   useEffect(() => {
-    fetchTemplates();
+    void Promise.resolve().then(fetchTemplates);
   }, [selectedCategory, guildId]);
 
   useEffect(() => {
@@ -114,7 +107,7 @@ export default function EmbedTemplatesPage() {
   }, [guildId]);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete template "${name}" permanently?`)) return;
+    if (!await confirm(`Delete template "${name}" permanently?`)) return;
     try {
       const res = await fetch(`/api/templates/${id}?guildId=${guildId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -124,8 +117,8 @@ export default function EmbedTemplatesPage() {
         const err = await res.json();
         throw new Error(err.error || 'Failed to delete');
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Delete error' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Delete error' });
     }
   };
 
@@ -135,25 +128,28 @@ export default function EmbedTemplatesPage() {
 
     setIsSending(true);
     try {
+      const operationPayload = {
+        channelId: selectedChannel.id, guildId,
+        embeds: [sendModalTemplate.embedData],
+      };
       const res = await fetch('/api/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channelId: selectedChannel.id,
-          embeds: [sendModalTemplate.embedData],
-        }),
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': await messageOperationKey(operationPayload) },
+        body: JSON.stringify(operationPayload),
       });
 
       const data = await res.json();
+      await finishMessageOperationKey(operationPayload, data.operation?.status);
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch template');
+      if (data.operation?.status !== 'SUCCESS') throw new Error(data.message || `Message operation state: ${data.operation?.status || 'UNKNOWN'}.`);
 
       setSendModalTemplate(null);
       setFeedback({
         type: 'success',
         message: `Template "${sendModalTemplate.name}" dispatched to #${selectedChannel.name}.`,
       });
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Dispatch error' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Dispatch error' });
     } finally {
       setIsSending(false);
     }
@@ -177,23 +173,23 @@ export default function EmbedTemplatesPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Embed Template Library"
-        subtitle="Saved Embed Layouts, Division Archetypes & Instant Dispatch"
+        title="Message templates"
+        subtitle="Manage reusable embeds and send them to your server."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Header Actions & Category Tabs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
+          <div className="flex flex-wrap items-center gap-2 p-1 rounded-xl bg-[var(--surface-1)] border border-[var(--border-base)] ">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                   selectedCategory === cat
-                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
+                    ? 'bg-[var(--accent-dim)] text-[var(--accent)] font-semibold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]'
                 }`}
               >
                 {cat}
@@ -201,27 +197,25 @@ export default function EmbedTemplatesPage() {
             ))}
           </div>
 
-          <Link href={`/dashboard/${guildId}/messages/embed`}>
-            <Button variant="primary" size="sm" className="flex items-center gap-1.5">
-              <Plus className="w-3.5 h-3.5" />
+          <Link href={`/dashboard/${guildId}/messages/embed`} className="kraxx-btn kraxx-btn-primary kraxx-btn-sm flex items-center gap-2">
+              <Plus className="w-4 h-4" />
               <span>Create New Embed</span>
-            </Button>
-          </Link>
+            </Link>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
@@ -249,25 +243,25 @@ export default function EmbedTemplatesPage() {
             {templates.map((tpl) => (
               <Card
                 key={tpl.id}
-                className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all"
+                className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5  flex flex-col justify-between hover:border-[var(--accent-border)] transition-colors"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <h4 className="text-sm font-semibold text-[#101828] truncate">
+                    <h4 className="text-sm font-semibold text-[var(--text-primary)] truncate">
                       {tpl.name}
                     </h4>
                     {getCategoryBadge(tpl.category)}
                   </div>
 
                   {tpl.description && (
-                    <p className="text-xs text-[#667085] line-clamp-2 mb-3 leading-relaxed">
+                    <p className="text-[13px] text-[var(--text-secondary)] line-clamp-2 mb-3 leading-relaxed">
                       {tpl.description}
                     </p>
                   )}
 
                   {/* Embed Mini Strip Indicator */}
                   <div
-                    className="p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs font-mono space-y-1 mb-4"
+                    className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] text-[13px] font-mono space-y-1 mb-4"
                     style={{
                       borderLeft: `4px solid ${
                         typeof tpl.embedData?.color === 'string'
@@ -276,23 +270,23 @@ export default function EmbedTemplatesPage() {
                       }`,
                     }}
                   >
-                    <div className="font-bold text-[#101828] truncate">
+                    <div className="font-bold text-[var(--text-primary)] truncate">
                       {tpl.embedData?.title || 'No Title'}
                     </div>
                     {tpl.embedData?.description && (
-                      <div className="text-[11px] text-[#667085] line-clamp-1">
+                      <div className="text-[13px] text-[var(--text-secondary)] line-clamp-1">
                         {tpl.embedData.description}
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-[#F1F3F9] flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
+                <div className="pt-3 border-t border-[var(--border-base)] flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setPreviewTemplate(tpl)}
-                      className="p-1.5 rounded-lg text-[#667085] hover:text-[#101828] hover:bg-[#F3F5FA] transition-colors"
+                      className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors"
                       title="Preview Template"
                     >
                       <Eye className="w-4 h-4" />
@@ -300,7 +294,7 @@ export default function EmbedTemplatesPage() {
                     <button
                       type="button"
                       onClick={() => handleDelete(tpl.id, tpl.name)}
-                      className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                       title="Delete Template"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -311,7 +305,7 @@ export default function EmbedTemplatesPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => setSendModalTemplate(tpl)}
-                    className="flex items-center gap-1.5 text-xs"
+                    className="flex items-center gap-2 text-[13px]"
                   >
                     <Send className="w-3 h-3" />
                     <span>Dispatch</span>
@@ -387,7 +381,7 @@ export default function EmbedTemplatesPage() {
             </form>
           </Modal>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

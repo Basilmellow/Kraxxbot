@@ -4,6 +4,7 @@ import { logger } from '../src/utils/logger';
 
 // Import all command definitions
 import roleCommand from '../src/commands/admin/role';
+import moderateCommand from '../src/commands/admin/moderate';
 import configCommand from '../src/commands/admin/config';
 import setupCommand from '../src/commands/admin/setup';
 import announceCommand from '../src/commands/announcements/announce';
@@ -24,8 +25,11 @@ import sayReplyCommand from '../src/commands/utility/sayreply';
 import sayKeepCommand from '../src/commands/utility/saykeep';
 import selfRoleCommand from '../src/commands/roles/selfrole';
 import ticketCommand from '../src/commands/tickets/ticket';
+import customCommand from '../src/commands/utility/custom';
+import askCommand from '../src/commands/utility/ask';
 
 const commands = [
+  moderateCommand.data.toJSON(),
   roleCommand.data.toJSON(),
   configCommand.data.toJSON(),
   setupCommand.data.toJSON(),
@@ -47,6 +51,8 @@ const commands = [
   sayKeepCommand.data.toJSON(),
   selfRoleCommand.data.toJSON(),
   ticketCommand.data.toJSON(),
+  customCommand.data.toJSON(),
+  askCommand.data.toJSON(),
 ];
 
 /**

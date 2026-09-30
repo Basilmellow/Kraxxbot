@@ -1,10 +1,11 @@
+import { withMutation } from '@/lib/mutation';
 // KRAXX Operations Platform — Single Embed Template API
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { canManageTemplates, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { authOptions } from '@/lib/auth';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -12,7 +13,7 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
+  if (!session?.user?.discordId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -42,17 +43,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+async function handlePUT(request: NextRequest, { params }: RouteParams) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
+  if (!session?.user?.discordId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!canManageTemplates(session.user.roleTier)) {
-    return NextResponse.json(
-      { error: 'Modifying templates requires Team Lead authority or higher.' },
-      { status: 403 }
-    );
   }
 
   const { id } = await params;
@@ -77,8 +71,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     });
 
     await logDashboardAction({
-      action: 'TEMPLATE_UPDATE',
       guildId,
+      action: 'TEMPLATE_UPDATE',
       executorId: session.user.discordId,
       targetId: id,
       targetType: 'TEMPLATE',
@@ -92,23 +86,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         embedData: JSON.parse(updated.embedData || '{}'),
       },
     });
-  } catch (error: any) {
-    console.error('[API] Update template error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update template' }, { status: 500 });
+  } catch {
+    console.error('[API] Update template request failed.');
+    return NextResponse.json({ error: 'Failed to update template' }, { status: 500 });
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+async function handleDELETE(request: NextRequest, { params }: RouteParams) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
+  if (!session?.user?.discordId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!canManageTemplates(session.user.roleTier)) {
-    return NextResponse.json(
-      { error: 'Deleting templates requires Team Lead authority or higher.' },
-      { status: 403 }
-    );
   }
 
   const { id } = await params;
@@ -123,8 +110,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     });
 
     await logDashboardAction({
-      action: 'TEMPLATE_DELETE',
       guildId,
+      action: 'TEMPLATE_DELETE',
       executorId: session.user.discordId,
       targetId: id,
       targetType: 'TEMPLATE',
@@ -132,8 +119,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     });
 
     return NextResponse.json({ success: true, id });
-  } catch (error: any) {
-    console.error('[API] Delete template error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete template' }, { status: 500 });
+  } catch {
+    console.error('[API] Delete template request failed.');
+    return NextResponse.json({ error: 'Failed to delete template' }, { status: 500 });
   }
 }
+
+export const PUT = withMutation('MANAGE_ANNOUNCEMENTS', handlePUT);
+export const DELETE = withMutation('MANAGE_ANNOUNCEMENTS', handleDELETE);

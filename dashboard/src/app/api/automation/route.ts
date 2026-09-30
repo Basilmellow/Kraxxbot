@@ -1,17 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { authOptions } from '@/lib/auth';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
+import { validateAutomationConfig } from '../../../../../src/services/automation-contract';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   const guildId = request.nextUrl.searchParams.get('guildId');
   if (!guildId) {
     return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
@@ -29,18 +25,15 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ rules, total: rules.length });
-  } catch (error: any) {
-    console.error('Failed to fetch automation rules:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch automation rules' }, { status: 500 });
+  } catch {
+    console.error('Failed to fetch automation rules.');
+    return NextResponse.json({ error: 'Failed to fetch automation rules' }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  if (!session?.user?.discordId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const body = await request.json();
@@ -56,8 +49,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    if (!name || !trigger || !action) {
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || !trigger || !action) {
       return NextResponse.json({ error: 'Name, trigger, and action are required.' }, { status: 400 });
+    }
+
+    let normalizedConfig;
+    try {
+      normalizedConfig = validateAutomationConfig(trigger, action, config ?? {});
+    } catch {
+      return NextResponse.json({ error: 'Choose a supported member event and a valid message action configuration.' }, { status: 400 });
     }
 
     const currentUserId = session!.user.discordId;
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         trigger,
         action,
-        config: typeof config === 'string' ? config : JSON.stringify(config || {}),
+        config: JSON.stringify(normalizedConfig),
         enabled: Boolean(enabled),
         createdBy: currentUserId,
       },
@@ -84,8 +84,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, rule });
-  } catch (error: any) {
-    console.error('Failed to create automation rule:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create automation rule' }, { status: 500 });
+  } catch {
+    console.error('Failed to create automation rule.');
+    return NextResponse.json({ error: 'Failed to create automation rule' }, { status: 500 });
   }
 }
+
+export const POST = withMutation('MANAGE_AUTOMATIONS', handlePOST);

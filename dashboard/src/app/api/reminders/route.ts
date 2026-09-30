@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { validateReminderDestination } from '@/lib/destinations';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { NextRequest,NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const whereClause: any = { guildId };
+    const whereClause: { guildId: string; status?: string } = { guildId };
     if (statusFilter && statusFilter !== 'ALL') whereClause.status = statusFilter;
 
     const reminders = await prisma.reminder.findMany({
@@ -30,13 +30,13 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ reminders, total: reminders.length });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch reminders:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch reminders' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch reminders' }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const body = await request.json();
     const { title, message, targetType = 'CHANNEL', targetId, triggerAt, recurrence = 'NONE', guildId: bodyGuildId } = body;
@@ -61,6 +61,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Reminder trigger time must be in the future.' }, { status: 400 });
     }
 
+    if (recurrence !== 'NONE') return NextResponse.json({ error: 'Recurring reminders are not available yet.' }, { status: 400 });
+    await validateReminderDestination(guildId, currentUserId, targetType, targetId);
     const reminder = await prisma.reminder.create({
       data: {
         guildId,
@@ -86,8 +88,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, reminder });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to create reminder:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create reminder' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create reminder' }, { status: 500 });
   }
 }
+
+export const POST = withMutation('MANAGE_SETTINGS', handlePOST);

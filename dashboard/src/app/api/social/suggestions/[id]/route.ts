@@ -1,52 +1,31 @@
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { executeDashboardMessageOperation } from '@/lib/message-operations';
+import { SuggestionService, SUGGESTION_STATUSES } from '../../../../../../../src/services/suggestion.service';
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
-import { logDashboardAction } from '@/lib/audit';
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
-  const { id: suggestionId } = await params;
+async function handlePATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guildId = request.nextUrl.searchParams.get('guildId');
   if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
-  const guildAccess = await requireGuildAccess(guildId);
-  if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
-  const currentUserId = session!.user.discordId;
-
+  const access = await requireGuildAccess(guildId);
+  if (!access.authorized || !access.session?.user?.discordId) return NextResponse.json({ error: access.error || 'Unauthorized' }, { status: access.status });
+  const body = await request.json();
+  if (typeof body.status !== 'string' || !SUGGESTION_STATUSES.includes(body.status as typeof SUGGESTION_STATUSES[number]))
+    return NextResponse.json({ error: 'A valid suggestion status is required.' }, { status: 400 });
   try {
-    const body = await request.json();
-    const { status, reviewerNotes } = body;
-
-    const dataToUpdate: any = {};
-    if (status !== undefined) dataToUpdate.status = status;
-    if (reviewerNotes !== undefined) dataToUpdate.reviewerNotes = reviewerNotes.trim();
-
-    const updated = await prisma.suggestion.update({
-      where: { id: suggestionId, guildId },
-      data: dataToUpdate,
-    });
-
-    await logDashboardAction({
-      guildId,
-      action: 'SUGGESTION_REVIEW',
-      executorId: currentUserId,
-      targetId: suggestionId,
-      targetType: 'SUGGESTION',
-      details: { status: updated.status, reviewerNotes },
-    });
-
-    return NextResponse.json({ success: true, suggestion: updated });
-  } catch (error: any) {
-    console.error('Failed to update suggestion:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update suggestion' }, { status: 500 });
+    const { id } = await params;
+    const result = await SuggestionService.transition({ guildId, actorId: access.session.user.discordId, suggestionId: id,
+      status: body.status, ...(body.reviewerNotes !== undefined ? { reviewerNotes: body.reviewerNotes } : {}) },
+      async () => undefined, operation => executeDashboardMessageOperation(operation));
+    return NextResponse.json({ success: result.operationStatus === 'SUCCESS', suggestion: result.suggestion, operationStatus: result.operationStatus,
+      ...(result.operationStatus !== 'SUCCESS' ? { error: 'Status was saved, but the Discord message update is not confirmed. Use recovery before claiming synchronization.' } : {}) },
+      { status: result.operationStatus === 'SUCCESS' ? 200 : 202 });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    const status = code === 'SUGGESTION_NOT_FOUND' ? 404 : code.includes('CONFLICT') || code.includes('DELIVERY_UNCONFIRMED') ? 409
+      : code.startsWith('INVALID_') ? 400 : 500;
+    return NextResponse.json({ error: status === 500 ? 'Suggestion review failed. Verify its state before retrying.' : code }, { status });
   }
 }
+
+export const PATCH = withMutation('MANAGE_SUGGESTIONS', handlePATCH);

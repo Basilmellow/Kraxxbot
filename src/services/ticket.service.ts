@@ -1,23 +1,25 @@
 import {
-  ChatInputCommandInteraction,
-  ButtonInteraction,
-  TextChannel,
-  CategoryChannel,
-  ChannelType,
-  PermissionFlagsBits,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  GuildMember,
-  User,
-  AttachmentBuilder,
-  Guild,
+ActionRowBuilder,
+AttachmentBuilder,
+ButtonBuilder,
+ButtonInteraction,
+ButtonStyle,
+CategoryChannel,
+ChannelType,
+ChatInputCommandInteraction,
+Guild,
+GuildMember,
+PermissionFlagsBits,
+TextChannel,
+User,
 } from 'discord.js';
-import { TicketRepository } from '../database/repositories/ticket.repository';
-import { GuildRepository } from '../database/repositories/guild.repository';
-import { KraxxEmbedBuilder, KRAXX_COLORS } from '../embeds/kraxxEmbedBuilder';
 import { isTicketManager } from '../config/roles';
+import { GuildRepository } from '../database/repositories/guild.repository';
+import { TicketCreationOutcomeUnknownError, TicketOrphanedChannelError, TicketRecoveryRequiredError, TicketRepository } from '../database/repositories/ticket.repository';
+import { KRAXX_COLORS,KraxxEmbedBuilder } from '../embeds/kraxxEmbedBuilder';
 import { logger } from '../utils/logger';
+import { AuditService } from './audit.service';
+import { TicketDomainService } from './ticket-domain.service';
 
 export interface CategorySpec {
   key: string;
@@ -69,8 +71,10 @@ export class TicketService {
   /**
    * Helper to perform server-side permission check for ticket management actions.
    */
-  public static verifyTicketManager(member: GuildMember): boolean {
-    return isTicketManager(member);
+  public static async verifyTicketManager(member: GuildMember): Promise<boolean> {
+    if (!member?.guild?.id) return false;
+    const guildData = await GuildRepository.findById(member.guild.id);
+    return (await GuildRepository.isModuleEnabled(member.guild.id, 'tickets')) && isTicketManager(member, guildData?.settings);
   }
 
   /**
@@ -84,7 +88,7 @@ export class TicketService {
     category?: string
   ): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -93,7 +97,7 @@ export class TicketService {
     }
 
     const channel = (targetChannel || interaction.channel) as TextChannel;
-    if (!channel) {
+    if (!channel || channel.guildId !== interaction.guildId || channel.type !== ChannelType.GuildText) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Error', 'Invalid channel specified.')],
         ephemeral: true,
@@ -102,6 +106,11 @@ export class TicketService {
     }
 
     const panelTitle = title || 'KRAXXBot │ SUPPORT TICKETS';
+    const panelCategory = category || 'GENERAL';
+    if (panelCategory !== 'GENERAL' && !TICKET_CATEGORIES.some((item) => item.key === panelCategory)) {
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Invalid Category', 'Select a configured ticket category.')], ephemeral: true });
+      return;
+    }
     const panelDesc =
       description ||
       'Need assistance? Our team is here to help.\n\n' +
@@ -114,7 +123,7 @@ export class TicketService {
     embed.setDescription(panelDesc);
 
     const openButton = new ButtonBuilder()
-      .setCustomId(`kraxx_ticket_create:${category || 'GENERAL'}`)
+      .setCustomId(`kraxx_ticket_create:${panelCategory}`)
       .setLabel('Create Ticket')
       .setStyle(ButtonStyle.Primary)
       .setEmoji('📩');
@@ -123,14 +132,22 @@ export class TicketService {
 
     const message = await channel.send({ embeds: [embed], components: [row] });
 
-    await TicketRepository.createPanel({
-      guildId: interaction.guildId!,
-      title: panelTitle,
-      description: panelDesc,
-      category: category || 'GENERAL',
-      channelId: channel.id,
-      messageId: message.id,
-    });
+    try {
+      await TicketRepository.createPanel({
+        guildId: interaction.guildId!, executorId: interaction.user.id,
+        title: panelTitle, description: panelDesc, category: panelCategory,
+        channelId: channel.id, messageId: message.id,
+      });
+    } catch {
+      let messageRemoved = true;
+      await message.delete().catch(() => { messageRemoved = false; });
+      logger.error({ guildId: interaction.guildId, channelId: channel.id }, 'Ticket panel persistence failed');
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Panel Not Saved', messageRemoved
+        ? 'The panel message was removed because its configuration could not be saved.'
+        : 'The unregistered panel message may remain, but its buttons are inactive because no tenant panel record was saved.')], ephemeral: true });
+      return;
+    }
+    await AuditService.logEvent(interaction.guild, 'TICKET_PANEL_CREATE', interaction.user.id, message.id, 'Ticket panel created', 'SUCCESS', false).catch(() => {});
 
     await interaction.reply({
       embeds: [KraxxEmbedBuilder.success('Panel Created', `Ticket panel established in ${channel}.`)],
@@ -149,7 +166,7 @@ export class TicketService {
     bannerUrl?: string
   ): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -158,7 +175,7 @@ export class TicketService {
     }
 
     const channel = (targetChannel || interaction.channel) as TextChannel;
-    if (!channel) {
+    if (!channel || channel.guildId !== interaction.guildId || channel.type !== ChannelType.GuildText) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Error', 'Invalid channel specified.')],
         ephemeral: true,
@@ -203,7 +220,22 @@ export class TicketService {
       }
     });
 
-    await channel.send({ embeds: [embed], components: rows });
+    const message = await channel.send({ embeds: [embed], components: rows });
+    try {
+      await TicketRepository.createPanel({
+        guildId: interaction.guildId!, executorId: interaction.user.id,
+        title: 'KRAXXBot │ SUPPORT & ASSISTANCE', description: descText, category: 'MULTI',
+        channelId: channel.id, messageId: message.id,
+      });
+    } catch {
+      let messageRemoved = true;
+      await message.delete().catch(() => { messageRemoved = false; });
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Panel Not Saved', messageRemoved
+        ? 'The panel message was removed because its configuration could not be saved.'
+        : 'The unregistered panel message may remain, but its buttons are inactive because no tenant panel record was saved.')], ephemeral: true });
+      return;
+    }
+    await AuditService.logEvent(interaction.guild, 'TICKET_PANEL_CREATE', interaction.user.id, message.id, 'Multi-category panel created', 'SUCCESS', false).catch(() => {});
 
     await interaction.reply({
       embeds: [KraxxEmbedBuilder.success('Support Panel Deployed', `Multi-category ticket panel established in ${channel}.`)],
@@ -216,7 +248,7 @@ export class TicketService {
    */
   static async listTicketPanels(interaction: ChatInputCommandInteraction): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -248,7 +280,7 @@ export class TicketService {
    */
   static async deleteTicketPanel(interaction: ChatInputCommandInteraction, panelId: string): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -256,8 +288,8 @@ export class TicketService {
       return;
     }
 
-    const deleted = await TicketRepository.deletePanel(panelId);
-    if (!deleted) {
+    const panel = await TicketRepository.findPanelById(panelId, interaction.guildId!);
+    if (!panel) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Not Found', `No panel found with ID \`${panelId}\`.`)],
         ephemeral: true,
@@ -265,8 +297,19 @@ export class TicketService {
       return;
     }
 
+    await TicketRepository.deletePanel(panelId, interaction.guildId!, interaction.user.id);
+    const panelChannel = await interaction.guild?.channels.fetch(panel.channelId).catch(() => null);
+    let messageRemoved = true;
+    if (panelChannel?.guildId === interaction.guildId && panel.messageId && panelChannel.isTextBased()) {
+      const panelMessage = await panelChannel.messages.fetch(panel.messageId).catch(() => null);
+      if (panelMessage) await panelMessage.delete().catch(() => { messageRemoved = false; });
+    }
+    await AuditService.logEvent(interaction.guild, 'TICKET_PANEL_DELETE', interaction.user.id, panelId, 'Ticket panel config deleted', 'SUCCESS', false).catch(() => {});
+
     await interaction.reply({
-      embeds: [KraxxEmbedBuilder.success('Panel Deleted', `Ticket panel \`${panelId}\` removed.`)],
+      embeds: [messageRemoved
+        ? KraxxEmbedBuilder.success('Panel Deleted', `Ticket panel \`${panelId}\` removed.`)
+        : KraxxEmbedBuilder.error('Panel Message Cleanup Failed', `The panel configuration was removed, but its message in <#${panel.channelId}> could not be deleted.`)],
       ephemeral: true,
     });
   }
@@ -319,6 +362,45 @@ export class TicketService {
       }
     }
     return category;
+  }
+
+  private static async synchronizeTicketChannelState(
+    channel: TextChannel,
+    ticket: NonNullable<Awaited<ReturnType<typeof TicketRepository.findByChannelId>>>,
+    guild: Guild,
+    open: boolean,
+  ): Promise<() => Promise<void>> {
+    const oldName = channel.name;
+    const oldParentId = channel.parentId;
+    const previousOverwrite = channel.permissionOverwrites.cache.get(ticket.openerId);
+    const oldSendMessages = previousOverwrite
+      ? previousOverwrite.allow.has(PermissionFlagsBits.SendMessages) ? true
+        : previousOverwrite.deny.has(PermissionFlagsBits.SendMessages) ? false : null
+      : null;
+    const restore = async () => {
+      if (previousOverwrite) await channel.permissionOverwrites.edit(ticket.openerId, { SendMessages: oldSendMessages });
+      else await channel.permissionOverwrites.delete(ticket.openerId).catch(() => {});
+      if (oldParentId) await channel.setParent(oldParentId, { lockPermissions: false });
+      else await channel.setParent(null, { lockPermissions: false });
+      if (channel.name !== oldName) await channel.setName(oldName);
+    };
+    try {
+      const category = open
+        ? await this.getOrCreateOpenCategory(guild, ticket.category)
+        : await this.getOrCreateClosedCategory(guild, ticket.category);
+      if (!category) throw new Error('Ticket category could not be resolved.');
+      await channel.setName(`${open ? 'ticket' : 'closed'}-${String(ticket.ticketNumber).padStart(4, '0')}`);
+      await channel.permissionOverwrites.edit(ticket.openerId, { SendMessages: open });
+      await channel.setParent(category.id, { lockPermissions: false });
+    } catch (error) {
+      try { await restore(); }
+      catch {
+        logger.error({ guildId: guild.id, channelId: channel.id }, 'Ticket channel recovery failed after a Discord mutation error');
+        throw new TicketRecoveryRequiredError(channel.id, false);
+      }
+      throw error;
+    }
+    return restore;
   }
 
   /**
@@ -511,6 +593,37 @@ export class TicketService {
     }
   }
 
+  private static async sendTicketOpeningMessage(
+    channel: TextChannel,
+    member: GuildMember,
+    ticketNumber: number,
+    displayCategory: string,
+    guild: Guild,
+    managementRoleIds: string[],
+  ): Promise<void> {
+    const numStr = String(ticketNumber).padStart(4, '0');
+    const header = new KraxxEmbedBuilder()
+      .setColor(KRAXX_COLORS.BRAND)
+      .setTitle(`SUPPORT TICKET #${numStr} │ ${displayCategory.toUpperCase()}`)
+      .setDescription(`Welcome ${member}! Support team has been dispatched.\n\nPlease describe your issue or inquiry in detail so our team can assist you efficiently.`)
+      .addFields(
+        { name: 'Opened By', value: `<@${member.id}>`, inline: true },
+        { name: 'Category', value: `\`${displayCategory}\``, inline: true },
+        { name: 'Status', value: '`OPEN`', inline: true },
+      );
+    const claim = new ButtonBuilder().setCustomId('kraxx_ticket_claim').setLabel('Claim Ticket').setStyle(ButtonStyle.Success).setEmoji('🖐️');
+    const close = new ButtonBuilder().setCustomId('kraxx_ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒');
+    const content = managementRoleIds.length
+      ? `${member} ${managementRoleIds.map(id => `<@&${id}>`).join(' ')}`
+      : `${member} <@${guild.ownerId}>`;
+    await channel.send({
+      content,
+      embeds: [header],
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(claim, close)],
+      allowedMentions: { users: [member.id], roles: managementRoleIds },
+    });
+  }
+
   /**
    * Handles user clicking any "Create Ticket" category button.
    */
@@ -525,15 +638,31 @@ export class TicketService {
       });
       return;
     }
+    if (interaction.guildId !== guild.id || member.guild.id !== guild.id || member.id !== interaction.user.id) {
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Error', 'Guild/member context is inconsistent.')], ephemeral: true });
+      return;
+    }
+    const panel = await TicketRepository.findPanelByMessageId(interaction.message.id, guild.id);
+    if (!panel || (panel.category !== 'MULTI' && panel.category !== categoryKey)) {
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Panel Unavailable', 'This ticket panel is no longer active for this server.')], ephemeral: true });
+      return;
+    }
 
     await interaction.deferReply({ ephemeral: true });
 
+    let persistedTicket: Awaited<ReturnType<typeof TicketDomainService.create>>['ticket'] | null = null;
+    let createdTicket = false;
     try {
-      const nextNum = await TicketRepository.getNextTicketNumber(guild.id);
-      const numStr = String(nextNum).padStart(4, '0');
-      const channelName = `ticket-${numStr}`;
+      if (!(await GuildRepository.isModuleEnabled(guild.id, 'tickets'))) {
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Tickets Disabled', 'Ticket creation is disabled for this server.') ] });
+        return;
+      }
 
       const catSpec = TICKET_CATEGORIES.find(c => c.key === categoryKey);
+      if (!catSpec && categoryKey !== 'GENERAL') {
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Invalid Category', 'This ticket category is not configured.') ] });
+        return;
+      }
       const displayCat = catSpec ? catSpec.label : categoryKey.toUpperCase();
 
       // Build strictly scoped permission overwrites
@@ -568,12 +697,16 @@ export class TicketService {
       }
 
       const guildData = await GuildRepository.findById(guild.id);
+      if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Missing Bot Permission', 'The bot needs Manage Channels to create private ticket channels.') ] });
+        return;
+      }
       const mgmtRoleIds = [
         guildData?.settings?.adminRoleId,
         guildData?.settings?.modRoleId,
         guildData?.settings?.supportRoleId,
         guildData?.settings?.staffRoleId,
-      ].filter((id): id is string => Boolean(id && id.trim().length > 0));
+      ].filter((id): id is string => Boolean(id && id.trim().length > 0 && id !== guild.id && guild.roles.cache.has(id)));
 
       for (const rId of mgmtRoleIds) {
         overwrites.push({
@@ -588,71 +721,85 @@ export class TicketService {
       }
 
       // Find or create category for this open ticket
-      const openCategory = await this.getOrCreateOpenCategory(guild, categoryKey);
-
-      const ticketChannel = await guild.channels.create({
-        name: channelName,
-        type: ChannelType.GuildText,
-        parent: openCategory ? openCategory.id : undefined,
-        permissionOverwrites: overwrites,
-        topic: `KRAXX Support Ticket #${numStr} | Opener: ${member.user.tag} | Category: ${displayCat}`,
-      });
-
-      // Save ticket to DB
-      await TicketRepository.createTicket({
+      const configuredCategoryId = guildData?.settings?.ticketCategoryId;
+      const configuredCategory = configuredCategoryId ? guild.channels.cache.get(configuredCategoryId) : undefined;
+      if (configuredCategoryId && (!configuredCategory || configuredCategory.type !== ChannelType.GuildCategory || configuredCategory.guildId !== guild.id)) {
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Ticket Category Unavailable', 'The configured ticket category is missing or does not belong to this server.') ] });
+        return;
+      }
+      const openCategory = configuredCategory
+        ? configuredCategory as CategoryChannel
+        : await this.getOrCreateOpenCategory(guild, categoryKey);
+      const result = await TicketDomainService.create({
         guildId: guild.id,
-        channelId: ticketChannel.id,
-        openerId: member.id,
+        actorId: member.id,
+        authorized: true,
+        creationKey: interaction.id,
         category: categoryKey,
-        subject: `Support Ticket #${numStr} (${displayCat})`,
+        subject: `Support Ticket (${displayCat})`,
+      }, async (ticketNumber) => {
+        const numStr = String(ticketNumber).padStart(4, '0');
+        const topic = `KRAXX Support Ticket #${numStr} | Opener: ${member.user.tag} | Category: ${displayCat} | Request: ${interaction.id}`;
+        let channel: TextChannel;
+        try {
+          channel = await guild.channels.create({
+            name: `ticket-${numStr}`,
+            type: ChannelType.GuildText,
+            parent: openCategory ? openCategory.id : undefined,
+            permissionOverwrites: overwrites,
+            topic,
+          });
+        } catch (creationError) {
+          const status = Number((creationError as { status?: number }).status);
+          if (status >= 400 && status < 500) throw creationError;
+          let possibleChannel: TextChannel | undefined;
+          try {
+            const channels = await guild.channels.fetch();
+            possibleChannel = channels.find((candidate) => Boolean(candidate && candidate.type === ChannelType.GuildText && (candidate as TextChannel).topic === topic)) as TextChannel | undefined;
+          } catch { throw new TicketCreationOutcomeUnknownError(interaction.id); }
+          if (!possibleChannel) throw new TicketCreationOutcomeUnknownError(interaction.id);
+          try { await possibleChannel.delete('Ticket channel creation response was ambiguous'); }
+          catch { throw new TicketOrphanedChannelError(possibleChannel.id); }
+          throw creationError;
+        }
+        try {
+          await this.sendTicketOpeningMessage(channel, member, ticketNumber, displayCat, guild, mgmtRoleIds);
+        } catch (sendError) {
+          try {
+            await channel.delete('Ticket opening message failed');
+          } catch {
+            throw new TicketOrphanedChannelError(channel.id);
+          }
+          throw sendError;
+        }
+        return channel;
+      }, async (channelId) => {
+        const channel = await guild.channels.fetch(channelId);
+        if (channel && channel.guildId === guild.id) await channel.delete('Ticket persistence rolled back');
       });
-
-      // Send Ticket Header in channel
-      const headerEmbed = new KraxxEmbedBuilder();
-      headerEmbed.setColor(KRAXX_COLORS.BRAND);
-      headerEmbed.setTitle(`SUPPORT TICKET #${numStr} │ ${displayCat.toUpperCase()}`);
-      headerEmbed.setDescription(
-        `Welcome ${member}! Support team has been dispatched.\n\n` +
-        `Please describe your issue or inquiry in detail so our team can assist you efficiently.`
-      );
-
-      headerEmbed.addFields(
-        { name: 'Opened By', value: `<@${member.id}>`, inline: true },
-        { name: 'Category', value: `\`${displayCat}\``, inline: true },
-        { name: 'Status', value: '`OPEN`', inline: true }
-      );
-
-      const claimBtn = new ButtonBuilder()
-        .setCustomId('kraxx_ticket_claim')
-        .setLabel('Claim Ticket')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('🖐️');
-
-      const closeBtn = new ButtonBuilder()
-        .setCustomId('kraxx_ticket_close')
-        .setLabel('Close Ticket')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('🔒');
-
-      const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(claimBtn, closeBtn);
-
-      const pingMention = mgmtRoleIds.length > 0 ? mgmtRoleIds.map(id => `<@&${id}>`).join(' ') : `<@${guild.ownerId}>`;
-
-      await ticketChannel.send({
-        content: `${member} ${pingMention}`,
-        embeds: [headerEmbed],
-        components: [actionRow],
+      persistedTicket = result.ticket;
+      createdTicket = result.created;
+      const nextNum = result.ticket.ticketNumber;
+      const numStr = String(nextNum).padStart(4, '0');
+      if (!result.created) {
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.success('Ticket Already Created', `This interaction already created <#${result.ticket.channelId}>.`)] });
+        return;
+      }
+      const resolvedTicketChannel = await guild.channels.fetch(result.ticket.channelId);
+      if (!resolvedTicketChannel || resolvedTicketChannel.guildId !== guild.id || resolvedTicketChannel.type !== ChannelType.GuildText) throw new Error('Persisted ticket channel could not be resolved.');
+      await AuditService.logEvent(interaction.guild, 'TICKET_CREATE', interaction.user.id, result.ticket.id, `Ticket #${numStr}`, 'SUCCESS', false).catch(() => {
+        logger.warn({ guildId: guild.id, ticketId: result.ticket.id }, 'Ticket audit notification failed after canonical audit commit');
       });
 
       await interaction.editReply({
-        embeds: [KraxxEmbedBuilder.success('Ticket Created', `Your support ticket has been created in ${ticketChannel}.`)],
+        embeds: [KraxxEmbedBuilder.success('Ticket Created', `Your support ticket has been created in ${resolvedTicketChannel}.`)],
       });
 
       // Log event
       const logEmbed = new KraxxEmbedBuilder();
       logEmbed.setColor(KRAXX_COLORS.BRAND);
       logEmbed.setTitle(`TICKET EVENT │ CREATED #${numStr}`);
-      logEmbed.setDescription(`Ticket channel ${ticketChannel} created by ${member}.`);
+      logEmbed.setDescription(`Ticket channel ${resolvedTicketChannel} created by ${member}.`);
       logEmbed.addFields(
         { name: 'Ticket Number', value: `#${numStr}`, inline: true },
         { name: 'Opener', value: `<@${member.id}>`, inline: true },
@@ -660,12 +807,25 @@ export class TicketService {
       );
       this.postTicketLog(guild, logEmbed).catch(() => {});
 
-      logger.info({ opener: member.user.tag, ticketChannel: ticketChannel.name }, 'Ticket created');
+      logger.info({ opener: member.user.tag, ticketChannel: resolvedTicketChannel.name }, 'Ticket created');
     } catch (error) {
-      logger.error({ err: error }, 'Failed to create ticket channel');
-      await interaction.editReply({
-        embeds: [KraxxEmbedBuilder.error('Error', 'Failed to create ticket channel. Check bot permissions.')],
-      });
+      if (error instanceof TicketCreationOutcomeUnknownError) {
+        logger.error({ guildId: guild.id, creationKey: error.creationKey, auditPersisted: error.auditPersisted }, 'Ticket channel creation outcome is unknown');
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Ticket Creation Needs Review', `Discord did not confirm whether a channel was created. Do not retry yet. Give server staff request ID ${error.creationKey}; audit recorded: ${error.auditPersisted ? 'yes' : 'no'}.`)] });
+        return;
+      }
+      if (error instanceof TicketOrphanedChannelError) {
+        logger.error({ guildId: guild.id, channelId: error.channelId, auditPersisted: error.auditPersisted }, 'Ticket creation left a recoverable orphan channel');
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Ticket Setup Needs Recovery', `The ticket channel may exist without a saved ticket. Share channel ID \`${error.channelId}\` with server staff. Audit recorded: ${error.auditPersisted ? 'yes' : 'no'}.`)] });
+        return;
+      }
+      logger.error({ err: error, guildId: guild.id, ticketId: persistedTicket?.id }, 'Ticket creation failed');
+      if (createdTicket && persistedTicket) {
+        await AuditService.logEvent(guild, 'TICKET_CREATE_SETUP_FAILURE', interaction.user.id, persistedTicket.id, 'Discord ticket header delivery failed', 'FAILURE').catch(() => {});
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Ticket Created, Setup Incomplete', `Ticket #${persistedTicket.ticketNumber} exists in <#${persistedTicket.channelId}>, but confirmation could not be completed. Refresh before retrying.`)] });
+      } else {
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Ticket Not Created', 'Ticket channel creation failed. No active ticket record was committed; retry when Discord is available.') ] });
+      }
     }
   }
 
@@ -674,7 +834,7 @@ export class TicketService {
    */
   static async claimTicket(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -685,7 +845,7 @@ export class TicketService {
     const channelId = interaction.channelId;
     if (!channelId) return;
 
-    const ticket = await TicketRepository.findByChannelId(channelId);
+    const ticket = await TicketRepository.findByChannelId(channelId, interaction.guildId!);
     if (!ticket) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Error', 'This ticket no longer exists or has already been removed.')],
@@ -703,10 +863,8 @@ export class TicketService {
     }
 
     const claimer = interaction.user;
-    await TicketRepository.updateTicket(channelId, {
-      status: 'CLAIMED',
-      claimerId: claimer.id,
-    });
+    await TicketDomainService.transition(interaction.guildId!, ticket.id, { id: claimer.id, authorized: true }, 'CLAIM');
+    await AuditService.logEvent(interaction.guild, 'TICKET_CLAIM', interaction.user.id, ticket.id, `Ticket #${ticket.ticketNumber}`, 'SUCCESS', false).catch(() => {});
 
     const embed = KraxxEmbedBuilder.success(
       'Ticket Claimed',
@@ -735,7 +893,7 @@ export class TicketService {
    */
   static async unclaimTicket(interaction: ChatInputCommandInteraction): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -744,7 +902,7 @@ export class TicketService {
     }
 
     const channelId = interaction.channelId;
-    const ticket = await TicketRepository.findByChannelId(channelId);
+    const ticket = await TicketRepository.findByChannelId(channelId, interaction.guildId!);
 
     if (!ticket) {
       await interaction.reply({
@@ -754,10 +912,8 @@ export class TicketService {
       return;
     }
 
-    await TicketRepository.updateTicket(channelId, {
-      status: 'OPEN',
-      claimerId: null,
-    });
+    await TicketDomainService.transition(interaction.guildId!, ticket.id, { id: interaction.user.id, authorized: true }, 'UNCLAIM');
+    await AuditService.logEvent(interaction.guild, 'TICKET_UNCLAIM', interaction.user.id, ticket.id, `Ticket #${ticket.ticketNumber}`, 'SUCCESS', false).catch(() => {});
 
     await interaction.reply({
       embeds: [KraxxEmbedBuilder.success('Ticket Unclaimed', 'This ticket is no longer claimed and is open for staff.')],
@@ -780,7 +936,7 @@ export class TicketService {
     reason?: string
   ): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -791,9 +947,9 @@ export class TicketService {
     const channelId = interaction.channelId;
     const channel = interaction.channel as TextChannel;
     const guild = interaction.guild;
-    const ticket = await TicketRepository.findByChannelId(channelId);
+    const ticket = await TicketRepository.findByChannelId(channelId, interaction.guildId!);
 
-    if (!ticket || !channel || !guild) {
+    if (!ticket || !channel || !guild || channel.guildId !== interaction.guildId || channel.id !== ticket.channelId) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Error', 'Command must be run inside an active ticket channel.')],
         ephemeral: true,
@@ -809,27 +965,19 @@ export class TicketService {
       return;
     }
 
-    await TicketRepository.updateTicket(channelId, {
-      status: 'CLOSED',
-      closedById: interaction.user.id,
-      reason: reason || 'Closed by KRAXX Management',
-      closedAt: new Date(),
-    });
-
-    // 1. Rename channel to closed-XXXX
     const numStr = String(ticket.ticketNumber).padStart(4, '0');
-    await channel.setName(`closed-${numStr}`).catch(() => {});
-
-    // 2. Revoke send permissions for opener
-    await channel.permissionOverwrites.edit(ticket.openerId, {
-      SendMessages: false,
-    }).catch(() => {});
-
-    // 3. Move channel down to Closed Category
-    const closedCategory = await this.getOrCreateClosedCategory(guild, ticket.category);
-    if (closedCategory) {
-      await channel.setParent(closedCategory.id, { lockPermissions: false }).catch(() => {});
+    try {
+      await TicketDomainService.transition(interaction.guildId!, ticket.id, { id: interaction.user.id, authorized: true }, 'CLOSE', reason || 'Closed by KRAXX Management',
+        () => this.synchronizeTicketChannelState(channel, ticket, guild, false));
+    } catch (error) {
+      logger.warn({ guildId: guild.id, ticketId: ticket.id }, 'Ticket close did not commit');
+      const recovery = error instanceof TicketRecoveryRequiredError
+        ? ` Recovery is required for channel ${error.channelId}; audit recorded: ${error.auditPersisted ? 'yes' : 'no'}.`
+        : '';
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Ticket Not Closed', `Discord or database rejected the close operation; refresh the ticket before retrying.${recovery}`)], ephemeral: true });
+      return;
     }
+    await AuditService.logEvent(interaction.guild, 'TICKET_CLOSE', interaction.user.id, ticket.id, `Ticket #${numStr}`, 'SUCCESS', false).catch(() => {});
 
     // 4. Send Closed Header & Control Buttons
     const closeEmbed = new KraxxEmbedBuilder();
@@ -886,7 +1034,7 @@ export class TicketService {
    */
   static async reopenTicket(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -897,9 +1045,9 @@ export class TicketService {
     const channelId = interaction.channelId;
     const channel = interaction.channel as TextChannel;
     const guild = interaction.guild;
-    const ticket = await TicketRepository.findByChannelId(channelId);
+    const ticket = await TicketRepository.findByChannelId(channelId, interaction.guildId!);
 
-    if (!ticket || !channel || !guild) {
+    if (!ticket || !channel || !guild || channel.guildId !== interaction.guildId || channel.id !== ticket.channelId) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Error', 'Command must be run inside a ticket channel.')],
         ephemeral: true,
@@ -907,26 +1055,22 @@ export class TicketService {
       return;
     }
 
-    const numStr = String(ticket.ticketNumber).padStart(4, '0');
-    await TicketRepository.updateTicket(channelId, {
-      status: 'OPEN',
-      closedAt: null,
-      closedById: null,
-    });
-
-    // Rename back to ticket-XXXX
-    await channel.setName(`ticket-${numStr}`).catch(() => {});
-
-    // Restore SendMessages permission for opener
-    await channel.permissionOverwrites.edit(ticket.openerId, {
-      SendMessages: true,
-    }).catch(() => {});
-
-    // Move back to Open Category
-    const openCategory = await this.getOrCreateOpenCategory(guild, ticket.category);
-    if (openCategory) {
-      await channel.setParent(openCategory.id, { lockPermissions: false }).catch(() => {});
+    if (ticket.status !== 'CLOSED') {
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Ticket Not Closed', 'Only a closed ticket can be reopened.')], ephemeral: true });
+      return;
     }
+    const numStr = String(ticket.ticketNumber).padStart(4, '0');
+    try {
+      await TicketDomainService.transition(interaction.guildId!, ticket.id, { id: interaction.user.id, authorized: true }, 'REOPEN', undefined,
+        () => this.synchronizeTicketChannelState(channel, ticket, guild, true));
+    } catch (error) {
+      const recovery = error instanceof TicketRecoveryRequiredError
+        ? ` Recovery is required for channel ${error.channelId}; audit recorded: ${error.auditPersisted ? 'yes' : 'no'}.`
+        : '';
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Ticket Not Reopened', `Discord or database rejected the reopen operation; refresh the ticket before retrying.${recovery}`)], ephemeral: true });
+      return;
+    }
+    await AuditService.logEvent(interaction.guild, 'TICKET_REOPEN', interaction.user.id, ticket.id, `Ticket #${numStr}`, 'SUCCESS', false).catch(() => {});
 
     await interaction.reply({
       embeds: [KraxxEmbedBuilder.success('Ticket Reopened', `Ticket #${numStr} has been reopened and moved back to active tickets.`)],
@@ -944,7 +1088,7 @@ export class TicketService {
    */
   static async deleteTicketChannel(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -955,13 +1099,17 @@ export class TicketService {
     const channelId = interaction.channelId;
     const channel = interaction.channel as TextChannel;
     const guild = interaction.guild;
-    const ticket = await TicketRepository.findByChannelId(channelId);
+    const ticket = await TicketRepository.findByChannelId(channelId, interaction.guildId!);
 
-    if (!ticket || !channel || !guild) {
+    if (!ticket || !channel || !guild || channel.guildId !== interaction.guildId || channel.id !== ticket.channelId) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Error', 'This ticket no longer exists or has already been removed.')],
         ephemeral: true,
       });
+      return;
+    }
+    if (ticket.status !== 'CLOSED') {
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Ticket Not Closed', 'Close the ticket before deleting its channel.')], ephemeral: true });
       return;
     }
 
@@ -969,36 +1117,28 @@ export class TicketService {
     const parentCategoryId = parentCategory ? parentCategory.id : null;
     const parentCategoryName = parentCategory ? parentCategory.name : null;
 
-    await interaction.reply({
-      embeds: [KraxxEmbedBuilder.success('Deleting Ticket', 'Deleting ticket channel in 5 seconds...')],
-    });
-
-    // Log deletion
-    const numStr = String(ticket.ticketNumber).padStart(4, '0');
-    const logEmbed = new KraxxEmbedBuilder();
-    logEmbed.setColor(KRAXX_COLORS.DANGER);
-    logEmbed.setTitle(`TICKET EVENT │ DELETED #${numStr}`);
-    logEmbed.setDescription(`Ticket channel \`${channel.name}\` deleted by <@${interaction.user.id}>.`);
-    logEmbed.addFields(
-      { name: 'Opener', value: `<@${ticket.openerId}>`, inline: true },
-      { name: 'Category', value: `\`${ticket.category}\``, inline: true }
-    );
-    this.postTicketLog(guild, logEmbed).catch(() => {});
-
-    await TicketRepository.deleteTicket(channelId);
-
-    setTimeout(async () => {
-      try {
-        await channel.delete('Ticket deleted');
-        
-        // Clean up empty category if no channels remain
-        if (parentCategoryId && parentCategoryName) {
-          await TicketService.cleanupEmptyTicketCategory(guild, parentCategoryId, parentCategoryName);
-        }
-      } catch (err) {
-        logger.error({ err }, 'Failed deleting channel or cleaning category');
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const archived = await this.archiveTranscript(channel, ticket, interaction.user);
+      if (!archived) {
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Ticket Not Deleted', 'A transcript could not be verified in the archive channel, so the ticket was retained.') ] });
+        return;
       }
-    }, 5000);
+      await TicketDomainService.transition(interaction.guildId!, ticket.id, { id: interaction.user.id, authorized: true }, 'DELETE', undefined, async () => {
+        await channel.delete('Ticket archived and deleted');
+        return async () => { throw new Error('Deleted Discord channels cannot be restored automatically.'); };
+      });
+      await AuditService.logEvent(guild, 'TICKET_DELETE', interaction.user.id, ticket.id, `Ticket #${ticket.ticketNumber}`, 'SUCCESS', false).catch(() => {});
+      if (parentCategoryId && parentCategoryName) await TicketService.cleanupEmptyTicketCategory(guild, parentCategoryId, parentCategoryName);
+      await interaction.editReply({ embeds: [KraxxEmbedBuilder.success('Ticket Deleted', `Ticket #${ticket.ticketNumber} was archived and deleted.`)] });
+    } catch (error) {
+      logger.error({ guildId: guild.id, ticketId: ticket.id, channelId }, 'Ticket deletion failed or requires recovery');
+      if (error instanceof TicketRecoveryRequiredError) {
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Ticket Deletion Needs Recovery', `Channel ${error.channelId} and database state may be inconsistent. Audit recorded: ${error.auditPersisted ? 'yes' : 'no'}. Contact server staff.`)] });
+      } else {
+        await interaction.editReply({ embeds: [KraxxEmbedBuilder.error('Ticket Not Deleted', 'Discord rejected the deletion; the database ticket was retained. Refresh before retrying.') ] });
+      }
+    }
   }
 
   /**
@@ -1047,7 +1187,7 @@ export class TicketService {
     action: 'add' | 'remove'
   ): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -1056,7 +1196,7 @@ export class TicketService {
     }
 
     const channel = interaction.channel as TextChannel;
-    const ticket = await TicketRepository.findByChannelId(channel.id);
+    const ticket = await TicketRepository.findByChannelId(channel.id, interaction.guildId!);
 
     if (!ticket || !channel) {
       await interaction.reply({
@@ -1098,7 +1238,7 @@ export class TicketService {
    */
   static async generateTranscript(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
     const member = interaction.member as GuildMember;
-    if (!this.verifyTicketManager(member)) {
+    if (!(await this.verifyTicketManager(member))) {
       await interaction.reply({
         embeds: [KraxxEmbedBuilder.error('Access Denied', 'This action is restricted to KRAXX Management.')],
         ephemeral: true,
@@ -1107,7 +1247,7 @@ export class TicketService {
     }
 
     const channel = interaction.channel as TextChannel;
-    const ticket = await TicketRepository.findByChannelId(channel.id);
+    const ticket = await TicketRepository.findByChannelId(channel.id, interaction.guildId!);
 
     if (!ticket || !channel) {
       await interaction.reply({
@@ -1151,17 +1291,17 @@ export class TicketService {
   /**
    * Archives transcript .txt and rich embed to the dedicated management-only #ticket-transcripts channel.
    */
-  private static async archiveTranscript(channel: TextChannel, ticket: any, closedByUser: User): Promise<void> {
+  private static async archiveTranscript(channel: TextChannel, ticket: any, closedByUser: User): Promise<boolean> {
     const guild = channel.guild;
     const transcriptChannel = await this.getOrCreateTranscriptChannel(guild);
 
     if (!transcriptChannel) {
       logger.warn('Unable to locate or create #ticket-transcripts channel for archiving');
-      return;
+      return false;
     }
 
     const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
-    if (!messages) return;
+    if (!messages) return false;
 
     const sorted = Array.from(messages.values()).reverse();
 
@@ -1204,12 +1344,12 @@ export class TicketService {
     );
 
     const archiveMsg = await transcriptChannel.send({ embeds: [embed], files: [attachment] }).catch(() => null);
+    if (!archiveMsg || !archiveMsg.attachments.first()) return false;
 
-    if (archiveMsg && archiveMsg.attachments.first()) {
-      const url = archiveMsg.attachments.first()?.url;
-      if (url) {
-        await TicketRepository.updateTicket(channel.id, { transcriptUrl: url }).catch(() => {});
-      }
+    const url = archiveMsg.attachments.first()?.url;
+    if (url) {
+      await TicketDomainService.recordTranscript(channel.guild.id, channel.id, closedByUser.id, url).catch(() => false);
     }
+    return true;
   }
 }

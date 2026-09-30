@@ -1,16 +1,9 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import {
-  ShieldCheck,
-  Ticket,
-  Megaphone,
-  UserPlus,
-  CheckCircle2,
-  Clock,
-  ArrowRight,
-  ScrollText,
-} from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { ShieldCheck, Ticket, Megaphone, UserPlus, CheckCircle2, ScrollText } from 'lucide-react';
 import Link from 'next/link';
 
 interface ActivityItem {
@@ -24,172 +17,42 @@ interface ActivityItem {
 
 interface RecentActivityProps {
   activities: ActivityItem[];
+  guildId?: string;
   isLoading?: boolean;
 }
 
-const DEFAULT_MOCK_ACTIVITIES = [
-  {
-    id: '1',
-    time: '04:05:21',
-    action: 'ROLE_ASSIGN',
-    target: '@anaya.velvet',
-    status: 'Management Head',
-    variant: 'studio' as const,
-    icon: ShieldCheck,
-    iconColor: 'text-violet-600 bg-violet-50',
-  },
-  {
-    id: '2',
-    time: '04:04:03',
-    action: 'TICKET_CLAIM',
-    target: '#0091 Website Support',
-    status: '@operator',
-    variant: 'cyan' as const,
-    icon: Ticket,
-    iconColor: 'text-cyan-600 bg-cyan-50',
-  },
-  {
-    id: '3',
-    time: '04:01:11',
-    action: 'ANNOUNCEMENT',
-    target: '#general',
-    status: 'Published',
-    variant: 'warning' as const,
-    icon: Megaphone,
-    iconColor: 'text-amber-600 bg-amber-50',
-  },
-  {
-    id: '4',
-    time: '03:59:47',
-    action: 'MEMBER_JOIN',
-    target: '@new_user',
-    status: 'Client',
-    variant: 'warning' as const,
-    icon: UserPlus,
-    iconColor: 'text-orange-600 bg-orange-50',
-  },
-  {
-    id: '5',
-    time: '03:58:02',
-    action: 'TASK_UPDATE',
-    target: 'Design new dashboard',
-    status: 'Completed',
-    variant: 'brand' as const,
-    icon: CheckCircle2,
-    iconColor: 'text-indigo-600 bg-indigo-50',
-  },
-];
-
-export function RecentActivity({ activities, isLoading }: RecentActivityProps) {
+export function RecentActivity({ activities, guildId, isLoading = false }: RecentActivityProps) {
   const getActionDetails = (action: string) => {
     const act = action.toUpperCase();
-    if (act.includes('ROLE') || act.includes('CLEARANCE')) {
-      return { variant: 'studio' as const, icon: ShieldCheck, iconColor: 'text-violet-600 bg-violet-50' };
-    }
-    if (act.includes('TICKET')) {
-      return { variant: 'cyan' as const, icon: Ticket, iconColor: 'text-cyan-600 bg-cyan-50' };
-    }
-    if (act.includes('ANNOUNC') || act.includes('MESSAGE')) {
-      return { variant: 'warning' as const, icon: Megaphone, iconColor: 'text-amber-600 bg-amber-50' };
-    }
-    if (act.includes('JOIN') || act.includes('MEMBER')) {
-      return { variant: 'warning' as const, icon: UserPlus, iconColor: 'text-orange-600 bg-orange-50' };
-    }
-    if (act.includes('TASK')) {
-      return { variant: 'brand' as const, icon: CheckCircle2, iconColor: 'text-indigo-600 bg-indigo-50' };
-    }
-    return { variant: 'neutral' as const, icon: ScrollText, iconColor: 'text-slate-600 bg-slate-50' };
+    if (act.includes('ROLE') || act.includes('CLEARANCE')) return { variant: 'brand' as const, icon: ShieldCheck };
+    if (act.includes('TICKET')) return { variant: 'neutral' as const, icon: Ticket };
+    if (act.includes('ANNOUNC') || act.includes('MESSAGE')) return { variant: 'warning' as const, icon: Megaphone };
+    if (act.includes('JOIN') || act.includes('MEMBER')) return { variant: 'success' as const, icon: UserPlus };
+    if (act.includes('TASK')) return { variant: 'brand' as const, icon: CheckCircle2 };
+    return { variant: 'neutral' as const, icon: ScrollText };
   };
+  const auditHref = guildId ? `/dashboard/${guildId}/audit` : '/dashboard/select-server';
 
-  const displayList = activities && activities.length > 0 ? activities : null;
-
-  return (
-    <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col justify-between h-full">
-      <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[#F1F3F9]">
-        <h3 className="text-sm font-semibold text-[#101828]">
-          Recent Activity
-        </h3>
-        <Link
-          href="/dashboard/audit"
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 hover:underline"
-        >
-          <span>View Full Audit</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
-
-      <div className="divide-y divide-[#F1F3F9]">
-        {isLoading ? (
-          <div className="py-8 text-center text-xs text-[#667085]">
-            Synchronizing activity telemetry...
+  return <Card className="flex h-full min-w-0 flex-col">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-base)] pb-4">
+      <h2 className="text-base font-semibold">Recent activity</h2>
+      <Link href={auditHref} className="text-[13px] font-medium text-[var(--accent)] hover:underline">View audit logs</Link>
+    </div>
+    {isLoading ? <div role="status" aria-label="Loading recent activity" className="space-y-3 py-2">{Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-10 w-full" />)}</div>
+      : activities.length === 0 ? <EmptyState icon={ScrollText} title="No recent activity" description="Activity will appear here when the server records an event." className="border-0 bg-transparent" />
+      : <ul className="divide-y divide-[var(--border-base)]">{activities.slice(0, 5).map(item => {
+        const details = getActionDetails(item.action);
+        const Icon = details.icon;
+        const timestamp = new Date(item.timestamp);
+        return <li key={item.id} className="flex min-w-0 items-center justify-between gap-3 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Icon size={16} className="shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
+            <time dateTime={item.timestamp} className="shrink-0 font-mono text-xs text-[var(--text-secondary)]">{Number.isNaN(timestamp.valueOf()) ? 'Time unavailable' : timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+            <Badge variant={details.variant}>{item.action}</Badge>
+            <span className="truncate text-[13px] text-[var(--text-primary)]">{item.details || item.targetId || `@${item.executorId}`}</span>
           </div>
-        ) : displayList ? (
-          displayList.slice(0, 5).map((item) => {
-            const details = getActionDetails(item.action);
-            const Icon = details.icon;
-            const timeFormatted = new Date(item.timestamp).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            });
-
-            return (
-              <div
-                key={item.id}
-                className="py-2.5 flex items-center justify-between gap-3 text-xs"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`p-1.5 rounded-lg ${details.iconColor} flex-shrink-0`}>
-                    <Icon className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[11px] font-mono text-[#667085] flex-shrink-0">
-                    {timeFormatted}
-                  </span>
-                  <Badge variant={details.variant}>
-                    {item.action}
-                  </Badge>
-                  <span className="text-xs font-medium text-[#101828] truncate">
-                    {item.details || item.targetId || `@${item.executorId}`}
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-[#667085] flex-shrink-0 text-right">
-                  @{item.executorId}
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          DEFAULT_MOCK_ACTIVITIES.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={item.id}
-                className="py-2.5 flex items-center justify-between gap-3 text-xs"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`p-1.5 rounded-lg ${item.iconColor} flex-shrink-0`}>
-                    <Icon className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[11px] font-mono text-[#667085] flex-shrink-0">
-                    {item.time}
-                  </span>
-                  <Badge variant={item.variant}>
-                    {item.action}
-                  </Badge>
-                  <span className="text-xs font-medium text-[#101828] truncate">
-                    {item.target}
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-[#667085] flex-shrink-0 text-right">
-                  {item.status}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </Card>
-  );
+          <span className="hidden shrink-0 text-xs text-[var(--text-secondary)] sm:inline">@{item.executorId}</span>
+        </li>;
+      })}</ul>}
+  </Card>;
 }

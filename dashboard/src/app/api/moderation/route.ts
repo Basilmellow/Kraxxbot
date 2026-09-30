@@ -1,24 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
-import {
-  kickGuildMember,
-  banGuildMember,
-  unbanGuildMember,
-  timeoutGuildMember,
-  fetchGuildMember,
-} from '@/lib/discord';
-import { requireTier, RoleTier, resolveRoleTier, requireGuildAccess } from '@/lib/permissions';
-import { logDashboardAction } from '@/lib/audit';
+import { getServerSession } from 'next-auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { runModeration, moderationFailureCode } from '../../../../../src/services/moderation.service';
+import { createModerationAdapter } from '../../../../../src/services/moderation-discord';
+import { ModerationError } from '../../../../../src/services/moderation-contract';
+import { PolicyError } from '../../../../../src/security/policy';
+import { DiscordApiError } from '@/lib/discord-transport';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   const { searchParams } = new URL(request.url);
   const actionFilter = searchParams.get('action') || '';
   const targetId = searchParams.get('targetId') || '';
@@ -34,7 +26,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const whereClause: any = { guildId };
+    const whereClause: { guildId: string; action?: string; targetId?: string } = { guildId };
     if (actionFilter && actionFilter !== 'ALL') whereClause.action = actionFilter;
     if (targetId) whereClause.targetId = targetId;
 
@@ -45,115 +37,29 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ logs, total: logs.length });
-  } catch (error: any) {
-    console.error('Failed to fetch moderation logs:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch moderation logs' }, { status: 500 });
+  } catch {
+    console.error('MODERATION_HISTORY_READ_FAILED', { guildId });
+    return NextResponse.json({ error: 'Failed to fetch moderation logs' }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
+async function handlePOST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user.discordId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const body = await request.json();
-    const { targetId, action, reason, durationSeconds = 3600, guildId: bodyGuildId } = body; // action: 'WARN' | 'TIMEOUT' | 'KICK' | 'BAN' | 'UNBAN'
-    const guildId = bodyGuildId || request.nextUrl.searchParams.get('guildId');
-
-    if (!guildId) {
-      return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
-    }
-
-    const access = await requireGuildAccess(guildId);
-    if (!access.authorized) {
-      return NextResponse.json({ error: access.error }, { status: access.status });
-    }
-
-    if (!targetId || !action) {
-      return NextResponse.json({ error: 'Target user ID and moderation action are required.' }, { status: 400 });
-    }
-
-    const currentUserId = session!.user.discordId;
-    const currentUserTier = session!.user.roleTier ?? RoleTier.USER;
-
-    // Safety check: Fetch target member to ensure hierarchy protection
-    if (action !== 'UNBAN') {
-      const targetMember = await fetchGuildMember(guildId, targetId).catch(() => null);
-      if (targetMember) {
-        const targetTier = resolveRoleTier(targetMember.roles);
-        if (targetTier >= currentUserTier) {
-          return NextResponse.json(
-            { error: `Hierarchy Violation: You cannot moderate a member at or above your role tier (${targetTier} >= ${currentUserTier}).` },
-            { status: 403 }
-          );
-        }
-      }
-    }
-
-    const auditReason = `Moderation [${action}] by ${session!.user.name}: ${reason || 'No reason provided'}`;
-
-    // Execute Discord REST Action
-    switch (action) {
-      case 'TIMEOUT': {
-        await timeoutGuildMember(guildId, targetId, durationSeconds, auditReason);
-        break;
-      }
-      case 'KICK': {
-        await kickGuildMember(guildId, targetId, auditReason);
-        break;
-      }
-      case 'BAN': {
-        await banGuildMember(guildId, targetId, auditReason, 0);
-        break;
-      }
-      case 'UNBAN': {
-        await unbanGuildMember(guildId, targetId, auditReason);
-        break;
-      }
-      case 'WARN': {
-        // Warn is an administrative record logged to database
-        break;
-      }
-      default:
-        return NextResponse.json({ error: `Unsupported moderation action: ${action}` }, { status: 400 });
-    }
-
-    // Get next case number for this guild
-    const lastCase = await prisma.moderationCase.findFirst({
-      where: { guildId },
-      orderBy: { caseNumber: 'desc' },
-    });
-    const nextCaseNumber = (lastCase?.caseNumber || 0) + 1;
-
-    // Record Moderation Case
-    const modLog = await prisma.moderationCase.create({
-      data: {
-        caseNumber: nextCaseNumber,
-        guildId,
-        targetId,
-        moderatorId: currentUserId,
-        moderatorTag: session!.user.name || null,
-        action,
-        reason: reason || null,
-        durationSeconds: action === 'TIMEOUT' ? durationSeconds : null,
-      },
-    });
-
-    await logDashboardAction({
-      guildId,
-      action: `MODERATION_${action}`,
-      executorId: currentUserId,
-      targetId,
-      targetType: 'USER',
-      details: { action, reason, durationSeconds, caseNumber: nextCaseNumber },
-    });
-
-    return NextResponse.json({ success: true, log: modLog });
-  } catch (error: any) {
-    console.error('Failed to execute moderation action:', error);
-    return NextResponse.json({ error: error.message || 'Failed to execute moderation action' }, { status: 500 });
+    const guildId = body.guildId || request.nextUrl.searchParams.get('guildId');
+    // The mutation wrapper has already validated guild access and conflicting context.
+    const record = await runModeration(prisma, createModerationAdapter(process.env.DISCORD_BOT_TOKEN || ''),
+      { ...body, guildId }, session.user.discordId, 'DASHBOARD');
+    const status = record.status === 'SUCCESS' ? 200 : 409;
+    return NextResponse.json({ success: record.status === 'SUCCESS', log: record,
+      ...(record.status !== 'SUCCESS' ? { error: record.errorCode || 'Attempt pending verification. Do not retry with a new request.' } : {}) }, { status });
+  } catch (error) {
+    const status = error instanceof ModerationError ? error.status : error instanceof PolicyError ? 403
+      : error instanceof DiscordApiError ? (error.status === 429 ? 429 : 502) : 503;
+    return NextResponse.json({ error: moderationFailureCode(error) }, { status });
   }
 }
+export const POST = withMutation('MODERATE_MEMBER', handlePOST);

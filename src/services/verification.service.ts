@@ -1,8 +1,11 @@
-import { ButtonInteraction, ChatInputCommandInteraction, GuildMember } from 'discord.js';
+import { ButtonInteraction,ChatInputCommandInteraction,GuildMember } from 'discord.js';
 import { MemberRepository } from '../database/repositories/member.repository';
-import { AuditService } from './audit.service';
 import { KraxxEmbedBuilder } from '../embeds/kraxxEmbedBuilder';
+import { validateAutomaticRole } from '../security/automatic-role';
 import { logger } from '../utils/logger';
+import { AuditService } from './audit.service';
+import { GuildRepository } from '../database/repositories/guild.repository';
+import { discordRequest, DiscordApiError } from './discord-transport';
 
 export class VerificationService {
   /**
@@ -14,13 +17,18 @@ export class VerificationService {
     const member = interaction.member as GuildMember | null;
     const guild = interaction.guild;
 
-    if (!member || !guild) {
+    if (!member || !guild || member.guild.id !== guild.id || member.user.id !== member.id) {
       const errorEmbed = KraxxEmbedBuilder.error('Verification Failed', 'Could not resolve server or member context.');
       await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
       return;
     }
 
     try {
+      if (!(await GuildRepository.isModuleEnabled(guild.id, 'welcome'))) {
+        await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Verification Unavailable', 'Verification is disabled for this server.')], ephemeral: true });
+        return;
+      }
+
       // 1. Ensure member entry exists in database
       const dbMember = await MemberRepository.upsertMember({
         guildId: guild.id,
@@ -46,29 +54,26 @@ export class VerificationService {
         return;
       }
 
-      // 3. Update database verification status
-      await MemberRepository.markVerified(guild.id, member.id);
-      await MemberRepository.logVerificationAttempt(
-        guild.id,
-        member.id,
-        'SUCCESS',
-        'Membership verified successfully'
-      );
-
-      // 4. Assign configured auto-role or verified role if configured in WelcomeConfig
+      // 3. Assign the configured role first. A failed Discord mutation must not leave a
+      // verified database record that prevents a safe retry.
       const welcomeConfig = await (await import('../database/client')).prisma.welcomeConfig.findUnique({
         where: { guildId: guild.id },
       });
-
       const targetRoleId = welcomeConfig?.roleId;
       if (targetRoleId) {
-        const role = guild.roles.cache.get(targetRoleId);
-        if (role && !member.roles.cache.has(role.id)) {
-          await member.roles.add(role).catch(err => {
-            logger.warn({ err, discordId: member.id, guildId: guild.id }, 'Failed to assign verified role');
+        const role = await validateAutomaticRole(guild, targetRoleId);
+        if (!member.roles.cache.has(role.id)) {
+          const token = process.env.DISCORD_TOKEN || process.env.DISCORD_BOT_TOKEN;
+          if (!token) throw new Error('DISCORD_NOT_CONFIGURED');
+          await discordRequest(`https://discord.com/api/v10/guilds/${guild.id}/members/${member.id}/roles/${role.id}`, {
+            method: 'PUT',
+            headers: { Authorization: `Bot ${token}`, 'X-Audit-Log-Reason': encodeURIComponent('Member verification') },
           });
         }
       }
+
+      // 4. Persist verified state, verification attempt, and canonical audit atomically.
+      await MemberRepository.markVerified(guild.id, member.id);
 
       // 5. Send clean ephemeral response
       const successEmbed = KraxxEmbedBuilder.success(
@@ -83,11 +88,14 @@ export class VerificationService {
         'MEMBER_VERIFIED',
         member.id,
         member.id,
-        `Member ${member.user.tag} completed verification in ${guild.name}.`
-      );
+        `Member ${member.user.tag} completed verification in ${guild.name}.`,
+        'SUCCESS',
+        false,
+      ).catch((notifyError) => logger.warn({ errorType: notifyError instanceof Error ? notifyError.name : 'UnknownError', guildId: guild.id }, 'Could not notify the configured audit channel'));
     } catch (error) {
-      logger.error({ err: error, discordId: member.id, guildId: guild.id }, 'Verification process encountered an exception');
-      await MemberRepository.logVerificationAttempt(guild.id, member.id, 'FAILED', String(error)).catch(() => {});
+      const errorCode = error instanceof DiscordApiError ? `DISCORD_${error.status}` : 'VERIFICATION_FAILED';
+      logger.error({ errorCode, discordId: member.id, guildId: guild.id }, 'Verification process encountered an exception');
+      await MemberRepository.logVerificationAttempt(guild.id, member.id, 'FAILED', errorCode).catch(() => {});
 
       const errorEmbed = KraxxEmbedBuilder.error(
         'Verification Error',

@@ -24,3 +24,6 @@ dashboard/.env.local
 dashboard/.env.*.local
 dashboard/.env*
 dashboard/out/
+
+.vercel
+.env*

@@ -10,6 +10,11 @@ export async function onGuildDelete(guild: DiscordGuild): Promise<void> {
   // Discord fires guildDelete for unavailable guilds during outages too.
   // guild.available === false means it's an outage, not a removal — skip it.
   if (!guild.available) {
+    try {
+      await GuildRepository.markGuildUnavailable(guild.id);
+    } catch (error) {
+      logger.error({ err: error, guildId: guild.id }, '❌ Failed to mark unavailable guild');
+    }
     logger.warn({ guildId: guild.id }, '⚠️ Guild became unavailable (outage) — skipping guildDelete handler');
     return;
   }

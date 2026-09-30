@@ -1,5 +1,6 @@
 import { prisma } from '../client';
 import { GuildMember as DbGuildMember } from '@prisma/client';
+import { createAuditDetails } from '../../services/audit-event';
 
 export class MemberRepository {
   static async findByDiscordId(guildId: string, discordId: string): Promise<DbGuildMember | null> {
@@ -41,14 +42,39 @@ export class MemberRepository {
   }
 
   static async markVerified(guildId: string, discordId: string): Promise<DbGuildMember> {
-    return prisma.guildMember.update({
-      where: {
-        guildId_discordId: { guildId, discordId },
-      },
-      data: {
-        isVerified: true,
-        verifiedAt: new Date(),
-      },
+    return prisma.$transaction(async (transaction) => {
+      const changed = await transaction.guildMember.updateMany({
+        where: { guildId, discordId, isVerified: false },
+        data: { isVerified: true, verifiedAt: new Date() },
+      });
+      const member = await transaction.guildMember.findUnique({ where: { guildId_discordId: { guildId, discordId } } });
+      if (!member) throw new Error('Verification member is no longer registered.');
+      // A concurrent verifier already committed the state and its canonical audit.
+      if (!changed.count) return member;
+      await transaction.guildMemberVerification.create({
+        data: {
+          guildId,
+          discordId,
+          guildMemberId: member.id,
+          status: 'SUCCESS',
+          notes: 'Membership verified successfully',
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          guildId,
+          executorId: discordId,
+          targetId: discordId,
+          action: 'MEMBER_VERIFIED',
+          details: createAuditDetails({
+            source: 'BOT',
+            targetType: 'MEMBER',
+            outcome: 'SUCCESS',
+            metadata: { verificationId: member.id },
+          }),
+        },
+      });
+      return member;
     });
   }
 

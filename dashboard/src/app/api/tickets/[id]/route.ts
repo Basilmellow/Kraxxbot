@@ -1,19 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireGuildAccess } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
+import { NextRequest,NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   const { id: ticketId } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
   if (!guildId) return NextResponse.json({ error: 'guildId is required.' }, { status: 400 });
@@ -30,8 +22,8 @@ export async function GET(
     }
 
     return NextResponse.json({ ticket });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch ticket:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch ticket' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch ticket' }, { status: 500 });
   }
 }

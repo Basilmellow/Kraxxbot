@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireGuildAccess } from '@/lib/permissions';
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
   const isNumber = !isNaN(parsedNumber);
 
   try {
-    const ticketOrs: any[] = [{ openerId: { contains: q } }];
+    const ticketOrs: Prisma.TicketWhereInput[] = [{ openerId: { contains: q } }];
     if (isNumber) {
       ticketOrs.push({ ticketNumber: parsedNumber });
     }
@@ -111,8 +112,8 @@ export async function GET(request: NextRequest) {
     ];
 
     return NextResponse.json({ results, total: results.length });
-  } catch (error: any) {
-    console.error('Failed to execute search:', error);
-    return NextResponse.json({ error: error.message || 'Failed to search' }, { status: 500 });
+  } catch {
+    console.error('Failed to execute search.');
+    return NextResponse.json({ error: 'Failed to search' }, { status: 500 });
   }
 }

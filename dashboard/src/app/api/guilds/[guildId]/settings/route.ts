@@ -1,9 +1,12 @@
+import { withMutation } from '@/lib/mutation';
+import { saveSettings } from '@/lib/settings-service';
+import { ZodError } from 'zod';
 // KRAXX Operations Platform — Guild Settings API
 // Configure server-specific prefix, channels, and role bindings
 
-import { NextRequest, NextResponse } from 'next/server';
 import { requireGuildAccess } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
+import { NextRequest,NextResponse } from 'next/server';
 
 export async function GET(
   _request: NextRequest,
@@ -21,12 +24,13 @@ export async function GET(
     });
 
     return NextResponse.json({ settings });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof ZodError) return NextResponse.json({ error: "Invalid settings fields." }, { status: 400 });
+    return NextResponse.json({ error: 'Failed to read guild settings.' }, { status: 500 });
   }
 }
 
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ guildId: string }> }
 ) {
@@ -39,38 +43,13 @@ export async function PATCH(
   try {
     const body = await request.json();
 
-    const allowedFields = [
-      'prefix',
-      'welcomeChannelId',
-      'announcementChannelId',
-      'modLogChannelId',
-      'auditLogChannelId',
-      'ticketCategoryId',
-      'ticketTranscriptsChannelId',
-      'adminRoleId',
-      'modRoleId',
-      'ticketSupportRoleId',
-      'verifiedRoleId',
-    ];
-
-    const dataToUpdate: Record<string, any> = {};
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        dataToUpdate[field] = body[field];
-      }
-    }
-
-    const updated = await prisma.guildSettings.upsert({
-      where: { guildId },
-      update: dataToUpdate,
-      create: {
-        guildId,
-        ...dataToUpdate,
-      },
-    });
+    const updated = await saveSettings(guildId, body);
 
     return NextResponse.json({ success: true, settings: updated });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof ZodError) return NextResponse.json({ error: "Invalid settings fields." }, { status: 400 });
+    return NextResponse.json({ error: 'Failed to update guild settings.' }, { status: 500 });
   }
 }
+
+export const PATCH = withMutation('MANAGE_SETTINGS', handlePATCH);

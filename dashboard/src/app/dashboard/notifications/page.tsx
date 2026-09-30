@@ -1,22 +1,15 @@
 'use client';
 
+import { PageContainer } from '@/components/ui/Page';
+
 import React, { useState, useEffect } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
-import {
-  Bell,
-  CheckCheck,
-  CheckCircle2,
-  AlertTriangle,
-  Info,
-  Clock,
-  ExternalLink,
-  Shield,
-} from 'lucide-react';
+import { Bell, CheckCheck, CheckCircle2, AlertTriangle, Info, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 
 interface NotificationItem {
@@ -37,7 +30,6 @@ export default function NotificationsPage() {
 
   const fetchNotifications = async () => {
     try {
-      setIsLoading(true);
       const res = await fetch('/api/notifications');
       if (res.ok) {
         const data = await res.json();
@@ -52,7 +44,7 @@ export default function NotificationsPage() {
   };
 
   useEffect(() => {
-    fetchNotifications();
+    void Promise.resolve().then(fetchNotifications);
   }, []);
 
   const handleMarkAllRead = async () => {
@@ -89,25 +81,25 @@ export default function NotificationsPage() {
     switch (type) {
       case 'SECURITY':
       case 'WARNING':
-        return <AlertTriangle className="w-4 h-4 text-amber-600" />;
+        return <AlertTriangle className="w-4 h-4 text-[var(--accent)]" />;
       case 'SUCCESS':
-        return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
+        return <CheckCircle2 className="w-4 h-4 text-[var(--success)]" />;
       default:
-        return <Info className="w-4 h-4 text-indigo-600" />;
+        return <Info className="w-4 h-4 text-[var(--accent)]" />;
     }
   };
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Notification Center & Alerts"
-        subtitle="Real-Time Gateway Notifications, Task Assignments & Security Dispatches"
+        title="Notifications"
+        subtitle="Review your notifications and updates."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#667085]">Unread Dispatches:</span>
+            <span className="text-[13px] text-[var(--text-secondary)]">Unread Dispatches:</span>
             <Badge variant={unreadCount > 0 ? 'brand' : 'neutral'}>
               {unreadCount} UNREAD
             </Badge>
@@ -118,9 +110,9 @@ export default function NotificationsPage() {
               variant="outline"
               size="sm"
               onClick={handleMarkAllRead}
-              className="gap-1.5 text-xs"
+              className="gap-2 text-[13px]"
             >
-              <CheckCheck className="w-3.5 h-3.5" />
+              <CheckCheck className="w-4 h-4" />
               <span>Mark All as Read</span>
             </Button>
           )}
@@ -144,10 +136,10 @@ export default function NotificationsPage() {
             {notifications.map((n) => (
               <Card
                 key={n.id}
-                className={`p-4 rounded-2xl border transition-all ${
+                className={`p-4 rounded-xl border transition-colors ${
                   n.read
-                    ? 'bg-white border-[#E5E7EB]'
-                    : 'bg-indigo-50/40 border-indigo-200 shadow-xs'
+                    ? 'bg-[var(--surface-1)] border-[var(--border-base)]'
+                    : 'bg-[var(--accent-dim)] border-[var(--accent-border)] '
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -155,22 +147,22 @@ export default function NotificationsPage() {
                     <div className="mt-0.5">{getTypeIcon(n.type)}</div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-semibold text-[#101828]">
+                        <h4 className="text-[13px] font-semibold text-[var(--text-primary)]">
                           {n.title}
                         </h4>
                         {!n.read && (
-                          <span className="w-2 h-2 rounded-full bg-indigo-600" />
+                          <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />
                         )}
                       </div>
-                      <p className="text-xs text-[#667085] mt-1 leading-relaxed">
+                      <p className="text-[13px] text-[var(--text-secondary)] mt-1 leading-relaxed">
                         {n.message}
                       </p>
-                      <div className="flex items-center gap-3 mt-2 text-[11px] text-[#98A2B3]">
+                      <div className="flex items-center gap-3 mt-2 text-[13px] text-[var(--text-secondary)]">
                         <span>{new Date(n.createdAt).toLocaleString()}</span>
                         {n.link && (
                           <Link
                             href={n.link}
-                            className="text-indigo-600 font-medium hover:underline flex items-center gap-1"
+                            className="text-[var(--accent)] font-medium hover:underline flex items-center gap-1"
                           >
                             <span>View Resource</span>
                             <ExternalLink className="w-3 h-3" />
@@ -184,7 +176,7 @@ export default function NotificationsPage() {
                     <button
                       type="button"
                       onClick={() => handleMarkRead(n.id)}
-                      className="p-1 text-[#98A2B3] hover:text-[#101828] text-xs font-medium"
+                      className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[13px] font-medium"
                     >
                       Dismiss
                     </button>
@@ -194,7 +186,7 @@ export default function NotificationsPage() {
             ))}
           </div>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

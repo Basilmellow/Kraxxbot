@@ -1,171 +1,58 @@
-// KRAXX Operations Platform — Message Edit & Delete API
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { withMutation } from '@/lib/mutation';
+import { executeDashboardMessageOperation, messageOperationHttpError, normalizeDashboardMessageInput } from '@/lib/message-operations';
 import { authOptions } from '@/lib/auth';
-import { fetchChannelMessage, editChannelMessage, deleteChannelMessage, fetchGuildChannels } from '@/lib/discord';
-import { canEditMessages, canDeleteMessages, canMentionMass, requireGuildAccess } from '@/lib/permissions';
-import { logDashboardAction } from '@/lib/audit';
+import { fetchChannelMessage } from '@/lib/discord';
+import { validateChannel } from '@/lib/destinations';
+import { requireGuildAccess } from '@/lib/permissions';
+import { getServerSession } from 'next-auth';
+import { NextRequest, NextResponse } from 'next/server';
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
+interface RouteParams { params: Promise<{ id: string }> }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember || !canEditMessages(session.user.roleTier)) {
-    return NextResponse.json({ error: 'Unauthorized: Management Head clearance required' }, { status: 403 });
-  }
-
-  const { id: messageId } = await params;
-  const channelId = request.nextUrl.searchParams.get('channelId');
+  if (!session?.user?.discordId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
-
-  if (!channelId || !messageId || !guildId) {
-    return NextResponse.json({ error: 'channelId, guildId and messageId required' }, { status: 400 });
-  }
+  const channelId = request.nextUrl.searchParams.get('channelId');
+  if (!guildId || !channelId) return NextResponse.json({ error: 'guildId and channelId required' }, { status: 400 });
   const access = await requireGuildAccess(guildId);
   if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
-
   try {
-    const channels = await fetchGuildChannels(guildId);
-    if (!channels.some((channel) => channel.id === channelId)) return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
-    const message = await fetchChannelMessage(channelId, messageId);
+    await validateChannel(guildId, channelId, false);
+    const message = await fetchChannelMessage(channelId, id);
+    if (message.channel_id !== channelId) return NextResponse.json({ error: 'Message not found.' }, { status: 404 });
     return NextResponse.json({ message });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || 'Message not found in specified channel' },
-      { status: 404 }
-    );
-  }
+  } catch { return NextResponse.json({ error: 'Message not found in specified channel.' }, { status: 404 }); }
 }
 
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
+async function mutate(request: NextRequest, params: RouteParams, operationType: 'EDIT' | 'DELETE') {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!canEditMessages(session.user.roleTier)) {
-    return NextResponse.json(
-      { error: 'Editing bot messages requires Team Lead authority or higher.' },
-      { status: 403 }
-    );
-  }
-
-  const { id: messageId } = await params;
-
+  if (!session?.user?.discordId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params.params;
+  const key = request.headers.get('idempotency-key') || '';
   try {
-    const body = await request.json();
-    const { channelId, content, embeds, mentionType, mentionRoleId, guildId } = body;
-
-    if (!channelId || !messageId || !guildId) {
-      return NextResponse.json({ error: 'channelId, guildId and messageId are required' }, { status: 400 });
-    }
+    const body = operationType === 'DELETE' ? Object.fromEntries(request.nextUrl.searchParams) : await request.json() as Record<string, unknown>;
+    const guildId = typeof body.guildId === 'string' ? body.guildId : request.nextUrl.searchParams.get('guildId');
+    const channelId = typeof body.channelId === 'string' ? body.channelId : request.nextUrl.searchParams.get('channelId');
+    if (!guildId || !channelId) return NextResponse.json({ error: 'guildId and channelId are required.' }, { status: 400 });
+    body.guildId = guildId; body.channelId = channelId;
     const access = await requireGuildAccess(guildId);
     if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
-    const channels = await fetchGuildChannels(guildId);
-    if (!channels.some((channel) => channel.id === channelId)) return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
-
-    // Mass mention check for edited content
-    const containsMassMention =
-      mentionType === 'EVERYONE' ||
-      mentionType === 'HERE' ||
-      (content && (content.includes('@everyone') || content.includes('@here')));
-
-    if (containsMassMention && !canMentionMass(session.user.roleTier)) {
-      return NextResponse.json(
-        { error: 'Mass mentions require Management Head authority.' },
-        { status: 403 }
-      );
-    }
-
-    let finalContent = content !== undefined ? content : undefined;
-    if (mentionType === 'EVERYONE' && content) {
-      finalContent = `@everyone\n${content}`;
-    } else if (mentionType === 'HERE' && content) {
-      finalContent = `@here\n${content}`;
-    } else if (mentionType === 'ROLE' && mentionRoleId && content) {
-      finalContent = `<@&${mentionRoleId}>\n${content}`;
-    }
-
-    const updatedMessage = await editChannelMessage(channelId, messageId, finalContent, embeds);
-
-    // Audit Log
-    await logDashboardAction({
-      guildId,
-      action: 'MESSAGE_EDIT',
-      executorId: session.user.discordId,
-      targetId: messageId,
-      targetType: 'MESSAGE',
-      details: {
-        channelId,
-        messageId,
-        hasEmbed: Boolean(embeds && embeds.length > 0),
-        editedContentPreview: finalContent ? String(finalContent).slice(0, 100) : null,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: updatedMessage,
-    });
-  } catch (error: any) {
-    console.error('[API] Edit message error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to edit message' },
-      { status: 500 }
-    );
+    const input = normalizeDashboardMessageInput(body, session.user.discordId, key, operationType, id);
+    const result = await executeDashboardMessageOperation(input);
+    const status = result.status === 'SUCCESS' ? 200 : result.status === 'FAILURE' ? 422 : 202;
+    const message = result.status === 'FAILURE'
+      ? `Discord definitively rejected this ${operationType.toLowerCase()} (${result.errorCode || 'DISCORD_REJECTED'}).`
+      : result.status === 'UNKNOWN' || result.status === 'PENDING'
+        ? `Operation ${result.operationId} may have reached Discord. Check /api/messages/operations/${result.operationId}?guildId=${input.guildId} or retry only with the same idempotency key; do not create a new key.`
+        : undefined;
+    return NextResponse.json({ operation: result, ...(message ? { error: message, message } : {}) }, { status });
+  } catch (error) {
+    const mapped = messageOperationHttpError(error);
+    return NextResponse.json({ error: mapped.message }, { status: mapped.status });
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Deleting messages is a destructive action requiring MANAGEMENT_HEAD (80+)
-  if (!canDeleteMessages(session.user.roleTier)) {
-    return NextResponse.json(
-      { error: 'Deleting messages requires Management Head authority or higher.' },
-      { status: 403 }
-    );
-  }
-
-  const { id: messageId } = await params;
-  const channelId = request.nextUrl.searchParams.get('channelId');
-  const guildId = request.nextUrl.searchParams.get('guildId');
-
-  if (!channelId || !messageId || !guildId) {
-    return NextResponse.json({ error: 'channelId, guildId and messageId are required' }, { status: 400 });
-  }
-  const access = await requireGuildAccess(guildId);
-  if (!access.authorized) return NextResponse.json({ error: access.error }, { status: access.status });
-
-  try {
-    const channels = await fetchGuildChannels(guildId);
-    if (!channels.some((channel) => channel.id === channelId)) return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
-    await deleteChannelMessage(channelId, messageId);
-
-    // Audit Log
-    await logDashboardAction({
-      guildId,
-      action: 'MESSAGE_DELETE',
-      executorId: session.user.discordId,
-      targetId: messageId,
-      targetType: 'MESSAGE',
-      details: {
-        channelId,
-        messageId,
-      },
-    });
-
-    return NextResponse.json({ success: true, messageId, channelId });
-  } catch (error: any) {
-    console.error('[API] Delete message error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to delete message from Discord channel' },
-      { status: 500 }
-    );
-  }
-}
+export const PATCH = withMutation('SESSION', (request, ...args) => mutate(request, args[0] as RouteParams, 'EDIT'));
+export const DELETE = withMutation('SESSION', (request, ...args) => mutate(request, args[0] as RouteParams, 'DELETE'));

@@ -4,21 +4,7 @@
 
 import { prisma } from './prisma';
 import type { DiscordGuild } from './discord';
-
-const DEFAULT_MODULES = [
-  'tickets',
-  'moderation',
-  'welcome',
-  'tasks',
-  'reminders',
-  'meetings',
-  'embeds',
-  'automation',
-  'analytics',
-  'logging',
-  'announcements',
-  'roles',
-];
+import { MODULE_CATALOG } from './module-catalog';
 
 /**
  * Registers a guild only after the caller has verified bot membership through
@@ -51,11 +37,11 @@ export async function reconcileInstalledGuild(guild: DiscordGuild) {
     });
 
     await Promise.all(
-      DEFAULT_MODULES.map((module) =>
+      MODULE_CATALOG.map(({ key: module }) =>
         tx.guildModule.upsert({
           where: { guildId_module: { guildId: guild.id, module } },
           update: {},
-          create: { guildId: guild.id, module, enabled: true },
+          create: { guildId: guild.id, module, enabled: module !== 'kraxx-ai' },
         })
       )
     );

@@ -1,5 +1,10 @@
 'use client';
 
+import { Topbar } from '@/components/layout/Topbar';
+import { PageContainer } from '@/components/ui/Page';
+import { SearchField } from '@/components/ui/Form';
+import { Button } from '@/components/ui/Button';
+import { LoadingState } from '@/components/ui/Skeleton';
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -119,7 +124,7 @@ export default function SelectServerPage() {
     },
     subtitle: {
       fontSize: '0.875rem',
-      color: '#716D65',
+      color: 'var(--text-secondary)',
     },
     refreshBtn: {
       display: 'inline-flex',
@@ -138,7 +143,7 @@ export default function SelectServerPage() {
     },
     searchWrap: {
       position: 'relative' as const,
-      marginBottom: '2.5rem',
+      marginBottom: '1.5rem',
     },
     searchInput: {
       width: '100%',
@@ -157,7 +162,7 @@ export default function SelectServerPage() {
       left: '0.75rem',
       top: '50%',
       transform: 'translateY(-50%)',
-      color: '#716D65',
+      color: 'var(--text-secondary)',
       pointerEvents: 'none' as const,
     },
     sectionLabel: {
@@ -171,7 +176,7 @@ export default function SelectServerPage() {
     },
     grid: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))',
       gap: '0.75rem',
     },
     guildCardInstalled: {
@@ -239,7 +244,7 @@ export default function SelectServerPage() {
     guildNameDim: {
       fontSize: '0.9375rem',
       fontWeight: 600,
-      color: '#716D65',
+      color: 'var(--text-secondary)',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap' as const,
@@ -268,7 +273,7 @@ export default function SelectServerPage() {
       borderRadius: '8px',
       background: 'transparent',
       border: '1px solid #2A2925',
-      color: '#716D65',
+      color: 'var(--text-secondary)',
       fontSize: '0.8125rem',
       fontWeight: 600,
       textDecoration: 'none',
@@ -305,58 +310,17 @@ export default function SelectServerPage() {
   return (
     <div style={S.root}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={S.inner}>
-        {/* Header */}
-        <div style={S.pageHeader}>
-          <div>
-            <div style={S.badge}>
-              <ShieldCheck style={{ width: '11px', height: '11px' }} />
-              Server Selection
-            </div>
-            <h1 style={S.title}>Your Servers</h1>
-            <p style={S.subtitle}>
-              Select a server to manage, or invite KRAXXBot to a new community.
-            </p>
-          </div>
-
-          <button
-            onClick={() => { setIsRefreshing(true); setLoadError(null); void fetchGuilds(); }}
-            disabled={isRefreshing}
-            style={S.refreshBtn}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = '#1D1C19';
-              e.currentTarget.style.color = '#F3F0E9';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = '#161614';
-              e.currentTarget.style.color = '#A8A49B';
-            }}
-          >
-            <RefreshCw style={{ width: '13px', height: '13px', ...(isRefreshing ? { animation: 'spin 0.75s linear infinite' } : {}) }} />
-            <span>Refresh list</span>
-          </button>
-        </div>
-
+      <Topbar title="Servers" subtitle="Select a server to manage, or invite KRAXXBot to a new community." actions={<Button variant="secondary" disabled={isRefreshing} onClick={() => { setIsRefreshing(true); setLoadError(null); void fetchGuilds(); }}><RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />Refresh list</Button>} />
+      <PageContainer className="space-y-6">
         {/* Search */}
         <div style={S.searchWrap}>
           <Search style={{ width: '15px', height: '15px', ...S.searchIcon }} />
-          <input
-            type="text"
-            placeholder="Search servers..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={S.searchInput}
-            onFocus={e => { e.currentTarget.style.borderColor = '#C9A66B'; }}
-            onBlur={e => { e.currentTarget.style.borderColor = '#2A2925'; }}
-          />
+          <SearchField label="Search servers" placeholder="Search servers…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
         </div>
 
         {/* Loading */}
         {loading ? (
-          <div style={{ padding: '4rem 0', textAlign: 'center' }}>
-            <div style={S.spinner} />
-            <p style={{ fontSize: '0.875rem', color: '#716D65' }}>Loading your servers...</p>
-          </div>
+          <LoadingState label="Loading your servers" />
         ) : (
           <>
             {/* Installed Servers */}
@@ -373,7 +337,7 @@ export default function SelectServerPage() {
                 <div style={S.emptyState}>
                   <Server style={{ width: '28px', height: '28px', color: '#EF4444', marginBottom: '0.25rem' }} />
                   <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#A8A49B' }}>Unable to load servers</p>
-                  <p style={{ fontSize: '0.8125rem', color: '#716D65' }}>{loadError}</p>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>{loadError}</p>
                   <Link href="/login" style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#C9A66B', marginTop: '0.5rem' }}>
                     Sign in again
                   </Link>
@@ -382,7 +346,7 @@ export default function SelectServerPage() {
                 <div style={S.emptyState}>
                   <Server style={{ width: '28px', height: '28px', color: '#4A4742', marginBottom: '0.25rem' }} />
                   <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#A8A49B' }}>No active servers found</p>
-                  <p style={{ fontSize: '0.8125rem', color: '#716D65' }}>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
                     {needsSync.length ? 'Synchronize an installed server below to initialize its dashboard.' : 'Add KRAXXBot to one of your servers below to get started.'}
                   </p>
                 </div>
@@ -449,7 +413,7 @@ export default function SelectServerPage() {
                     <RefreshCw style={{ width: '15px', height: '15px', color: '#C9A66B' }} />
                     <span>Installed — synchronization required</span>
                   </div>
-                  <p style={{ fontSize: '0.8125rem', color: '#716D65', marginBottom: '1rem' }}>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
                     Synchronization initializes this server&apos;s dashboard records after explicit confirmation.
                   </p>
                   <div style={S.grid}>
@@ -477,13 +441,13 @@ export default function SelectServerPage() {
                 <div style={S.sectionDivider} />
                 <div>
                   <div style={S.sectionLabel}>
-                    <Plus style={{ width: '15px', height: '15px', color: '#716D65' }} />
+                    <Plus style={{ width: '15px', height: '15px', color: 'var(--text-secondary)' }} />
                     <span>Add to Server</span>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.125rem 0.5rem', borderRadius: '9999px', background: '#161614', border: '1px solid #2A2925', color: '#716D65' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.125rem 0.5rem', borderRadius: '9999px', background: '#161614', border: '1px solid #2A2925', color: 'var(--text-secondary)' }}>
                       {uninstalled.length}
                     </span>
                   </div>
-                  <p style={{ fontSize: '0.8125rem', color: '#716D65', marginBottom: '1rem' }}>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
                     Servers where you have Admin or Manage Server rights, but KRAXXBot has not been added yet.
                   </p>
 
@@ -505,7 +469,7 @@ export default function SelectServerPage() {
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={S.guildNameDim}>{guild.name}</div>
                             {guild.owner && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.6875rem', fontWeight: 600, color: '#716D65', marginTop: '0.25rem' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                                 <Crown style={{ width: '10px', height: '10px' }} />
                                 Owner
                               </span>
@@ -541,7 +505,7 @@ export default function SelectServerPage() {
             )}
           </>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

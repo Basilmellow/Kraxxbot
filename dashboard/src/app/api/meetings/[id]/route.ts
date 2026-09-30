@@ -1,19 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { Prisma } from '@prisma/client';
+import { authOptions } from '@/lib/auth';
+import { withMutation } from '@/lib/mutation';
+import { validateChannel } from '@/lib/destinations';
+import { queueMeetingAnnouncement } from '@/lib/meeting-announcements';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
 
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const { id: meetingId } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
@@ -26,15 +26,44 @@ export async function PATCH(
     const body = await request.json();
     const { status, agenda, startTime, locationChannelId } = body;
 
-    const dataToUpdate: any = {};
+    const current = await prisma.meeting.findFirst({ where: { id: meetingId, guildId } });
+    if (!current) return NextResponse.json({ error: 'Meeting not found.' }, { status: 404 });
+
+    let announcementStage: 'STARTED' | 'CONCLUDED' | null = null;
+    if (status !== undefined && status !== current.status) {
+      if (status === 'IN_PROGRESS' && current.status === 'SCHEDULED') announcementStage = 'STARTED';
+      else if (status === 'COMPLETED' && current.status === 'IN_PROGRESS') announcementStage = 'CONCLUDED';
+      else if (!(status === 'CANCELLED' && current.status === 'SCHEDULED')) {
+        return NextResponse.json({ error: `Cannot change meeting from ${current.status} to ${String(status)}.` }, { status: 409 });
+      }
+    }
+
+    if (announcementStage) {
+      if (!current.locationChannelId) return NextResponse.json({ error: 'Choose a Discord channel before starting or concluding this meeting.' }, { status: 400 });
+      await validateChannel(guildId, current.locationChannelId, true, false);
+    }
+    if (locationChannelId) await validateChannel(guildId, locationChannelId, true, false);
+
+    const dataToUpdate: Prisma.MeetingUpdateInput = {};
     if (status !== undefined) dataToUpdate.status = status;
     if (agenda !== undefined) dataToUpdate.agenda = agenda.trim();
     if (startTime !== undefined) dataToUpdate.startTime = new Date(startTime);
     if (locationChannelId !== undefined) dataToUpdate.locationChannelId = locationChannelId || null;
 
-    const updated = await prisma.meeting.update({
-      where: { id: meetingId, guildId },
-      data: dataToUpdate,
+    const result = await prisma.$transaction(async tx => {
+      const latest = await tx.meeting.findFirst({ where: { id: meetingId, guildId } });
+      if (!latest) throw new Error('MEETING_NOT_FOUND');
+      if (status !== undefined && latest.status !== current.status) throw new Error('MEETING_STATUS_CHANGED');
+
+      const updated = await tx.meeting.update({ where: { id: meetingId }, data: dataToUpdate });
+      if (announcementStage) await queueMeetingAnnouncement(tx, updated, announcementStage, currentUserId);
+      if (status === 'CANCELLED' && latest.status === 'SCHEDULED') {
+        await tx.scheduledAnnouncement.updateMany({
+          where: { idempotencyKey: `meeting:${meetingId}:SCHEDULED`, status: 'PENDING' },
+          data: { status: 'CANCELLED' },
+        });
+      }
+      return { updated, announcementQueued: announcementStage !== null };
     });
 
     await logDashboardAction({
@@ -43,25 +72,23 @@ export async function PATCH(
       executorId: currentUserId,
       targetId: meetingId,
       targetType: 'MEETING',
-      details: { title: updated.title, changes: dataToUpdate },
+      details: { title: result.updated.title, changes: dataToUpdate, announcementQueued: result.announcementQueued },
     });
 
-    return NextResponse.json({ success: true, meeting: updated });
-  } catch (error: any) {
-    console.error('Failed to update meeting:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update meeting' }, { status: 500 });
+    return NextResponse.json({ success: true, announcementQueued: result.announcementQueued, meeting: result.updated });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'MEETING_NOT_FOUND') return NextResponse.json({ error: 'Meeting not found.' }, { status: 404 });
+    if (error instanceof Error && error.message === 'MEETING_STATUS_CHANGED') return NextResponse.json({ error: 'Meeting status changed. Refresh before trying again.' }, { status: 409 });
+    console.error('Failed to update meeting.');
+    return NextResponse.json({ error: 'Failed to update meeting' }, { status: 500 });
   }
 }
 
-export async function DELETE(
+async function handleDELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const { id: meetingId } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
@@ -85,8 +112,11 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true, message: 'Meeting deleted.' });
-  } catch (error: any) {
-    console.error('Failed to delete meeting:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete meeting' }, { status: 500 });
+  } catch {
+    console.error('Failed to delete meeting.');
+    return NextResponse.json({ error: 'Failed to delete meeting' }, { status: 500 });
   }
 }
+
+export const PATCH = withMutation('MANAGE_SETTINGS', handlePATCH);
+export const DELETE = withMutation('MANAGE_SETTINGS', handleDELETE);

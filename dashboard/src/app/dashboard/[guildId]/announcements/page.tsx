@@ -1,29 +1,18 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { PageContainer } from '@/components/ui/Page';
+import { Select, Input, Textarea, Checkbox } from '@/components/ui/Form';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import { DiscordEmbedPreview, DiscordEmbedData } from '@/components/discord/DiscordEmbedPreview';
-import {
-  Megaphone,
-  Send,
-  Clock,
-  Shield,
-  Palette,
-  Sparkles,
-  CheckCircle2,
-  AlertTriangle,
-  Layers,
-  ArrowRight,
-  Radio,
-  Calendar,
-  Image as ImageIcon,
-} from 'lucide-react';
+import { Megaphone, Clock, CheckCircle2, AlertTriangle, Layers, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 interface Preset {
@@ -116,6 +105,7 @@ export default function AnnouncementsPage() {
   const [isLoadingMeta, setIsLoadingMeta] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const requestKey = useRef<{ fingerprint: string; key: string } | null>(null);
 
   useEffect(() => {
     if (!guildId) {
@@ -131,7 +121,7 @@ export default function AnnouncementsPage() {
           setChannels(data.channels || []);
           setRoles(data.roles || []);
           if (data.channels && data.channels.length > 0) {
-            const annChannel = data.channels.find((c: any) => c.type === 'announcement' || c.name.includes('announc'));
+            const annChannel = data.channels.find((channel: ChannelItem) => channel.type === 'announcement' || channel.name.includes('announc'));
             setSelectedChannel(annChannel || data.channels[0]);
           }
         }
@@ -179,21 +169,26 @@ export default function AnnouncementsPage() {
     setFeedback(null);
 
     try {
+      const payload = {
+        guildId,
+        channelId: selectedChannel.id,
+        title: title.trim(),
+        content: content.trim(),
+        department,
+        type: announcementType,
+        mentionType: mentionType !== 'NONE' ? mentionType : undefined,
+        mentionRoleId: mentionType === 'ROLE' ? selectedRoleId : undefined,
+        bannerUrl: bannerUrl.trim() || undefined,
+        scheduledFor: isScheduled && scheduledAt ? scheduledAt : undefined,
+      };
+      const fingerprint = JSON.stringify(payload);
+      if (requestKey.current?.fingerprint !== fingerprint) {
+        requestKey.current = { fingerprint, key: crypto.randomUUID() };
+      }
       const res = await fetch('/api/announcements', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          guildId,
-          channelId: selectedChannel.id,
-          title: title.trim(),
-          content: content.trim(),
-          department,
-          type: announcementType,
-          mentionType: mentionType !== 'NONE' ? mentionType : undefined,
-          mentionRoleId: mentionType === 'ROLE' ? selectedRoleId : undefined,
-          bannerUrl: bannerUrl.trim() || undefined,
-          scheduledAt: isScheduled && scheduledAt ? scheduledAt : undefined,
-        }),
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey.current.key },
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -203,10 +198,11 @@ export default function AnnouncementsPage() {
         type: 'success',
         message: isScheduled
           ? `Announcement queued for automated dispatch on ${new Date(scheduledAt).toLocaleString()}.`
-          : `Announcement successfully broadcasted to #${selectedChannel.name}.`,
+          : `Announcement durably queued for #${selectedChannel.name}; delivery will be confirmed by the scheduler.`,
       });
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Broadcast error' });
+      requestKey.current = null;
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Broadcast error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -215,14 +211,14 @@ export default function AnnouncementsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Announcements Broadcaster"
-        subtitle="Ecosystem Broadcast Dispatch, Scheduling & Channel Matrix"
+        title="Announcements"
+        subtitle="Compose, preview, and schedule messages for your server."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Preset Selector Banner */}
         <div>
-          <div className="text-xs font-semibold text-[#667085] uppercase tracking-wider mb-2.5">
+          <div className="text-[13px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
             Official Ecosystem Preset Templates
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -231,20 +227,20 @@ export default function AnnouncementsPage() {
                 key={p.id}
                 type="button"
                 onClick={() => handleApplyPreset(p)}
-                className={`p-3.5 rounded-2xl bg-white border text-left transition-all shadow-xs ${
+                className={`p-4 rounded-xl bg-[var(--surface-1)] border text-left transition-colors  ${
                   title === p.defaultTitle
-                    ? 'border-indigo-600 ring-2 ring-indigo-500/10'
-                    : 'border-[#E5E7EB] hover:border-[#D1D5DB]'
+                    ? 'border-[var(--accent-border)] ring-2 ring-[var(--accent-border)]'
+                    : 'border-[var(--border-base)] hover:border-[var(--border-base)]'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center justify-between mb-2">
                   <span
                     className="w-2.5 h-2.5 rounded-full"
                     style={{ backgroundColor: p.color }}
                   />
-                  <span className="text-[10px] font-semibold text-[#667085] uppercase">{p.badge}</span>
+                  <span className="text-[13px] font-semibold text-[var(--text-secondary)] uppercase">{p.badge}</span>
                 </div>
-                <div className="text-xs font-bold text-[#101828] truncate">{p.name}</div>
+                <div className="text-[13px] font-bold text-[var(--text-primary)] truncate">{p.name}</div>
               </button>
             ))}
           </div>
@@ -253,16 +249,16 @@ export default function AnnouncementsPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
@@ -272,22 +268,22 @@ export default function AnnouncementsPage() {
         <form onSubmit={handleBroadcast} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Form Controls (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs">
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#F1F3F9]">
-                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-                  <Megaphone className="w-4 h-4 text-indigo-600" />
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 sm:p-6 ">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-[var(--border-base)]">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Megaphone className="w-4 h-4 text-[var(--accent)]" />
                   <span>Broadcast Composer</span>
                 </h3>
                 <Link
                   href={`/dashboard/${guildId}/announcements/scheduled`}
-                  className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 hover:underline"
+                  className="text-[13px] font-medium text-[var(--accent)] hover:text-[var(--accent)] flex items-center gap-1 hover:underline"
                 >
                   <span>View Queue</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
 
-              <div className="space-y-4 text-xs">
+              <div className="space-y-4 text-[13px]">
                 {/* Target Channel */}
                 <ChannelSelector
                   channels={channels}
@@ -299,85 +295,85 @@ export default function AnnouncementsPage() {
                 {/* Division & Type */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-[#344054] mb-1">
+                    <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                       Organizational Division
                     </label>
-                    <select
+                    <Select aria-label="Organizational Division"
                       value={department}
-                      onChange={(e: any) => setDepartment(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                      onChange={(e) => setDepartment(e.target.value as 'GENERAL' | 'KRAXXSEC' | 'KRAXX_STUDIO')}
+                      className="w-full"
                     >
                       <option value="GENERAL">KRAXX HQ (General)</option>
                       <option value="KRAXXSEC">KRAXXSEC (Security)</option>
                       <option value="KRAXX_STUDIO">KRAXX STUDIO (Creative)</option>
-                    </select>
+                    </Select>
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-[#344054] mb-1">
+                    <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                       Broadcast Classification
                     </label>
-                    <select
+                    <Select aria-label="Broadcast Classification"
                       value={announcementType}
                       onChange={(e) => setAnnouncementType(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                      className="w-full"
                     >
                       <option value="IMPORTANT">Important Notice</option>
                       <option value="SECURITY_ADVISORY">Security Advisory</option>
                       <option value="RELEASE">Product Release</option>
                       <option value="MAINTENANCE">Maintenance</option>
                       <option value="EMERGENCY">Emergency Notice</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
 
                 {/* Title & Banner */}
                 <div className="space-y-3">
                   <div>
-                    <label className="block font-semibold text-[#344054] mb-1">
+                    <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                       Announcement Title
                     </label>
-                    <input
+                    <Input aria-label="Announcement Title"
                       type="text"
                       required
                       placeholder="Title of broadcast..."
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                      className="w-full"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-[#344054] mb-1">
+                    <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                       Broadcast Body Content (Markdown Supported)
                     </label>
-                    <textarea
+                    <Textarea aria-label="Broadcast Body Content (Markdown Supported)"
                       rows={5}
                       required
                       placeholder="Detailed announcement content..."
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
-                      className="w-full p-3.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed shadow-2xs resize-y"
+                      className="w-full resize-y"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-[#344054] mb-1">
+                    <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                       Header Banner Image URL (Optional)
                     </label>
-                    <input
+                    <Input aria-label="Header Banner Image URL (Optional)"
                       type="url"
                       placeholder="https://..."
                       value={bannerUrl}
                       onChange={(e) => setBannerUrl(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                      className="w-full"
                     />
                   </div>
                 </div>
 
                 {/* Ping Controls */}
-                <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2.5">
-                  <label className="font-semibold text-[#344054] block">
+                <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] space-y-3">
+                  <label className="font-semibold text-[var(--text-secondary)] block">
                     Ping & Audience Mention
                   </label>
                   <div className="flex flex-wrap items-center gap-2">
@@ -386,10 +382,10 @@ export default function AnnouncementsPage() {
                         key={m}
                         type="button"
                         onClick={() => setMentionType(m)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        className={`px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                           mentionType === m
-                            ? 'bg-indigo-600 text-white font-semibold shadow-2xs'
-                            : 'bg-white border border-[#E5E7EB] text-[#475467] hover:bg-[#F3F5FA]'
+                            ? 'bg-[var(--accent)] text-[var(--text-inverse)] font-semibold '
+                            : 'bg-[var(--surface-1)] border border-[var(--border-base)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]'
                         }`}
                       >
                         {m === 'NONE' && 'None'}
@@ -401,10 +397,10 @@ export default function AnnouncementsPage() {
                   </div>
 
                   {mentionType === 'ROLE' && (
-                    <select
+                    <Select aria-label="selected Role Id"
                       value={selectedRoleId}
                       onChange={(e) => setSelectedRoleId(e.target.value)}
-                      className="w-full mt-2 px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className="w-full mt-2"
                     >
                       <option value="">Select target Discord role...</option>
                       {roles.map((r) => (
@@ -412,36 +408,36 @@ export default function AnnouncementsPage() {
                           @{r.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   )}
                 </div>
 
                 {/* Scheduling Controls */}
-                <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2.5">
+                <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="font-semibold text-[#344054] flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
+                    <label className="font-semibold text-[var(--text-secondary)] flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+
                         checked={isScheduled}
                         onChange={(e) => setIsScheduled(e.target.checked)}
-                        className="accent-indigo-600 rounded"
+                        className=""
                       />
                       <span>Schedule for Future Automated Dispatch</span>
                     </label>
-                    <Clock className="w-4 h-4 text-[#667085]" />
+                    <Clock className="w-4 h-4 text-[var(--text-secondary)]" />
                   </div>
 
                   {isScheduled && (
                     <div className="pt-2">
-                      <label className="block text-[11px] font-semibold text-[#667085] mb-1">
+                      <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1">
                         Dispatch Date & Time
                       </label>
-                      <input
+                      <Input aria-label="Dispatch Date & Time"
                         type="datetime-local"
                         required={isScheduled}
                         value={scheduledAt}
                         onChange={(e) => setScheduledAt(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                        className="w-full"
                       />
                     </div>
                   )}
@@ -455,7 +451,7 @@ export default function AnnouncementsPage() {
                     size="md"
                     isLoading={isSubmitting}
                     disabled={!selectedChannel || !title.trim() || !content.trim()}
-                    className="w-full font-semibold text-xs py-2.5"
+                    className="w-full font-semibold text-[13px] py-3"
                   >
                     {isScheduled ? 'Queue Scheduled Announcement' : 'Broadcast Announcement Immediately'}
                   </Button>
@@ -466,21 +462,21 @@ export default function AnnouncementsPage() {
 
           {/* Right Column: Live Discord Preview (5 cols) */}
           <div className="lg:col-span-5 space-y-4">
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs sticky top-20">
-              <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[#F1F3F9]">
-                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-indigo-600" />
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 sm:p-6  sticky top-20">
+              <div className="flex items-center justify-between pb-4 mb-3 border-b border-[var(--border-base)]">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[var(--accent)]" />
                   <span>Discord Broadcast Preview</span>
                 </h3>
               </div>
 
               <div className="space-y-3">
-                <div className="text-xs text-[#667085]">
-                  Target: <span className="font-semibold text-[#101828]">{selectedChannel ? `#${selectedChannel.name}` : 'None'}</span>
+                <div className="text-[13px] text-[var(--text-secondary)]">
+                  Target: <span className="font-semibold text-[var(--text-primary)]">{selectedChannel ? `#${selectedChannel.name}` : 'None'}</span>
                 </div>
 
                 {mentionType !== 'NONE' && (
-                  <div className="text-xs font-semibold text-indigo-600">
+                  <div className="text-[13px] font-semibold text-[var(--accent)]">
                     {mentionType === 'EVERYONE' && '@everyone'}
                     {mentionType === 'HERE' && '@here'}
                     {mentionType === 'ROLE' && selectedRoleId && `@${roles.find(r => r.id === selectedRoleId)?.name || 'Role'}`}
@@ -492,7 +488,7 @@ export default function AnnouncementsPage() {
             </Card>
           </div>
         </form>
-      </div>
+      </PageContainer>
     </div>
   );
 }

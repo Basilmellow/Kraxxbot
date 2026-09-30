@@ -1,19 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { Prisma } from '@prisma/client';
+import { authOptions } from '@/lib/auth';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
 
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const { id: taskId } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
@@ -26,7 +24,7 @@ export async function PATCH(
     const body = await request.json();
     const { status, priority, assigneeId, dueDate, title, description } = body;
 
-    const dataToUpdate: any = {};
+    const dataToUpdate: Prisma.TaskUpdateInput = {};
     if (status !== undefined) {
       dataToUpdate.status = status;
       if (status === 'COMPLETED') {
@@ -47,8 +45,8 @@ export async function PATCH(
     });
 
     await logDashboardAction({
-      action: 'TASK_UPDATE',
       guildId,
+      action: 'TASK_UPDATE',
       executorId: currentUserId,
       targetId: taskId,
       targetType: 'TASK',
@@ -56,21 +54,17 @@ export async function PATCH(
     });
 
     return NextResponse.json({ success: true, task: updatedTask });
-  } catch (error: any) {
-    console.error('Failed to update task:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update task' }, { status: 500 });
+  } catch {
+    console.error('Failed to update task.');
+    return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
   }
 }
 
-export async function DELETE(
+async function handleDELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const { id: taskId } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
@@ -85,8 +79,8 @@ export async function DELETE(
     });
 
     await logDashboardAction({
-      action: 'TASK_DELETE',
       guildId,
+      action: 'TASK_DELETE',
       executorId: currentUserId,
       targetId: taskId,
       targetType: 'TASK',
@@ -94,8 +88,11 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true, message: `Task #${task.taskNumber} deleted.` });
-  } catch (error: any) {
-    console.error('Failed to delete task:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete task' }, { status: 500 });
+  } catch {
+    console.error('Failed to delete task.');
+    return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 });
   }
 }
+
+export const PATCH = withMutation('MANAGE_SETTINGS', handlePATCH);
+export const DELETE = withMutation('MANAGE_SETTINGS', handleDELETE);

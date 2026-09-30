@@ -1,12 +1,13 @@
+import { getDiscordAccessToken } from '@/lib/server-session';
 // KRAXX Operations Platform — Manageable Guilds API
 // Lists all Discord servers where the logged-in user has admin/manage permissions,
 // cross-referenced against the database to determine if KRAXXBot is installed.
 
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { fetchUserGuilds, isBotInstalledInGuild, ManagedGuild } from '@/lib/discord';
+import { fetchUserGuilds,isBotInstalledInGuild,ManagedGuild } from '@/lib/discord';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
 const INSTALLATION_CHECK_CONCURRENCY = 4;
 
@@ -33,8 +34,9 @@ async function mapWithConcurrency<T, R>(
 
 export async function GET() {
   const session = await getServerSession(authOptions);
+  const serverAccessToken = await getDiscordAccessToken();
 
-  if (!session?.user?.accessToken) {
+  if (!serverAccessToken) {
     return NextResponse.json(
       { error: 'Unauthorized: Session missing access token' },
       { status: 401 }
@@ -43,7 +45,7 @@ export async function GET() {
 
   try {
     // 1. Fetch guilds where user has MANAGE_GUILD or ADMINISTRATOR
-    const userGuilds = await fetchUserGuilds(session.user.accessToken as string);
+    const userGuilds = await fetchUserGuilds(serverAccessToken!);
 
     if (userGuilds.length === 0) {
       return NextResponse.json({ guilds: [] });
@@ -96,7 +98,7 @@ export async function GET() {
     // bot-token verification grants the installed/dashboard-capable state.
     const managedGuilds: ManagedGuild[] = userGuilds.map((guild) => {
       const isInstalled = verifiedInstalledIds.has(guild.id);
-      const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=8&scope=bot%20applications.commands&guild_id=${guild.id}&disable_guild_select=true`;
+      const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=536953952337&scope=bot%20applications.commands&guild_id=${guild.id}&disable_guild_select=true`;
 
       return {
         id: guild.id,

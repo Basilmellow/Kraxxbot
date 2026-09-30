@@ -3,6 +3,7 @@
 import React, { useState, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
@@ -43,10 +44,10 @@ function LoginContent() {
 
       {/* Header */}
       <header className="login-header">
-        <a href="/" className="login-brand">
+        <Link href="/" className="login-brand">
           <div className="login-brand-icon">K</div>
           <span className="login-brand-name">KRAXXBot</span>
-        </a>
+        </Link>
       </header>
 
       {/* Main Card */}
@@ -96,14 +97,14 @@ function LoginContent() {
 
           <p className="login-terms">
             By signing in you agree to our{' '}
-            <a href="/terms" className="login-terms-link">Terms of Service</a>
+            <Link href="/terms" className="login-terms-link">Terms of Service</Link>
             {' '}and{' '}
-            <a href="/privacy" className="login-terms-link">Privacy Policy</a>.
+            <Link href="/privacy" className="login-terms-link">Privacy Policy</Link>.
           </p>
 
           <div className="login-divider" />
 
-          <a href="/" className="login-back">← Back to kraxxbot.kraxxsec.com</a>
+          <Link href="/" className="login-back">← Back to kraxxbot.kraxxsec.com</Link>
         </div>
       </main>
 
@@ -111,9 +112,9 @@ function LoginContent() {
       <footer className="login-footer">
         <span>© {new Date().getFullYear()} KRAXX</span>
         <span>·</span>
-        <a href="/privacy" className="footer-link">Privacy</a>
+        <Link href="/privacy" className="footer-link">Privacy</Link>
         <span>·</span>
-        <a href="/terms" className="footer-link">Terms</a>
+        <Link href="/terms" className="footer-link">Terms</Link>
       </footer>
 
       <style>{`

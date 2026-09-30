@@ -1,27 +1,22 @@
 'use client';
+import { Tabs } from '@/components/ui/Tabs';
+
+import { PageContainer } from '@/components/ui/Page';
+import { Input, Select, Textarea, FilterBar, SearchField } from '@/components/ui/Form';
+import { Table } from '@/components/ui/Table';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
-import {
-  CheckSquare,
-  Plus,
-  Search,
-  Calendar,
-  User,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Trash2,
-  Layers,
-} from 'lucide-react';
+import { CheckSquare, Plus, Search, CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
 
 interface TaskItem {
   id: string;
@@ -41,9 +36,12 @@ interface TaskItem {
 }
 
 const STATUSES = ['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
+const isTaskStatus = (value: string): value is TaskItem['status'] =>
+  value === 'PENDING' || value === 'IN_PROGRESS' || value === 'COMPLETED' || value === 'CANCELLED';
 const PRIORITIES = ['ALL', 'LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 export default function TasksPage() {
+  const confirm = useConfirm();
   const router = useRouter();
   const guildId = useGuildId();
 
@@ -151,14 +149,14 @@ export default function TasksPage() {
       } else {
         setFeedback({ type: 'error', message: data.error || 'Failed to create task' });
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Task creation error' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Task creation error' });
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleUpdateStatus = async (taskId: string, newStatus: string) => {
+  const handleUpdateStatus = async (taskId: string, newStatus: TaskItem['status']) => {
     try {
       const res = await fetch(`/api/tasks/${taskId}?guildId=${guildId}`, {
         method: 'PATCH',
@@ -167,7 +165,7 @@ export default function TasksPage() {
       });
 
       if (res.ok) {
-        setTasks(tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus as any } : t)));
+        setTasks(tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
       }
     } catch (err) {
       console.error('Status update failed:', err);
@@ -175,7 +173,7 @@ export default function TasksPage() {
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    if (!confirm('Confirm deletion of this task item?')) return;
+    if (!await confirm('Confirm deletion of this task item?')) return;
 
     try {
       const res = await fetch(`/api/tasks/${taskId}?guildId=${guildId}`, { method: 'DELETE' });
@@ -204,39 +202,24 @@ export default function TasksPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Operational Task Tracker"
-        subtitle="Cross-Department Task Assignments, Milestone Deadlines & Execution"
+        title="Tasks"
+        subtitle="Manage assignments, priorities, and deadlines."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Filter Bar & Create Action */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
-            {STATUSES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  statusFilter === s
-                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          <Tabs label="Filter by status" items={STATUSES.map(item => ({ value: item, label: item }))} value={statusFilter} onChange={setStatusFilter} />
 
-          <div className="flex items-center gap-2.5">
+          <FilterBar className="">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#667085] absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
+              <Search className="w-4 h-4 text-[var(--text-secondary)] absolute left-3 top-1/2 -translate-y-1/2" />
+              <SearchField label="Search tasks..."
                 type="text"
                 placeholder="Search tasks..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8.5 pr-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs w-48 sm:w-60"
+                className="pl-8.5 pr-3 w-48 sm:w-60"
               />
             </div>
 
@@ -244,37 +227,37 @@ export default function TasksPage() {
               variant="primary"
               size="sm"
               onClick={() => setShowCreateModal(true)}
-              className="gap-1.5"
+              className="gap-2"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
               <span>New Task</span>
             </Button>
-          </div>
+          </FilterBar>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
         {/* Task Table */}
-        <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-              <CheckSquare className="w-4 h-4 text-indigo-600" />
+        <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl overflow-hidden p-0 ">
+          <div className="p-5 border-b border-[var(--border-base)] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              <CheckSquare className="w-4 h-4 text-[var(--accent)]" />
               <span>Active Task Inventory ({tasks.length})</span>
             </h3>
           </div>
@@ -294,8 +277,8 @@ export default function TasksPage() {
               />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="kraxx-table">
+            <div tabIndex={0} role="region" aria-label="Scrollable table" className="overflow-x-auto table-scroll">
+              <Table className="kraxx-table">
                 <thead>
                   <tr>
                     <th>Task ID</th>
@@ -310,49 +293,49 @@ export default function TasksPage() {
                 <tbody>
                   {tasks.map((task) => (
                     <tr key={task.id}>
-                      <td className="font-semibold text-indigo-600 font-mono text-xs">
+                      <td className="font-semibold text-[var(--accent)] font-mono text-[13px]">
                         #{task.taskNumber}
                       </td>
                       <td>{getPriorityBadge(task.priority)}</td>
                       <td>
-                        <div className="font-semibold text-[#101828] text-xs">
+                        <div className="font-semibold text-[var(--text-primary)] text-[13px]">
                           {task.title}
                         </div>
                         {task.description && (
-                          <div className="text-[11px] text-[#667085] truncate max-w-xs mt-0.5">
+                          <div className="text-[13px] text-[var(--text-secondary)] truncate max-w-xs mt-0.5">
                             {task.description}
                           </div>
                         )}
                       </td>
                       <td>
-                        <span className="text-[11px] font-semibold text-[#475467] bg-[#F3F5FA] px-2 py-0.5 rounded-md border border-[#E5E7EB]">
+                        <span className="text-[13px] font-semibold text-[var(--text-secondary)] bg-[var(--surface-2)] px-2 py-0.5 rounded-md border border-[var(--border-base)]">
                           {task.department}
                         </span>
                       </td>
-                      <td className="text-[#475467] text-xs">
+                      <td className="text-[var(--text-secondary)] text-[13px]">
                         {task.assigneeName ? (
-                          <span className="font-medium text-[#101828]">@{task.assigneeName}</span>
+                          <span className="font-medium text-[var(--text-primary)]">@{task.assigneeName}</span>
                         ) : (
-                          <span className="text-[#98A2B3]">Unassigned</span>
+                          <span className="text-[var(--text-secondary)]">Unassigned</span>
                         )}
                       </td>
                       <td>
-                        <select
+                        <Select aria-label="status"
                           value={task.status}
-                          onChange={(e) => handleUpdateStatus(task.id, e.target.value)}
-                          className="px-2.5 py-1 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          onChange={(e) => { if (isTaskStatus(e.target.value)) void handleUpdateStatus(task.id, e.target.value); }}
+                          className=""
                         >
                           <option value="PENDING">Pending</option>
                           <option value="IN_PROGRESS">In Progress</option>
                           <option value="COMPLETED">Completed</option>
                           <option value="CANCELLED">Cancelled</option>
-                        </select>
+                        </Select>
                       </td>
                       <td className="text-right">
                         <button
                           type="button"
                           onClick={() => handleDeleteTask(task.id)}
-                          className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
+                          className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                           title="Delete Task"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -361,7 +344,7 @@ export default function TasksPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
         </Card>
@@ -373,76 +356,76 @@ export default function TasksPage() {
           title="Create Operational Task"
           subtitle="Define a milestone, priority, and assign to team members"
         >
-          <form onSubmit={handleCreateTask} className="space-y-4 text-xs">
+          <form onSubmit={handleCreateTask} className="space-y-4 text-[13px]">
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Task Objective / Title
               </label>
-              <input
+              <Input aria-label="Task Objective / Title"
                 type="text"
                 required
                 placeholder="e.g. Upgrade backend Redis cluster"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Detailed Scope & Deliverables
               </label>
-              <textarea
+              <Textarea aria-label="Detailed Scope & Deliverables"
                 rows={3}
                 placeholder="Description, requirements, and reference notes..."
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
-                className="w-full p-3 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-y"
+                className="w-full resize-y"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Division
                 </label>
-                <select
+                <Select aria-label="Division"
                   value={newDept}
                   onChange={(e) => setNewDept(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 >
                   <option value="GENERAL">KRAXX HQ</option>
                   <option value="KRAXXSEC">KRAXXSEC</option>
                   <option value="STUDIO">KRAXX STUDIO</option>
-                </select>
+                </Select>
               </div>
 
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Priority
                 </label>
-                <select
+                <Select aria-label="Priority"
                   value={newPriority}
                   onChange={(e) => setNewPriority(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 >
                   <option value="LOW">Low</option>
                   <option value="MEDIUM">Medium</option>
                   <option value="HIGH">High</option>
                   <option value="URGENT">Urgent</option>
-                </select>
+                </Select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Assignee
                 </label>
-                <select
+                <Select aria-label="Assignee"
                   value={newAssignee}
                   onChange={(e) => setNewAssignee(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 >
                   <option value="">Unassigned</option>
                   {members.map((m) => (
@@ -450,18 +433,18 @@ export default function TasksPage() {
                       @{m.displayName}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Due Date
                 </label>
-                <input
+                <Input aria-label="Due Date"
                   type="date"
                   value={newDueDate}
                   onChange={(e) => setNewDueDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 />
               </div>
             </div>
@@ -486,7 +469,7 @@ export default function TasksPage() {
             </div>
           </form>
         </Modal>
-      </div>
+      </PageContainer>
     </div>
   );
 }

@@ -18,6 +18,10 @@ model Guild {
   ownerId                String
   joinedAt               DateTime                @default(now())
   botInstalled           Boolean                 @default(true)
+  memberCount            Int?
+  lastSeenAt             DateTime?
+  connectionStatus       String                  @default("UNKNOWN") // CONNECTED | UNAVAILABLE | LEFT | UNKNOWN
+  leftAt                 DateTime?
   settings               GuildSettings?
   modules                GuildModule[]
   roleConfigs            GuildRoleConfig[]
@@ -32,6 +36,8 @@ model Guild {
   scheduledAnnouncements ScheduledAnnouncement[]
   embedTemplates         EmbedTemplate[]
   automations            AutomationRule[]
+  automationExecutions   AutomationExecution[]
+  messageOperations      MessageOperation[]
   moderationCases        ModerationCase[]
   auditLogs              AuditLog[]
   dashboardAuditLogs     DashboardAuditLog[]
@@ -39,6 +45,9 @@ model Guild {
   selfRoles              GuildSelfRole[]
   polls                  Poll[]
   suggestions            Suggestion[]
+  customCommands         CustomCommand[]
+  customCommandUses      CustomCommandUse[]
+  kraxxAiRequests        KraxxAiRequest[]
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
 
@@ -71,9 +80,9 @@ model GuildModule {
   id        String   @id @default(uuid())
   guildId   String
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  module    String   // "tickets" | "moderation" | "welcome" | "tasks" | "reminders" | "meetings" | "embeds" | "automation" | "analytics" | "logging" | "announcements" | "roles"
+  module    String // "tickets" | "moderation" | "welcome" | "tasks" | "reminders" | "meetings" | "embeds" | "automation" | "analytics" | "logging" | "announcements" | "roles"
   enabled   Boolean  @default(true)
-  config    String?  // JSON string configuration
+  config    String? // JSON string configuration
   updatedBy String?
   updatedAt DateTime @updatedAt
 
@@ -86,7 +95,7 @@ model GuildRoleConfig {
   guildId   String
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
   roleId    String
-  roleType  String   // "ADMIN" | "MODERATOR" | "SUPPORT" | "STAFF" | "VERIFIED" | "CUSTOM"
+  roleType  String // "ADMIN" | "MODERATOR" | "SUPPORT" | "STAFF" | "VERIFIED" | "CUSTOM"
   name      String
   createdAt DateTime @default(now())
 
@@ -136,6 +145,8 @@ model BotHeartbeat {
   uptime          Int      @default(0) // seconds
   guildCount      Int      @default(0)
   schedulerStatus String   @default("RUNNING")
+  aiProviderStatus String  @default("UNKNOWN") // CONFIGURED | MISSING_CONFIGURATION | UNKNOWN
+  aiModel         String?
   version         String   @default("2.0.0")
   lastHeartbeat   DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -162,6 +173,7 @@ model TicketPanel {
 model Ticket {
   id            String    @id @default(uuid())
   ticketNumber  Int
+  creationKey   String?
   guildId       String
   guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   channelId     String    @unique
@@ -180,6 +192,7 @@ model Ticket {
   updatedAt     DateTime  @updatedAt
 
   @@unique([guildId, ticketNumber])
+  @@unique([guildId, creationKey])
   @@index([guildId])
   @@index([guildId, status])
 }
@@ -197,13 +210,21 @@ model ModerationCase {
   targetTag       String?
   moderatorId     String
   moderatorTag    String?
-  action          String   // WARN | TIMEOUT | KICK | BAN | UNBAN
+  action          String // WARN | TIMEOUT | KICK | BAN | UNBAN
   reason          String?
+  evidence        String?
+  status          String   @default("SUCCESS")
+  requestKey      String?
+  requestHash     String?
+  details         String?
+  errorCode       String?
   durationSeconds Int?
   active          Boolean  @default(true)
   createdAt       DateTime @default(now())
 
   @@unique([guildId, caseNumber])
+  @@unique([guildId, requestKey])
+  @@index([guildId, targetId, status])
   @@index([guildId])
   @@index([guildId, targetId])
   @@index([guildId, action])
@@ -252,27 +273,37 @@ model Announcement {
 }
 
 model ScheduledAnnouncement {
-  id            String    @id @default(uuid())
-  guildId       String
-  guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  channelId     String
-  title         String?
-  content       String?
-  embedPayload  String?   // JSON string representation of embeds
-  mentionType   String?   // "NONE" | "EVERYONE" | "HERE" | "ROLE"
-  mentionRoleId String?
-  department    String    @default("GENERAL")
-  scheduledFor  DateTime
-  status        String    @default("PENDING") // "PENDING" | "SENT" | "CANCELLED" | "FAILED"
-  createdBy     String    // Discord user ID
-  sentAt        DateTime?
-  error         String?
-  messageId     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  guildId          String
+  guild            Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  channelId        String
+  title            String?
+  content          String?
+  embedPayload     String? // JSON string representation of embeds
+  mentionType      String? // "NONE" | "EVERYONE" | "HERE" | "ROLE"
+  mentionRoleId    String?
+  department       String    @default("GENERAL")
+  announcementType String    @default("GENERAL")
+  scheduledFor     DateTime
+  status           String    @default("PENDING") // "PENDING" | "SENT" | "CANCELLED" | "FAILED"
+  createdBy        String // Discord user ID
+  sentAt           DateTime?
+  error            String?
+  messageId        String?
+  attempts         Int       @default(0)
+  maxAttempts      Int       @default(5)
+  nextAttemptAt    DateTime?
+  leaseToken       String?
+  leaseExpiresAt   DateTime?
+  lastError        String?
+  idempotencyKey   String    @unique @default(uuid())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([guildId])
   @@index([status, scheduledFor])
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
 }
 
 model WelcomeConfig {
@@ -282,9 +313,9 @@ model WelcomeConfig {
   enabled        Boolean  @default(false)
   channelId      String?
   message        String?
-  embedJson      String?  // JSON embed config
+  embedJson      String? // JSON embed config
   imageUrl       String?
-  roleId         String?  // Auto-assign role on join
+  roleId         String? // Auto-assign role on join
   dmEnabled      Boolean  @default(false)
   dmMessage      String?
   leaveChannelId String?
@@ -300,8 +331,8 @@ model EmbedTemplate {
   category    String   @default("CUSTOM")
   description String?
   title       String?
-  embedData   String   // JSON string containing full embed specification
-  createdBy   String   // Discord user ID
+  embedData   String // JSON string containing full embed specification
+  createdBy   String // Discord user ID
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -323,7 +354,7 @@ model Task {
   description String
   department  String    @default("GENERAL")
   status      String    @default("PENDING") // "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
-  priority    String    @default("MEDIUM")  // "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+  priority    String    @default("MEDIUM") // "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   assigneeId  String?
   creatorId   String
   dueDate     DateTime?
@@ -337,22 +368,31 @@ model Task {
 }
 
 model Reminder {
-  id          String    @id @default(uuid())
-  guildId     String
-  guild       Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  title       String
-  message     String
-  targetType  String    @default("USER") // "USER" | "CHANNEL"
-  targetId    String
-  cronPattern String?
-  triggerAt   DateTime?
-  isRecurring Boolean   @default(false)
-  status      String    @default("ACTIVE") // "ACTIVE" | "COMPLETED" | "CANCELLED"
-  createdBy   String
-  createdAt   DateTime  @default(now())
+  id             String    @id @default(uuid())
+  guildId        String
+  guild          Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  title          String
+  message        String
+  targetType     String    @default("USER") // "USER" | "CHANNEL"
+  targetId       String
+  cronPattern    String?
+  triggerAt      DateTime?
+  isRecurring    Boolean   @default(false)
+  status         String    @default("ACTIVE") // "ACTIVE" | "COMPLETED" | "CANCELLED"
+  createdBy      String
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  nextAttemptAt  DateTime?
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  lastError      String?
+  idempotencyKey String    @unique @default(uuid())
+  createdAt      DateTime  @default(now())
 
   @@index([guildId])
   @@index([guildId, status])
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
 }
 
 model Meeting {
@@ -366,7 +406,7 @@ model Meeting {
   endTime           DateTime?
   locationChannelId String?
   organizerId       String
-  attendees         String?   // JSON array string of discord IDs
+  attendees         String? // JSON array string of discord IDs
   status            String    @default("SCHEDULED") // "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
   createdAt         DateTime  @default(now())
 
@@ -393,20 +433,50 @@ model Event {
 }
 
 model AutomationRule {
-  id        String   @id @default(uuid())
-  guildId   String
-  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  name      String
-  trigger   String   // MEMBER_JOIN | MEMBER_LEAVE | ROLE_ADDED | ROLE_REMOVED | TICKET_CREATED | TICKET_CLOSED | TASK_CREATED | TASK_COMPLETED
-  action    String   // SEND_MESSAGE | SEND_EMBED | ASSIGN_ROLE | REMOVE_ROLE | CREATE_TASK | CREATE_REMINDER | SEND_DM
-  config    String   // JSON string configuration
-  enabled   Boolean  @default(true)
-  createdBy String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String                @id @default(uuid())
+  guildId    String
+  guild      Guild                 @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  name       String
+  trigger    String // MEMBER_JOIN | MEMBER_LEAVE | ROLE_ADDED | ROLE_REMOVED | TICKET_CREATED | TICKET_CLOSED | TASK_CREATED | TASK_COMPLETED
+  action     String // SEND_MESSAGE | SEND_EMBED | ASSIGN_ROLE | REMOVE_ROLE | CREATE_TASK | CREATE_REMINDER | SEND_DM
+  config     String // JSON string configuration
+  enabled    Boolean               @default(true)
+  createdBy  String
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  executions AutomationExecution[]
 
+  @@unique([id, guildId])
   @@index([guildId])
   @@index([guildId, trigger, enabled])
+}
+
+model AutomationExecution {
+  id             String          @id @default(uuid())
+  ruleId         String?
+  guildId        String
+  guild          Guild           @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  rule           AutomationRule? @relation(fields: [ruleId, guildId], references: [id, guildId], onDelete: Cascade)
+  eventType      String
+  eventId        String
+  eventData      String
+  action         String
+  config         String
+  status         String          @default("PENDING") // "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"
+  attempts       Int             @default(0)
+  maxAttempts    Int             @default(5)
+  nextAttemptAt  DateTime?
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  lastError      String?
+  idempotencyKey String          @unique
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([ruleId, eventId])
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
+  @@index([guildId, status])
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -427,15 +497,93 @@ model AuditLog {
   @@index([guildId, timestamp])
 }
 
+model MessageOperation {
+  id                String    @id @default(uuid())
+  guildId           String
+  guild             Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  actorId           String
+  operationType     String // SEND | REPLY | EDIT | DELETE | PIN
+  idempotencyKey    String
+  inputHash         String
+  channelId         String
+  targetMessageId   String?
+  discordMessageId  String?
+  status            String    @default("PENDING") // PENDING | SUCCESS | FAILURE | UNKNOWN
+  wasAlreadyDeleted Boolean   @default(false)
+  leaseToken        String?
+  leaseExpiresAt    DateTime?
+  errorCode         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([guildId, idempotencyKey])
+  @@index([guildId, status, createdAt])
+}
+
+model CustomCommand {
+  id                String             @id @default(uuid())
+  guildId           String
+  guild             Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  trigger           String
+  normalizedTrigger String
+  response          String
+  enabled           Boolean            @default(true)
+  cooldownSeconds   Int                @default(0)
+  createdBy         String
+  updatedBy         String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  uses              CustomCommandUse[]
+
+  @@unique([guildId, normalizedTrigger])
+  @@unique([guildId, id])
+  @@index([guildId, enabled])
+}
+
+model CustomCommandUse {
+  id              String        @id @default(uuid())
+  guildId         String
+  guild           Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  customCommandId String
+  command         CustomCommand @relation(fields: [guildId, customCommandId], references: [guildId, id], onDelete: Cascade)
+  userId          String
+  lastExecutedAt  DateTime      @default(now())
+
+  @@unique([guildId, customCommandId, userId])
+  @@index([guildId, lastExecutedAt])
+}
+
+model KraxxAiRequest {
+  id             String   @id @default(uuid())
+  guildId        String
+  guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId         String
+  channelId      String
+  requestId      String   @unique
+  provider       String
+  model          String
+  status         String
+  latencyMs      Int?
+  inputTokens    Int?
+  outputTokens   Int?
+  errorCode      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([guildId, createdAt])
+  @@index([guildId, userId, createdAt])
+  @@index([guildId, status, createdAt])
+}
+
 model DashboardAuditLog {
   id         String   @id @default(uuid())
   guildId    String
   guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  action     String   // "LOGIN" | "BOT_INSTALLED" | "SETTINGS_UPDATED" | "MODULE_TOGGLED" | "TICKET_ACTION" | "MODERATION_ACTION" | "EMBED_DISPATCH"
-  executorId String   // Discord user ID
+  action     String // "LOGIN" | "BOT_INSTALLED" | "SETTINGS_UPDATED" | "MODULE_TOGGLED" | "TICKET_ACTION" | "MODERATION_ACTION" | "EMBED_DISPATCH"
+  executorId String // Discord user ID
   targetId   String?
-  targetType String?  // "CHANNEL" | "USER" | "ROLE" | "TICKET" | "MODULE"
-  details    String?  // JSON metadata
+  targetType String? // "CHANNEL" | "USER" | "ROLE" | "TICKET" | "MODULE"
+  details    String? // JSON metadata
   ipAddress  String?
   source     String   @default("DASHBOARD") // "DASHBOARD" | "BOT"
   timestamp  DateTime @default(now())
@@ -450,43 +598,74 @@ model DashboardAuditLog {
 // ─────────────────────────────────────────────────────────────────
 
 model Poll {
-  id          String    @id @default(uuid())
-  guildId     String
-  guild       Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  question    String
-  options     String    // JSON string array of options: [{ text, votes }]
-  channelId   String
-  messageId   String?
-  isAnonymous Boolean   @default(false)
-  expiresAt   DateTime?
-  status      String    @default("ACTIVE") // ACTIVE | CLOSED
-  createdBy   String
-  createdAt   DateTime  @default(now())
+  id                String     @id @default(uuid())
+  guildId           String
+  guild             Guild      @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  question          String
+  options           String // JSON array of option labels; votes are stored in PollVote
+  channelId         String
+  messageId         String?
+  isAnonymous       Boolean    @default(false)
+  expiresAt         DateTime?
+  status            String     @default("PENDING") // PENDING | ACTIVE | CLOSED | UNKNOWN | FAILED
+  createdBy         String
+  createdAt         DateTime   @default(now())
+  closedAt          DateTime?
+  closedBy          String?
+  idempotencyKey    String?
+  requestHash       String?
+  messageSyncStatus String     @default("SYNCED") // SYNCED | NEEDS_UPDATE
+  votes             PollVote[]
 
+  @@unique([id, guildId])
+  @@unique([guildId, idempotencyKey])
   @@index([guildId])
   @@index([guildId, status])
+  @@index([status, expiresAt])
+}
+
+model PollVote {
+  id          String   @id @default(uuid())
+  guildId     String
+  pollId      String
+  userId      String
+  optionIndex Int
+  createdAt   DateTime @default(now())
+  poll        Poll     @relation(fields: [pollId, guildId], references: [id, guildId], onDelete: Cascade)
+
+  @@unique([pollId, userId])
+  @@index([guildId, pollId])
 }
 
 model Suggestion {
-  id            String   @id @default(uuid())
-  guildId       String
-  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  authorId      String
-  title         String
-  content       String
-  status        String   @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | IMPLEMENTED
-  reviewerNotes String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                String    @id @default(uuid())
+  guildId           String
+  guild             Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  authorId          String
+  title             String
+  content           String
+  status            String    @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | IMPLEMENTED
+  idempotencyKey    String?
+  channelId         String?
+  messageId         String?
+  deliveryStatus    String    @default("NOT_SENT") // NOT_SENT | PENDING | SYNCED | FAILURE | UNKNOWN
+  messageSyncStatus String    @default("SYNCED") // SYNCED | NEEDS_UPDATE | FAILURE | UNKNOWN
+  messageSyncKey    String?
+  reviewerId        String?
+  reviewedAt        DateTime?
+  reviewerNotes     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
+  @@unique([guildId, idempotencyKey])
   @@index([guildId])
   @@index([guildId, status])
 }
 
 model DashboardNotification {
   id        String   @id @default(uuid())
-  userId    String   // Discord user ID
-  type      String   // TICKET | TASK | MEETING | REMINDER | MODERATION | SYSTEM
+  userId    String // Discord user ID
+  type      String // TICKET | TASK | MEETING | REMINDER | MODERATION | SYSTEM
   title     String
   message   String
   link      String?

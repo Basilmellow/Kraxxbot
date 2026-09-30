@@ -1,27 +1,21 @@
 'use client';
 
+import { PageContainer } from '@/components/ui/Page';
+import { Input, Select, Textarea } from '@/components/ui/Form';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
-import {
-  Zap,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
-  Shield,
-  Layers,
-  Sparkles,
-} from 'lucide-react';
+import { Zap, Plus, Trash2, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
 
 interface AutomationRuleItem {
   id: string;
@@ -37,32 +31,20 @@ interface AutomationRuleItem {
 const TRIGGERS = [
   { id: 'MEMBER_JOIN', label: 'Member Joined Guild' },
   { id: 'MEMBER_LEAVE', label: 'Member Left Guild' },
-  { id: 'ROLE_ADDED', label: 'Role Assigned to Member' },
-  { id: 'ROLE_REMOVED', label: 'Role Revoked from Member' },
-  { id: 'TICKET_CREATED', label: 'Support Ticket Created' },
-  { id: 'TICKET_CLOSED', label: 'Support Ticket Closed' },
-  { id: 'TASK_CREATED', label: 'Task Created' },
-  { id: 'TASK_COMPLETED', label: 'Task Completed' },
-  { id: 'MEETING_STARTING', label: 'Meeting Starting Soon' },
 ];
 
 const ACTIONS = [
   { id: 'SEND_MESSAGE', label: 'Send Discord Channel Message' },
-  { id: 'SEND_EMBED', label: 'Send Formatted Embed' },
-  { id: 'ASSIGN_ROLE', label: 'Assign Role to User' },
-  { id: 'REMOVE_ROLE', label: 'Revoke Role from User' },
-  { id: 'CREATE_TASK', label: 'Create Automated Task' },
-  { id: 'CREATE_REMINDER', label: 'Create Timed Reminder' },
   { id: 'SEND_DM', label: 'Send Direct Message to User' },
 ];
 
 export default function AutomationPage() {
+  const confirm = useConfirm();
   const router = useRouter();
   const guildId = useGuildId();
 
   const [rules, setRules] = useState<AutomationRuleItem[]>([]);
   const [channels, setChannels] = useState<ChannelItem[]>([]);
-  const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal State
@@ -71,7 +53,6 @@ export default function AutomationPage() {
   const [trigger, setTrigger] = useState('MEMBER_JOIN');
   const [action, setAction] = useState('SEND_MESSAGE');
   const [selectedChannel, setSelectedChannel] = useState<ChannelItem | null>(null);
-  const [selectedRole, setSelectedRole] = useState('');
   const [messageContent, setMessageContent] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -87,7 +68,6 @@ export default function AutomationPage() {
   const fetchRules = async () => {
     if (!guildId) return;
     try {
-      setIsLoading(true);
       const res = await fetch(`/api/automation?guildId=${guildId}`);
       if (res.ok) {
         const data = await res.json();
@@ -101,7 +81,7 @@ export default function AutomationPage() {
   };
 
   useEffect(() => {
-    fetchRules();
+    void Promise.resolve().then(fetchRules);
   }, [guildId]);
 
   useEffect(() => {
@@ -112,7 +92,6 @@ export default function AutomationPage() {
         if (res.ok) {
           const data = await res.json();
           setChannels(data.channels || []);
-          setRoles(data.roles || []);
           if (data.channels?.length > 0) setSelectedChannel(data.channels[0]);
         }
       } catch (err) {
@@ -138,7 +117,7 @@ export default function AutomationPage() {
   };
 
   const handleDeleteRule = async (ruleId: string) => {
-    if (!confirm('Confirm deletion of this automation workflow?')) return;
+    if (!await confirm('Confirm deletion of this automation workflow?')) return;
     try {
       const res = await fetch(`/api/automation/${ruleId}?guildId=${guildId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -157,9 +136,8 @@ export default function AutomationPage() {
     setIsCreating(true);
     setFeedback(null);
 
-    const configPayload: any = {};
-    if (selectedChannel) configPayload.channelId = selectedChannel.id;
-    if (selectedRole) configPayload.roleId = selectedRole;
+    const configPayload: Record<string, string> = {};
+    if (action === 'SEND_MESSAGE' && selectedChannel) configPayload.channelId = selectedChannel.id;
     if (messageContent.trim()) configPayload.message = messageContent.trim();
 
     try {
@@ -185,8 +163,8 @@ export default function AutomationPage() {
       } else {
         setFeedback({ type: 'error', message: data.error || 'Failed to create rule' });
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Automation error' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Automation error' });
     } finally {
       setIsCreating(false);
     }
@@ -195,23 +173,23 @@ export default function AutomationPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Event Automation & Workflow Engine"
-        subtitle="Gateway Event Triggers, Condition Handlers & Auto-Action Pipelines"
+        title="Automations"
+        subtitle="Configure event triggers and automated responses."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Header Action */}
         <div className="flex items-center justify-between">
-          <div className="text-xs text-[#667085]">
+          <div className="text-[13px] text-[var(--text-secondary)]">
             Configure autonomous event pipelines triggered by Discord gateway events.
           </div>
           <Button
             variant="primary"
             size="sm"
             onClick={() => setShowCreateModal(true)}
-            className="gap-1.5"
+            className="gap-2"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
             <span>New Automation</span>
           </Button>
         </div>
@@ -219,16 +197,16 @@ export default function AutomationPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
@@ -245,7 +223,7 @@ export default function AutomationPage() {
           <EmptyState
             icon={Zap}
             title="No automation rules configured"
-            description="Create event pipelines to automate role assignments, welcoming messages, and operational tickets."
+            description="Create durable member join or leave workflows that send a channel message or a direct message."
             actionLabel="Create Automation Rule"
             onAction={() => setShowCreateModal(true)}
           />
@@ -254,11 +232,11 @@ export default function AutomationPage() {
             {rules.map((rule) => (
               <Card
                 key={rule.id}
-                className="bg-white border border-[#E5E7EB] rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all"
+                className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5  flex flex-col justify-between hover:border-[var(--accent-border)] transition-colors"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-3">
-                    <h4 className="text-sm font-semibold text-[#101828] truncate">
+                    <h4 className="text-sm font-semibold text-[var(--text-primary)] truncate">
                       {rule.name}
                     </h4>
                     <Badge variant={rule.enabled ? 'success' : 'neutral'}>
@@ -267,36 +245,36 @@ export default function AutomationPage() {
                   </div>
 
                   {/* Flow Diagram */}
-                  <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2 mb-4 text-xs">
+                  <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] space-y-2 mb-4 text-[13px]">
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-[#667085] block mb-0.5">
+                      <span className="text-[13px] uppercase font-bold text-[var(--text-secondary)] block mb-0.5">
                         Trigger
                       </span>
-                      <span className="text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block text-[11px]">
+                      <span className="text-[var(--accent)] font-semibold bg-[var(--accent-dim)] px-2 py-0.5 rounded-md border border-[var(--accent-border)] inline-block text-[13px]">
                         {TRIGGERS.find((t) => t.id === rule.trigger)?.label || rule.trigger}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-center text-[#98A2B3]">
-                      <ArrowRight className="w-3.5 h-3.5" />
+                    <div className="flex items-center justify-center text-[var(--text-secondary)]">
+                      <ArrowRight className="w-4 h-4" />
                     </div>
 
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-[#667085] block mb-0.5">
+                      <span className="text-[13px] uppercase font-bold text-[var(--text-secondary)] block mb-0.5">
                         Action
                       </span>
-                      <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 inline-block text-[11px]">
+                      <span className="text-[var(--success)] font-semibold bg-[var(--success-bg)] px-2 py-0.5 rounded-md border border-[var(--success-border)] inline-block text-[13px]">
                         {ACTIONS.find((a) => a.id === rule.action)?.label || rule.action}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-[#F1F3F9] flex items-center justify-between">
+                <div className="pt-3 border-t border-[var(--border-base)] flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => handleToggleRule(rule.id, rule.enabled)}
-                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                    className="text-[13px] font-semibold text-[var(--accent)] hover:text-[var(--accent)]"
                   >
                     {rule.enabled ? 'Pause Workflow' : 'Enable Workflow'}
                   </button>
@@ -304,7 +282,7 @@ export default function AutomationPage() {
                   <button
                     type="button"
                     onClick={() => handleDeleteRule(rule.id)}
-                    className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
+                    className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                     title="Delete Rule"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -322,95 +300,77 @@ export default function AutomationPage() {
           title="Create Event Automation"
           subtitle="Link gateway events directly to automated discord reactions"
         >
-          <form onSubmit={handleCreateRule} className="space-y-4 text-xs">
+          <form onSubmit={handleCreateRule} className="space-y-4 text-[13px]">
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Automation Rule Name
               </label>
-              <input
+              <Input aria-label="Automation Rule Name"
                 type="text"
                 required
                 placeholder="e.g. Welcome & Auto-Role Dispatch"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Event Trigger
               </label>
-              <select
+              <Select aria-label="Event Trigger"
                 value={trigger}
                 onChange={(e) => setTrigger(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               >
                 {TRIGGERS.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Automated Reaction
               </label>
-              <select
+              <Select aria-label="Automated Reaction"
                 value={action}
                 onChange={(e) => setAction(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               >
                 {ACTIONS.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
-            {(action === 'SEND_MESSAGE' || action === 'SEND_EMBED') && (
-              <>
+            {action === 'SEND_MESSAGE' && (
                 <ChannelSelector
                   channels={channels}
                   selectedChannelId={selectedChannel?.id || ''}
                   onSelectChannel={setSelectedChannel}
                 />
+            )}
+            {(action === 'SEND_MESSAGE' || action === 'SEND_DM') && (
+              <>
                 <div>
-                  <label className="block font-semibold text-[#344054] mb-1">
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                     Message Template Content
                   </label>
-                  <textarea
+                  <Textarea aria-label="Message Template Content"
                     rows={3}
                     placeholder="Welcome {user} to KRAXX Operations!"
                     value={messageContent}
                     onChange={(e) => setMessageContent(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-y"
+                    className="w-full resize-y"
                   />
                 </div>
               </>
-            )}
-
-            {(action === 'ASSIGN_ROLE' || action === 'REMOVE_ROLE') && (
-              <div>
-                <label className="block font-semibold text-[#344054] mb-1">
-                  Target Discord Role
-                </label>
-                <select
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                >
-                  <option value="">Select role...</option>
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      @{r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
             )}
 
             <div className="flex items-center justify-end gap-2 pt-3">
@@ -433,7 +393,7 @@ export default function AutomationPage() {
             </div>
           </form>
         </Modal>
-      </div>
+      </PageContainer>
     </div>
   );
 }

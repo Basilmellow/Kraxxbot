@@ -58,7 +58,7 @@ export interface DashboardModuleItem {
   label: string;
   icon: string;
   href: string;         // relative href, e.g. '/tickets' — prepended with /dashboard/[guildId]
-  category: 'OVERVIEW' | 'MODERATION' | 'SUPPORT' | 'COMMUNITY' | 'AUTOMATION' | 'INSIGHTS' | 'SYSTEM';
+  category: 'OVERVIEW' | 'MODERATION' | 'SUPPORT' | 'COMMUNITY' | 'AUTOMATION' | 'ENGAGEMENT' | 'INSIGHTS' | 'SYSTEM';
 }
 
 export const DASHBOARD_MODULES: DashboardModuleItem[] = [
@@ -77,12 +77,18 @@ export const DASHBOARD_MODULES: DashboardModuleItem[] = [
   // COMMUNITY
   { id: 'welcome', label: 'Welcome', icon: 'DoorOpen', href: '/welcome', category: 'COMMUNITY' },
   { id: 'announcements', label: 'Announcements', icon: 'Megaphone', href: '/announcements', category: 'COMMUNITY' },
-  { id: 'messages', label: 'Embeds', icon: 'Sparkles', href: '/messages', category: 'COMMUNITY' },
+  { id: 'messages', label: 'Messages / Embeds', icon: 'Sparkles', href: '/messages', category: 'COMMUNITY' },
 
   // AUTOMATION
   { id: 'tasks', label: 'Tasks', icon: 'CheckSquare', href: '/tasks', category: 'AUTOMATION' },
   { id: 'reminders', label: 'Reminders', icon: 'AlarmClock', href: '/reminders', category: 'AUTOMATION' },
   { id: 'automation', label: 'Automations', icon: 'Zap', href: '/automation', category: 'AUTOMATION' },
+
+  // ENGAGEMENT — only routes implemented in the tenant tree.
+  { id: 'custom-commands', label: 'Custom Commands', icon: 'Terminal', href: '/commands', category: 'ENGAGEMENT' },
+  { id: 'social', label: 'Social', icon: 'MessagesSquare', href: '/social', category: 'ENGAGEMENT' },
+  { id: 'kraxx-ai', label: 'Kraxx AI', icon: 'Sparkles', href: '/ai', category: 'ENGAGEMENT' },
+  { id: 'meetings', label: 'Meetings', icon: 'CalendarDays', href: '/meetings', category: 'ENGAGEMENT' },
 
   // INSIGHTS
   { id: 'analytics', label: 'Analytics', icon: 'BarChart3', href: '/analytics', category: 'INSIGHTS' },
@@ -99,6 +105,7 @@ export const CATEGORY_LABELS: Record<DashboardModuleItem['category'], string> = 
   SUPPORT: 'Support',
   COMMUNITY: 'Community',
   AUTOMATION: 'Automation',
+  ENGAGEMENT: 'Engagement',
   INSIGHTS: 'Insights',
   SYSTEM: 'System',
 };

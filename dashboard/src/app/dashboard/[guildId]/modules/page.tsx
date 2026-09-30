@@ -1,27 +1,15 @@
 'use client';
+import { Switch } from '@/components/ui/Form';
+
+import { PageContainer } from '@/components/ui/Page';
 
 import React, { useCallback, useEffect, useState, use } from 'react';
+import { LoadingState } from '@/components/ui/Skeleton';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card } from '@/components/ui/Card';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
-import {
-  Boxes,
-  Shield,
-  Ticket,
-  DoorOpen,
-  Megaphone,
-  AlarmClock,
-  CalendarClock,
-  Zap,
-  Vote,
-  Gamepad2,
-  Wrench,
-  BarChart3,
-  Loader2,
-  Sparkles,
-  type LucideIcon,
-} from 'lucide-react';
+import { Boxes, Shield, Ticket, DoorOpen, Megaphone, AlarmClock, CalendarClock, Zap, Vote, Gamepad2, Wrench, BarChart3, Loader2, type LucideIcon } from 'lucide-react';
 
 const MODULE_DESCRIPTIONS: Record<string, { label: string; description: string; icon: LucideIcon }> = {
   MODERATION: {
@@ -60,8 +48,8 @@ const MODULE_DESCRIPTIONS: Record<string, { label: string; description: string; 
     icon: Zap,
   },
   SOCIAL: {
-    label: 'Community Polls & Feedback',
-    description: 'Server voting polls, suggestion box approval queues, and leaderboards.',
+    label: 'Community Social',
+    description: 'Guild-scoped community polls and Discord suggestion submissions with staff review.',
     icon: Vote,
   },
   FUN: {
@@ -150,33 +138,15 @@ export default function GuildModulesPage({ params }: PageProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#FAF9F5]">
+    <div className="flex-1 flex flex-col bg-[var(--bg)]">
       <Topbar
-        title="Module Control Center"
-        subtitle="Enable or disable specific KRAXXBot capabilities for this server"
+        title="Modules"
+        subtitle="Choose which capabilities are enabled for this server."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EADFC7] pb-5">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold uppercase tracking-wider mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>Feature Toggles</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#101828]">
-              Server Subsystem Modules
-            </h1>
-            <p className="text-xs sm:text-sm text-[#667085] mt-0.5">
-              Disabled modules will immediately cease processing events and reject command invocations in this server.
-            </p>
-          </div>
-        </div>
-
+      <PageContainer className="space-y-6">
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 text-amber-600 animate-spin mb-3" />
-            <p className="text-sm font-medium text-[#475467]">Loading module configurations...</p>
-          </div>
+          <LoadingState label="Loading configuration" />
         ) : loadError ? (
           <ErrorState
             title="Module configuration unavailable"
@@ -205,10 +175,10 @@ export default function GuildModulesPage({ params }: PageProps) {
               return (
                 <Card
                   key={m.module}
-                  className={`p-5 flex flex-col justify-between transition-all ${
+                  className={`p-5 flex flex-col justify-between transition-colors ${
                     m.enabled
-                      ? 'bg-white border-[#EADFC7] shadow-xs'
-                      : 'bg-[#FDFBF7]/60 border-[#E5E7EB] opacity-75'
+                      ? 'bg-[var(--surface-1)] border-[var(--border-base)] '
+                      : 'bg-[var(--surface-1)]/60 border-[var(--border-base)] opacity-75'
                   }`}
                 >
                   <div>
@@ -216,53 +186,39 @@ export default function GuildModulesPage({ params }: PageProps) {
                       <div
                         className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                           m.enabled
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-gray-100 text-[#98A2B3] border border-[#E5E7EB]'
+                            ? 'bg-[var(--accent-dim)] text-[var(--accent)] border border-[var(--accent-border)]'
+                            : 'bg-[var(--surface-2)] text-[var(--text-secondary)] border border-[var(--border-base)]'
                         }`}
                       >
                         <Icon className="w-5 h-5" />
                       </div>
 
-                      <button
-                        onClick={() => handleToggle(m.module, m.enabled)}
-                        disabled={isToggling}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden disabled:opacity-50 ${
-                          m.enabled ? 'bg-amber-600' : 'bg-gray-300'
-                        }`}
-                        role="switch"
-                        aria-checked={m.enabled}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                            m.enabled ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
+                      <Switch label={`Enable ${info.label}`} checked={m.enabled} disabled={isToggling} onClick={() => handleToggle(m.module, m.enabled)} />
                     </div>
 
                     <div className="mt-3">
-                      <h3 className="text-sm font-bold text-[#101828] flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
                         <span>{info.label}</span>
                         {m.enabled && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)]" />
                         )}
                       </h3>
-                      <p className="text-xs text-[#667085] mt-1 leading-relaxed">
+                      <p className="text-[13px] text-[var(--text-secondary)] mt-1 leading-relaxed">
                         {info.description}
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-[#F1F3F9] flex items-center justify-between">
+                  <div className="mt-4 pt-3 border-t border-[var(--border-base)] flex items-center justify-between">
                     <span
-                      className={`text-[11px] font-semibold uppercase tracking-wider ${
-                        m.enabled ? 'text-emerald-700' : 'text-[#98A2B3]'
+                      className={`text-[13px] font-semibold uppercase tracking-wider ${
+                        m.enabled ? 'text-[var(--success)]' : 'text-[var(--text-secondary)]'
                       }`}
                     >
                       {m.enabled ? 'Active' : 'Disabled'}
                     </span>
                     {isToggling && (
-                      <Loader2 className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+                      <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin" />
                     )}
                   </div>
                 </Card>
@@ -270,7 +226,7 @@ export default function GuildModulesPage({ params }: PageProps) {
             })}
           </div>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

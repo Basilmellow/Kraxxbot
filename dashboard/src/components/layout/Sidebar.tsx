@@ -5,415 +5,57 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Session } from 'next-auth';
 import { signOut } from 'next-auth/react';
-import {
-  LayoutDashboard,
-  Server,
-  Shield,
-  Users,
-  ShieldAlert,
-  Ticket,
-  DoorOpen,
-  Megaphone,
-  Sparkles,
-  CheckSquare,
-  AlarmClock,
-  Zap,
-  BarChart3,
-  ScrollText,
-  Settings,
-  Boxes,
-  LogOut,
-  Menu,
-  X,
-} from 'lucide-react';
+import { LayoutDashboard, Server, Shield, Users, ShieldAlert, Ticket, DoorOpen, Megaphone, Sparkles, CheckSquare, AlarmClock, Zap, BarChart3, ScrollText, Settings, Boxes, Terminal, LogOut, Menu, MessagesSquare, CalendarDays } from 'lucide-react';
 import { DASHBOARD_MODULES, CATEGORY_LABELS } from '@/lib/constants';
+import { Modal } from '@/components/ui/Modal';
+import { Button, IconButton } from '@/components/ui/Button';
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  LayoutDashboard,
-  Server,
-  Shield,
-  Users,
-  ShieldAlert,
-  Ticket,
-  DoorOpen,
-  Megaphone,
-  Sparkles,
-  CheckSquare,
-  AlarmClock,
-  Zap,
-  BarChart3,
-  ScrollText,
-  Settings,
-  Boxes,
+  LayoutDashboard, Server, Shield, Users, ShieldAlert, Ticket, DoorOpen,
+  Megaphone, Sparkles, CheckSquare, AlarmClock, Zap, BarChart3, ScrollText,
+  Settings, Boxes, Terminal, MessagesSquare, CalendarDays,
 };
+const NAV_CATEGORIES = ['OVERVIEW', 'MODERATION', 'SUPPORT', 'COMMUNITY', 'AUTOMATION', 'ENGAGEMENT', 'INSIGHTS', 'SYSTEM'] as const;
 
-const NAV_CATEGORIES = ['OVERVIEW', 'MODERATION', 'SUPPORT', 'COMMUNITY', 'AUTOMATION', 'INSIGHTS', 'SYSTEM'] as const;
-
-interface SidebarProps {
-  session: Session;
-}
-
-export function Sidebar({ session }: SidebarProps) {
+export function Sidebar({ session, isOwner }: { session: Session; isOwner: boolean }) {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-
-  // The route is the only source of tenant context; query parameters are not used.
-  const guildMatch = pathname.match(/^\/dashboard\/(\d+)/);
-  const activeGuildId = guildMatch?.[1] || '';
-
-  const getHref = (modId: string, modHref: string) => {
-    if (modId === 'select-server') return '/dashboard/select-server';
-    if (!activeGuildId) return '/dashboard/select-server';
-    if (modId === 'overview') return `/dashboard/${activeGuildId}`;
-    return `/dashboard/${activeGuildId}${modHref}`;
-  };
-
-  const isActive = (modId: string, modHref: string) => {
-    if (modId === 'select-server') return pathname === '/dashboard/select-server';
-    const href = getHref(modId, modHref);
-    if (modId === 'overview') return pathname === href || (pathname === '/dashboard' && !activeGuildId);
-    return pathname === href || pathname.startsWith(`${href}/`);
-  };
-
-  const user = session?.user as (Session['user'] & {
-    displayName?: string;
-    discordId?: string;
-    avatar?: string | null;
-  });
+  // The URL remains the sole tenant identity; links do not grant access.
+  const activeGuildId = pathname.match(/^\/dashboard\/(\d+)/)?.[1] || '';
+  const getHref = (id: string, href: string) => id === 'select-server' || !activeGuildId
+    ? '/dashboard/select-server' : `/dashboard/${activeGuildId}${href}`;
+  const user = session.user;
   const displayName = user?.displayName || user?.name || 'User';
-  const discordId = user?.discordId ?? '';
-  const avatarHash = user?.avatar ?? null;
-  const avatarUrl = avatarHash && discordId
-    ? `https://cdn.discordapp.com/avatars/${discordId}/${avatarHash}.png?size=64`
-    : null;
 
-  const navContent = (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      background: '#0C0C0B',
-      borderRight: '1px solid #1D1C19',
-    }} onClick={(event) => {
-      if ((event.target as HTMLElement).closest('a')) setIsMobileOpen(false);
-    }}>
-      {/* Brand */}
-      <div style={{
-        height: '56px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.625rem',
-        padding: '0 1rem',
-        borderBottom: '1px solid #1D1C19',
-        flexShrink: 0,
-      }}>
-        <Link
-          href={activeGuildId ? `/dashboard/${activeGuildId}` : '/dashboard'}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', textDecoration: 'none', color: 'inherit' }}
-        >
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: 'linear-gradient(135deg, #C9A66B, #D8B77D)',
-            color: '#090908',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 800,
-            fontSize: '0.875rem',
-            flexShrink: 0,
-          }}>
-            K
-          </div>
-          <div>
-            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#F3F0E9', letterSpacing: '-0.01em' }}>
-              KRAXXBot
-            </div>
-            <div style={{ fontSize: '0.625rem', color: '#716D65', fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: '1px' }}>
-              Dashboard
-            </div>
-          </div>
-        </Link>
-      </div>
+  const navigation = <nav aria-label="Dashboard navigation" className="dashboard-navigation">
+    {NAV_CATEGORIES.map(category => <div key={category} className="mb-5">
+      <p className="sidebar-category">{CATEGORY_LABELS[category]}</p>
+      <ul className="space-y-1">{DASHBOARD_MODULES.filter(item => item.category === category).map(item => {
+        const href = getHref(item.id, item.href);
+        const active = item.id === 'select-server' ? pathname === href : Boolean(activeGuildId) && (pathname === href || (item.id !== 'overview' && pathname.startsWith(href + '/')));
+        const Icon = ICON_MAP[item.icon] || LayoutDashboard;
+        return <li key={item.id}><Link href={href} aria-current={active ? 'page' : undefined} onClick={() => setIsMobileOpen(false)} className={`sidebar-nav-item ${active ? 'active' : ''}`}><Icon size={16} aria-hidden="true" /><span className="truncate">{item.label}</span></Link></li>;
+      })}</ul>
+    </div>)}
+  </nav>;
 
-      {/* Navigation */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '0.5rem 0.5rem',
-        scrollbarWidth: 'thin',
-        scrollbarColor: '#2A2925 transparent',
-      }}>
-        {NAV_CATEGORIES.map(cat => {
-          const items = DASHBOARD_MODULES.filter(m => m.category === cat);
-          if (!items.length) return null;
-
-          return (
-            <div key={cat} style={{ marginBottom: '1rem' }}>
-              <div style={{
-                fontSize: '0.625rem',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: '#4A4742',
-                padding: '0.25rem 0.75rem 0.375rem',
-              }}>
-                {CATEGORY_LABELS[cat]}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                {items.map(mod => {
-                  const href = getHref(mod.id, mod.href);
-                  const active = isActive(mod.id, mod.href);
-                  const Icon = ICON_MAP[mod.icon] ?? LayoutDashboard;
-
-                  return (
-                    <Link
-                      key={mod.id}
-                      href={href}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        padding: '0.4375rem 0.75rem',
-                        borderRadius: '6px',
-                        fontSize: '0.8125rem',
-                        fontWeight: active ? 600 : 500,
-                        textDecoration: 'none',
-                        color: active ? '#C9A66B' : '#716D65',
-                        background: active ? 'rgba(201, 166, 107, 0.08)' : 'transparent',
-                        transition: 'all 0.12s ease',
-                        position: 'relative',
-                      }}
-                      onMouseEnter={e => {
-                        if (!active) {
-                          e.currentTarget.style.background = '#161614';
-                          e.currentTarget.style.color = '#A8A49B';
-                        }
-                      }}
-                      onMouseLeave={e => {
-                        if (!active) {
-                          e.currentTarget.style.background = 'transparent';
-                          e.currentTarget.style.color = '#716D65';
-                        }
-                      }}
-                    >
-                      {active && (
-                        <div style={{
-                          position: 'absolute',
-                          left: 0,
-                          top: '6px',
-                          bottom: '6px',
-                          width: '3px',
-                          background: '#C9A66B',
-                          borderRadius: '0 3px 3px 0',
-                        }} />
-                      )}
-                      <Icon style={{ width: '15px', height: '15px', flexShrink: 0, opacity: active ? 1 : 0.7 }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {mod.label}
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* User Footer */}
-      <div style={{
-        padding: '0.75rem',
-        borderTop: '1px solid #1D1C19',
-        flexShrink: 0,
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.625rem',
-          padding: '0.625rem',
-          borderRadius: '8px',
-          background: '#161614',
-          border: '1px solid #2A2925',
-          marginBottom: '0.5rem',
-        }}>
-          {/* Avatar */}
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={displayName}
-              style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }}
-            />
-          ) : (
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: 'rgba(201, 166, 107, 0.12)',
-              border: '1px solid rgba(201, 166, 107, 0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.875rem',
-              fontWeight: 700,
-              color: '#C9A66B',
-              flexShrink: 0,
-            }}>
-              {displayName[0]?.toUpperCase() ?? 'U'}
-            </div>
-          )}
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#F3F0E9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {displayName}
-            </div>
-            <div style={{ fontSize: '0.6875rem', color: '#716D65', marginTop: '1px' }}>
-              Discord
-            </div>
-          </div>
-
-          {/* Online indicator */}
-          <div style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            background: '#22C55E',
-            boxShadow: '0 0 0 2px rgba(34, 197, 94, 0.15)',
-            flexShrink: 0,
-          }} />
-        </div>
-
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.375rem',
-            padding: '0.4375rem',
-            borderRadius: '6px',
-            background: 'transparent',
-            border: '1px solid #2A2925',
-            color: '#716D65',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            transition: 'all 0.12s ease',
-            fontFamily: 'inherit',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.06)';
-            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
-            e.currentTarget.style.color = '#EF4444';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.borderColor = '#2A2925';
-            e.currentTarget.style.color = '#716D65';
-          }}
-        >
-          <LogOut style={{ width: '13px', height: '13px' }} />
-          <span>Sign out</span>
-        </button>
-      </div>
+  const account = <div className="sidebar-account">
+    <div className="mb-3 flex min-w-0 items-center gap-3">
+      {user?.avatar && user.discordId ? <img src={`https://cdn.discordapp.com/avatars/${user.discordId}/${user.avatar}.png?size=64`} alt="" width={32} height={32} className="rounded-lg" />
+        : <span className="sidebar-avatar">{displayName.charAt(0).toUpperCase()}</span>}
+      <div className="min-w-0"><p className="truncate text-sm font-medium">{displayName}</p><p className="text-xs text-[var(--text-secondary)]">Discord account</p></div>
     </div>
-  );
+    <Button variant="secondary" size="sm" className="w-full" onClick={() => signOut({ callbackUrl: '/login' })}><LogOut size={14} />Sign out</Button>
+  </div>;
 
-  return (
-    <>
-      {/* Mobile top bar */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '56px',
-        background: '#0C0C0B',
-        borderBottom: '1px solid #1D1C19',
-        zIndex: 40,
-        display: 'none',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 1rem',
-      }} className="mobile-topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{
-            width: '28px',
-            height: '28px',
-            borderRadius: '7px',
-            background: 'linear-gradient(135deg, #C9A66B, #D8B77D)',
-            color: '#090908',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 800,
-            fontSize: '0.8125rem',
-          }}>
-            K
-          </div>
-          <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#F3F0E9' }}>KRAXXBot</span>
-        </div>
-        <button
-          onClick={() => setIsMobileOpen(v => !v)}
-          style={{
-            padding: '0.375rem',
-            borderRadius: '6px',
-            background: '#161614',
-            border: '1px solid #2A2925',
-            color: '#A8A49B',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          aria-label="Toggle menu"
-        >
-          {isMobileOpen ? <X style={{ width: '18px', height: '18px' }} /> : <Menu style={{ width: '18px', height: '18px' }} />}
-        </button>
-      </div>
-
-      {/* Mobile drawer overlay */}
-      {isMobileOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 50,
-          }}
-          onClick={() => setIsMobileOpen(false)}
-        >
-          <div
-            style={{ width: '260px', height: '100%' }}
-            onClick={e => e.stopPropagation()}
-          >
-            {navContent}
-          </div>
-        </div>
-      )}
-
-      {/* Desktop sidebar */}
-      <aside style={{
-        width: '220px',
-        flexShrink: 0,
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-        zIndex: 30,
-      }}>
-        {navContent}
-      </aside>
-
-      <style>{`
-        @media (max-width: 768px) {
-          .mobile-topbar { display: flex !important; }
-          aside { display: none !important; }
-        }
-      `}</style>
-    </>
-  );
+  return <>
+    <div className="dashboard-mobile-bar"><Link href={activeGuildId ? `/dashboard/${activeGuildId}` : '/dashboard/select-server'} className="dashboard-brand"><span className="dashboard-brand-mark">K</span>KRAXXBot</Link><IconButton label="Open navigation" aria-expanded={isMobileOpen} onClick={() => setIsMobileOpen(true)}><Menu size={20} /></IconButton></div>
+    <aside className="dashboard-sidebar">
+      <Link href={activeGuildId ? `/dashboard/${activeGuildId}` : '/dashboard/select-server'} className="dashboard-brand"><span className="dashboard-brand-mark">K</span><span>KRAXXBot<span className="block text-xs font-normal text-[var(--text-secondary)]">Server management</span></span></Link>
+      {navigation}{isOwner && <div className="mb-5"><p className="sidebar-category">Owner</p><ul className="space-y-1">
+        {[['Overview', '/dashboard/owner'], ['Servers', '/dashboard/owner/servers'], ['AI', '/dashboard/owner/ai'], ['Commands', '/dashboard/owner/commands'], ['Health', '/dashboard/owner/health'], ['Activity', '/dashboard/owner/activity'], ['Settings', '/dashboard/owner/settings']].map(([label, href]) => <li key={href}><Link href={href} aria-current={pathname === href || (href !== '/dashboard/owner' && pathname.startsWith(`${href}/`)) ? 'page' : undefined} onClick={() => setIsMobileOpen(false)} className={`sidebar-nav-item ${pathname === href || (href !== '/dashboard/owner' && pathname.startsWith(`${href}/`)) ? 'active' : ''}`}><Shield size={16} aria-hidden="true" /><span className="truncate">{label}</span></Link></li>)}
+      </ul></div>}{account}
+    </aside>
+    <Modal isOpen={isMobileOpen} onClose={() => setIsMobileOpen(false)} title="Navigation" maxWidth="sm">{navigation}{account}</Modal>
+  </>;
 }

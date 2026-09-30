@@ -16,5 +16,7 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  return <DashboardShell session={session}>{children}</DashboardShell>;
+  const isOwner = Boolean(session.user?.discordId && process.env.KRAXXBOT_OWNER_DISCORD_ID
+    && session.user.discordId === process.env.KRAXXBOT_OWNER_DISCORD_ID.trim());
+  return <DashboardShell session={session} isOwner={isOwner}>{children}</DashboardShell>;
 }

@@ -3,15 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useParams } from 'next/navigation';
-import {
-  ChevronDown,
-  Check,
-  Plus,
-  Server,
-  Layers,
-  Loader2,
-} from 'lucide-react';
+import { ChevronDown, Check, Plus, Server, Layers, Loader2 } from 'lucide-react';
 import { ManagedGuild } from '@/lib/discord';
+import { Dropdown } from '@/components/ui/Dropdown';
 
 export function ServerSelector() {
   const router = useRouter();
@@ -91,14 +85,13 @@ export function ServerSelector() {
   };
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div className="relative min-w-0 text-left" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-[#161614] border border-[#2A2925] hover:border-[#C9A66B] hover:bg-[#1D1C19] text-xs text-[#F3F0E9] font-medium transition-all group cursor-pointer"
+        className="flex h-10 max-w-full items-center gap-2 px-3 rounded-lg bg-[var(--surface-1)] border border-[var(--border-base)] hover:border-[var(--accent)] text-[13px] font-medium transition-colors group cursor-pointer"
         aria-label={currentGuild ? `Switch server, current server ${currentGuild.name}` : 'Select server'}
         aria-expanded={isOpen}
-        aria-haspopup="listbox"
       >
         {loading ? (
           <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
@@ -115,7 +108,7 @@ export function ServerSelector() {
                 {currentGuild.name.charAt(0).toUpperCase()}
               </div>
             )}
-            <span className="max-w-[120px] sm:max-w-[160px] truncate font-semibold">
+            <span className="max-w-[100px] sm:max-w-[160px] truncate font-semibold">
               {currentGuild.name}
             </span>
           </>
@@ -133,7 +126,7 @@ export function ServerSelector() {
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-72 rounded-2xl bg-[#161614] border border-[#2A2925] shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+        <Dropdown label="Server selection" onClose={() => setIsOpen(false)} className="w-72 overflow-hidden">
           <div className="p-2 border-b border-[#2A2925] bg-[#10100F] flex items-center justify-between">
             <span className="text-[10px] font-bold tracking-wider text-[#C9A66B] uppercase px-2">
               Installed Servers
@@ -148,7 +141,7 @@ export function ServerSelector() {
           </div>
 
           <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
-            {loadError ? (
+            {loading ? <p role="status" className="p-3 text-sm text-[var(--text-secondary)]">Loading servers…</p> : loadError ? (
               <div className="p-3 text-center text-xs text-[#EF4444]">
                 {loadError}
               </div>
@@ -250,7 +243,7 @@ export function ServerSelector() {
               <span>Manage All Servers Hub</span>
             </Link>
           </div>
-        </div>
+        </Dropdown>
       )}
     </div>
   );

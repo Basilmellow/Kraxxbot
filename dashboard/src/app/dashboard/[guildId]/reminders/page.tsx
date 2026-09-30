@@ -1,29 +1,23 @@
 'use client';
+import { Tabs } from '@/components/ui/Tabs';
+
+import { PageContainer } from '@/components/ui/Page';
+import { Table } from '@/components/ui/Table';
+import { Input, Textarea, Select } from '@/components/ui/Form';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
-import {
-  AlarmClock,
-  Plus,
-  Calendar,
-  User,
-  Hash,
-  CheckCircle2,
-  AlertTriangle,
-  Repeat,
-  Trash2,
-  XCircle,
-  Clock,
-} from 'lucide-react';
+import { AlarmClock, Plus, CheckCircle2, AlertTriangle, Repeat, Trash2 } from 'lucide-react';
 
 interface ReminderItem {
   id: string;
@@ -34,14 +28,15 @@ interface ReminderItem {
   cronPattern: string | null;
   triggerAt: string | null;
   isRecurring: boolean;
-  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'ACTIVE' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
   createdBy: string;
   createdAt: string;
 }
 
-const STATUSES = ['ALL', 'ACTIVE', 'COMPLETED', 'CANCELLED'];
+const STATUSES = ['ALL', 'ACTIVE', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED'];
 
 export default function RemindersPage() {
+  const confirm = useConfirm();
   const router = useRouter();
   const guildId = useGuildId();
 
@@ -75,7 +70,6 @@ export default function RemindersPage() {
   const fetchReminders = async () => {
     if (!guildId) return;
     try {
-      setIsLoading(true);
       const url = statusFilter === 'ALL'
         ? `/api/reminders?guildId=${guildId}`
         : `/api/reminders?status=${statusFilter}&guildId=${guildId}`;
@@ -92,7 +86,7 @@ export default function RemindersPage() {
   };
 
   useEffect(() => {
-    fetchReminders();
+    void Promise.resolve().then(fetchReminders);
   }, [statusFilter, guildId]);
 
   useEffect(() => {
@@ -171,15 +165,15 @@ export default function RemindersPage() {
       } else {
         setFeedback({ type: 'error', message: data.error || 'Failed to schedule reminder' });
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Reminder creation error' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Reminder creation error' });
     } finally {
       setIsCreating(false);
     }
   };
 
   const handleCancelReminder = async (id: string) => {
-    if (!confirm('Cancel this active reminder?')) return;
+    if (!await confirm('Cancel this active reminder?')) return;
     try {
       const res = await fetch(`/api/reminders/${id}?guildId=${guildId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -195,10 +189,14 @@ export default function RemindersPage() {
     switch (status) {
       case 'ACTIVE':
         return <Badge variant="success">ACTIVE</Badge>;
+      case 'PROCESSING':
+        return <Badge variant="warning">SENDING</Badge>;
       case 'COMPLETED':
         return <Badge variant="neutral">FIRED</Badge>;
       case 'CANCELLED':
         return <Badge variant="danger">CANCELLED</Badge>;
+      case 'FAILED':
+        return <Badge variant="danger">FAILED</Badge>;
       default:
         return <Badge variant="neutral">{status}</Badge>;
     }
@@ -207,37 +205,22 @@ export default function RemindersPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Automated Reminders & Chrono Alerts"
-        subtitle="Time-Based Push Notifications, DM Alerts & Recurring Cron Triggers"
+        title="Reminders"
+        subtitle="Schedule channel messages and personal reminders."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Filter Controls & Create Action */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
-            {STATUSES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  statusFilter === s
-                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          <Tabs label="Filter by status" items={STATUSES.map(item => ({ value: item, label: item }))} value={statusFilter} onChange={setStatusFilter} />
 
           <Button
             variant="primary"
             size="sm"
             onClick={() => setShowCreateModal(true)}
-            className="gap-1.5"
+            className="gap-2"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
             <span>Create Reminder</span>
           </Button>
         </div>
@@ -245,26 +228,26 @@ export default function RemindersPage() {
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
         {/* Reminders Table Card */}
-        <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-              <AlarmClock className="w-4 h-4 text-indigo-600" />
+        <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl overflow-hidden p-0 ">
+          <div className="p-5 border-b border-[var(--border-base)] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              <AlarmClock className="w-4 h-4 text-[var(--accent)]" />
               <span>Reminder Chrono Queue ({reminders.length})</span>
             </h3>
           </div>
@@ -284,8 +267,8 @@ export default function RemindersPage() {
               />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="kraxx-table">
+            <div tabIndex={0} role="region" aria-label="Scrollable table" className="overflow-x-auto table-scroll">
+              <Table className="kraxx-table">
                 <thead>
                   <tr>
                     <th>Status</th>
@@ -302,32 +285,32 @@ export default function RemindersPage() {
                     <tr key={r.id}>
                       <td>{getStatusBadge(r.status)}</td>
                       <td>
-                        <div className="font-semibold text-[#101828] text-xs">
+                        <div className="font-semibold text-[var(--text-primary)] text-[13px]">
                           {r.title}
                         </div>
-                        <div className="text-[11px] text-[#667085] truncate max-w-xs mt-0.5">
+                        <div className="text-[13px] text-[var(--text-secondary)] truncate max-w-xs mt-0.5">
                           {r.message}
                         </div>
                       </td>
                       <td>
-                        <span className="text-[11px] font-mono text-[#475467] bg-[#F3F5FA] px-2 py-0.5 rounded-md border border-[#E5E7EB]">
+                        <span className="text-[13px] font-mono text-[var(--text-secondary)] bg-[var(--surface-2)] px-2 py-0.5 rounded-md border border-[var(--border-base)]">
                           {r.targetType === 'CHANNEL' ? `#${r.targetId}` : `@${r.targetId}`}
                         </span>
                       </td>
-                      <td className="text-xs text-[#475467]">
+                      <td className="text-[13px] text-[var(--text-secondary)]">
                         {r.triggerAt ? new Date(r.triggerAt).toLocaleString() : r.cronPattern || 'Manual Trigger'}
                       </td>
                       <td>
                         {r.isRecurring ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-indigo-600 font-semibold">
+                          <span className="inline-flex items-center gap-1 text-[13px] text-[var(--accent)] font-semibold">
                             <Repeat className="w-3 h-3" />
                             <span>Recurring</span>
                           </span>
                         ) : (
-                          <span className="text-[11px] text-[#98A2B3]">One-Time</span>
+                          <span className="text-[13px] text-[var(--text-secondary)]">One-Time</span>
                         )}
                       </td>
-                      <td className="text-xs text-[#475467]">
+                      <td className="text-[13px] text-[var(--text-secondary)]">
                         @{r.createdBy}
                       </td>
                       <td className="text-right">
@@ -335,7 +318,7 @@ export default function RemindersPage() {
                           <button
                             type="button"
                             onClick={() => handleCancelReminder(r.id)}
-                            className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
+                            className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                             title="Cancel Reminder"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -345,7 +328,7 @@ export default function RemindersPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
         </Card>
@@ -357,47 +340,47 @@ export default function RemindersPage() {
           title="Schedule Automated Reminder"
           subtitle="Configure one-off alert or recurring cron notice"
         >
-          <form onSubmit={handleCreateReminder} className="space-y-4 text-xs">
+          <form onSubmit={handleCreateReminder} className="space-y-4 text-[13px]">
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Reminder Subject
               </label>
-              <input
+              <Input aria-label="Reminder Subject"
                 type="text"
                 required
                 placeholder="e.g. Weekly Security Sync Alert"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Notification Message
               </label>
-              <textarea
+              <Textarea aria-label="Notification Message"
                 rows={3}
                 required
                 placeholder="Message to post when triggered..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="w-full p-3 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-y"
+                className="w-full resize-y"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1.5">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-2">
                 Target Type
               </label>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setTargetType('CHANNEL')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                  className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition-colors ${
                     targetType === 'CHANNEL'
-                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
-                      : 'border-[#E5E7EB] bg-white text-[#475467]'
+                      ? 'border-[var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                      : 'border-[var(--border-base)] bg-[var(--surface-1)] text-[var(--text-secondary)]'
                   }`}
                 >
                   Discord Channel
@@ -405,10 +388,10 @@ export default function RemindersPage() {
                 <button
                   type="button"
                   onClick={() => setTargetType('USER')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                  className={`flex-1 py-2 rounded-xl text-[13px] font-semibold border transition-colors ${
                     targetType === 'USER'
-                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
-                      : 'border-[#E5E7EB] bg-white text-[#475467]'
+                      ? 'border-[var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                      : 'border-[var(--border-base)] bg-[var(--surface-1)] text-[var(--text-secondary)]'
                   }`}
                 >
                   Direct Member DM
@@ -424,13 +407,13 @@ export default function RemindersPage() {
               />
             ) : (
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Target Member
                 </label>
-                <select
+                <Select aria-label="Target Member"
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                   required
                 >
                   <option value="">Select operator...</option>
@@ -439,50 +422,50 @@ export default function RemindersPage() {
                       @{m.displayName}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Trigger Date
                 </label>
-                <input
+                <Input aria-label="Trigger Date"
                   type="date"
                   value={triggerDate}
                   onChange={(e) => setTriggerDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-[#344054] mb-1">
+                <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                   Trigger Time
                 </label>
-                <input
+                <Input aria-label="Trigger Time"
                   type="time"
                   value={triggerTime}
                   onChange={(e) => setTriggerTime(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Recurrence Cadence
               </label>
-              <select
+              <Select aria-label="Recurrence Cadence"
                 value={recurrence}
                 onChange={(e) => setRecurrence(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               >
                 <option value="NONE">One-Time Only</option>
                 <option value="DAILY">Daily at 09:00 AM</option>
                 <option value="WEEKLY">Weekly on Mondays</option>
                 <option value="MONTHLY">Monthly on 1st</option>
-              </select>
+              </Select>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3">
@@ -505,7 +488,7 @@ export default function RemindersPage() {
             </div>
           </form>
         </Modal>
-      </div>
+      </PageContainer>
     </div>
   );
 }

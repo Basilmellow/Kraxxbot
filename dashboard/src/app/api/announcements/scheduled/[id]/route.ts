@@ -1,10 +1,12 @@
+import { validateChannel } from '@/lib/destinations';
+import { withMutation } from '@/lib/mutation';
 // KRAXX Operations Platform — Single Scheduled Announcement API
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { canScheduleAnnouncements, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { authOptions } from '@/lib/auth';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -12,7 +14,7 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
+  if (!session?.user?.discordId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -38,19 +40,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         embedPayload: item.embedPayload ? JSON.parse(item.embedPayload) : null,
       },
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch scheduled announcement' }, { status: 500 });
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
+async function handlePATCH(request: NextRequest, { params }: RouteParams) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
+  if (!session?.user?.discordId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!canScheduleAnnouncements(session.user.roleTier)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { id } = await params;
@@ -76,7 +74,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json();
-    const { title, content, channelId, department, mentionType, mentionRoleId, embeds, scheduledFor } = body;
+    const { title, content, channelId, department, type, mentionType, mentionRoleId, embeds, scheduledFor } = body;
 
     let scheduledDate: Date | undefined = undefined;
     if (scheduledFor) {
@@ -86,13 +84,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    await validateChannel(guildId, channelId || existing.channelId);
     const updated = await prisma.scheduledAnnouncement.update({
-      where: { id, guildId },
+      where: { id, guildId, status: 'PENDING' },
       data: {
         ...(title !== undefined ? { title: title?.trim() || null } : {}),
         ...(content !== undefined ? { content: content?.trim() || null } : {}),
         ...(channelId ? { channelId } : {}),
         ...(department ? { department: department.toUpperCase() } : {}),
+        ...(type ? { announcementType: type.toUpperCase() } : {}),
         ...(mentionType ? { mentionType } : {}),
         ...(mentionRoleId !== undefined ? { mentionRoleId: mentionRoleId || null } : {}),
         ...(embeds !== undefined ? { embedPayload: embeds ? JSON.stringify(embeds) : null } : {}),
@@ -116,20 +116,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         scheduledFor: updated.scheduledFor.toISOString(),
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[API] Edit scheduled error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update scheduled announcement' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update scheduled announcement' }, { status: 500 });
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+async function handleDELETE(request: NextRequest, { params }: RouteParams) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
+  if (!session?.user?.discordId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!canScheduleAnnouncements(session.user.roleTier)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { id } = await params;
@@ -155,7 +151,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const cancelled = await prisma.scheduledAnnouncement.update({
-      where: { id, guildId },
+      where: { id, guildId, status: 'PENDING' },
       data: { status: 'CANCELLED' },
     });
 
@@ -169,8 +165,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     });
 
     return NextResponse.json({ success: true, id, status: 'CANCELLED' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[API] Cancel scheduled error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to cancel scheduled announcement' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to cancel scheduled announcement' }, { status: 500 });
   }
 }
+
+export const PATCH = withMutation('MANAGE_ANNOUNCEMENTS', handlePATCH);
+export const DELETE = withMutation('MANAGE_ANNOUNCEMENTS', handleDELETE);

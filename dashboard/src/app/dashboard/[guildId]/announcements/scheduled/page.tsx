@@ -1,29 +1,22 @@
 'use client';
 
+import { PageContainer } from '@/components/ui/Page';
+import { Table } from '@/components/ui/Table';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { DiscordEmbedPreview } from '@/components/discord/DiscordEmbedPreview';
-import {
-  Clock,
-  Calendar,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  Eye,
-  Trash2,
-  Hash,
-  User,
-  ArrowLeft,
-  Filter,
-} from 'lucide-react';
+import type { DiscordEmbedData } from '@/components/discord/DiscordEmbedPreview';
+import { Clock, Calendar, CheckCircle2, AlertTriangle, Eye, Trash2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 interface ScheduledItem {
@@ -32,11 +25,11 @@ interface ScheduledItem {
   channelId: string;
   title: string | null;
   content: string | null;
-  embedPayload: any[] | null;
+  embedPayload: DiscordEmbedData[] | null;
   mentionType: string | null;
   department: string;
   scheduledFor: string;
-  status: 'PENDING' | 'SENT' | 'CANCELLED' | 'FAILED';
+  status: 'PENDING' | 'PROCESSING' | 'SENT' | 'CANCELLED' | 'FAILED';
   createdBy: string;
   sentAt: string | null;
   error: string | null;
@@ -44,9 +37,10 @@ interface ScheduledItem {
   createdAt: string;
 }
 
-const STATUS_FILTERS = ['ALL', 'PENDING', 'SENT', 'CANCELLED', 'FAILED'];
+const STATUS_FILTERS = ['ALL', 'PENDING', 'PROCESSING', 'SENT', 'CANCELLED', 'FAILED'];
 
 export default function ScheduledAnnouncementsPage() {
+  const confirm = useConfirm();
   const router = useRouter();
   const guildId = useGuildId();
 
@@ -68,7 +62,6 @@ export default function ScheduledAnnouncementsPage() {
   const fetchScheduled = async () => {
     if (!guildId) return;
     try {
-      setIsLoading(true);
       const url = selectedStatus === 'ALL'
         ? `/api/announcements/scheduled?guildId=${guildId}`
         : `/api/announcements/scheduled?status=${selectedStatus}&guildId=${guildId}`;
@@ -85,11 +78,11 @@ export default function ScheduledAnnouncementsPage() {
   };
 
   useEffect(() => {
-    fetchScheduled();
+    void Promise.resolve().then(fetchScheduled);
   }, [selectedStatus, guildId]);
 
   const handleCancel = async (id: string, title?: string | null) => {
-    if (!confirm(`Cancel scheduled broadcast "${title || 'Untitled'}"?`)) return;
+    if (!await confirm(`Cancel scheduled broadcast "${title || 'Untitled'}"?`)) return;
 
     try {
       const res = await fetch(`/api/announcements/scheduled/${id}?guildId=${encodeURIComponent(guildId)}`, { method: 'DELETE' });
@@ -100,8 +93,8 @@ export default function ScheduledAnnouncementsPage() {
         const data = await res.json();
         setFeedback({ type: 'error', message: data.error || 'Failed to cancel broadcast' });
       }
-    } catch (e: any) {
-      setFeedback({ type: 'error', message: e.message || 'Cancellation error' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Cancellation error' });
     }
   };
 
@@ -111,6 +104,8 @@ export default function ScheduledAnnouncementsPage() {
         return <Badge variant="warning">PENDING</Badge>;
       case 'SENT':
         return <Badge variant="success">DISPATCHED</Badge>;
+      case 'PROCESSING':
+        return <Badge variant="warning">SENDING</Badge>;
       case 'CANCELLED':
         return <Badge variant="neutral">CANCELLED</Badge>;
       case 'FAILED':
@@ -123,23 +118,23 @@ export default function ScheduledAnnouncementsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Scheduled Broadcast Queue"
-        subtitle="Automated Future Dispatches & Dispatch History"
+        title="Scheduled announcements"
+        subtitle="Review upcoming broadcasts and delivery history."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Header & Filter Controls */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
+          <div className="flex flex-wrap items-center gap-2 p-1 rounded-xl bg-[var(--surface-1)] border border-[var(--border-base)] ">
             {STATUS_FILTERS.map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSelectedStatus(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                   selectedStatus === s
-                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
+                    ? 'bg-[var(--accent-dim)] text-[var(--accent)] font-semibold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]'
                 }`}
               >
                 {s}
@@ -147,37 +142,35 @@ export default function ScheduledAnnouncementsPage() {
             ))}
           </div>
 
-          <Link href={`/dashboard/${guildId}/announcements`}>
-            <Button variant="outline" size="sm" className="flex items-center gap-1.5">
-              <ArrowLeft className="w-3.5 h-3.5" />
+          <Link href={`/dashboard/${guildId}/announcements`} className="kraxx-btn kraxx-btn-secondary kraxx-btn-sm flex items-center gap-2">
+              <ArrowLeft className="w-4 h-4" />
               <span>Back to Composer</span>
-            </Button>
-          </Link>
+            </Link>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
         {/* Scheduled List Card */}
-        <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-              <Clock className="w-4 h-4 text-indigo-600" />
+        <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl overflow-hidden p-0 ">
+          <div className="p-5 border-b border-[var(--border-base)] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[var(--accent)]" />
               <span>Broadcast Queue Items ({items.length})</span>
             </h3>
           </div>
@@ -195,8 +188,8 @@ export default function ScheduledAnnouncementsPage() {
               />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="kraxx-table">
+            <div tabIndex={0} role="region" aria-label="Scrollable table" className="overflow-x-auto table-scroll">
+              <Table className="kraxx-table">
                 <thead>
                   <tr>
                     <th>Status</th>
@@ -213,28 +206,28 @@ export default function ScheduledAnnouncementsPage() {
                     <tr key={item.id}>
                       <td>{getStatusBadge(item.status)}</td>
                       <td>
-                        <span className="text-[11px] font-semibold text-[#475467] bg-[#F3F5FA] px-2 py-0.5 rounded-md border border-[#E5E7EB]">
+                        <span className="text-[13px] font-semibold text-[var(--text-secondary)] bg-[var(--surface-2)] px-2 py-0.5 rounded-md border border-[var(--border-base)]">
                           {item.department}
                         </span>
                       </td>
-                      <td className="max-w-xs truncate font-medium text-[#101828]">
+                      <td className="max-w-xs truncate font-medium text-[var(--text-primary)]">
                         {item.title || item.content || 'Rich Embed Message'}
                       </td>
-                      <td className="text-[#475467] font-mono text-[11px]">
+                      <td className="text-[var(--text-secondary)] font-mono text-[13px]">
                         #{item.channelId}
                       </td>
-                      <td className="text-[#475467] text-xs">
+                      <td className="text-[var(--text-secondary)] text-[13px]">
                         {new Date(item.scheduledFor).toLocaleString()}
                       </td>
-                      <td className="text-[#475467] text-xs">
+                      <td className="text-[var(--text-secondary)] text-[13px]">
                         @{item.createdBy}
                       </td>
                       <td className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => setDetailItem(item)}
-                            className="p-1.5 rounded-lg text-[#667085] hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] transition-colors"
                             title="Inspect Details"
                           >
                             <Eye className="w-4 h-4" />
@@ -244,7 +237,7 @@ export default function ScheduledAnnouncementsPage() {
                             <button
                               type="button"
                               onClick={() => handleCancel(item.id, item.title)}
-                              className="p-1.5 rounded-lg text-[#667085] hover:text-red-600 hover:bg-red-50 transition-colors"
+                              className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                               title="Cancel Broadcast"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -255,7 +248,7 @@ export default function ScheduledAnnouncementsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
         </Card>
@@ -270,19 +263,19 @@ export default function ScheduledAnnouncementsPage() {
             maxWidth="2xl"
           >
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs">
+              <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] text-[13px]">
                 <div>
-                  <span className="text-[#667085] block text-[10px] uppercase font-semibold">Status</span>
+                  <span className="text-[var(--text-secondary)] block text-[13px] uppercase font-semibold">Status</span>
                   <div className="mt-1">{getStatusBadge(detailItem.status)}</div>
                 </div>
                 <div>
-                  <span className="text-[#667085] block text-[10px] uppercase font-semibold">Department</span>
-                  <span className="text-[#101828] font-medium mt-1 block">{detailItem.department}</span>
+                  <span className="text-[var(--text-secondary)] block text-[13px] uppercase font-semibold">Department</span>
+                  <span className="text-[var(--text-primary)] font-medium mt-1 block">{detailItem.department}</span>
                 </div>
               </div>
 
               {detailItem.content && (
-                <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs text-[#101828] whitespace-pre-wrap">
+                <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] text-[13px] text-[var(--text-primary)] whitespace-pre-wrap">
                   {detailItem.content}
                 </div>
               )}
@@ -293,7 +286,7 @@ export default function ScheduledAnnouncementsPage() {
             </div>
           </Modal>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

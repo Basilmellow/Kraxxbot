@@ -1,9 +1,9 @@
-import { ModalSubmitInteraction, TextChannel, GuildMember } from 'discord.js';
+import { ModalSubmitInteraction, TextChannel, GuildMember, ChannelType } from 'discord.js';
 import { AnnouncementRepository } from '../database/repositories/announcement.repository';
 import { GuildRepository } from '../database/repositories/guild.repository';
-import { AuditService } from './audit.service';
 import { KraxxEmbedBuilder } from '../embeds/kraxxEmbedBuilder';
 import { logger } from '../utils/logger';
+import { PermissionsService } from './permissions.service';
 
 export class AnnouncementService {
   /**
@@ -14,13 +14,23 @@ export class AnnouncementService {
   static async handleAnnouncementSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     const member = interaction.member as GuildMember | null;
 
-    if (!member || !interaction.guild) {
+    if (!member || !interaction.guild || !interaction.guildId || interaction.guild.id !== interaction.guildId
+      || member.guild.id !== interaction.guild.id || member.id !== interaction.user.id) {
       const errEmbed = KraxxEmbedBuilder.error('Unauthorized', 'Member and guild context required.');
       await interaction.reply({ embeds: [errEmbed], ephemeral: true });
       return;
     }
 
-    const guildId = interaction.guildId!;
+    const guildId = interaction.guild.id;
+    const authorization = PermissionsService.requireManagement(member);
+    if (!authorization.authorized) {
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Unauthorized', authorization.reason || 'Management authority required.')], ephemeral: true });
+      return;
+    }
+    if (!(await GuildRepository.isModuleEnabled(guildId, 'announcements'))) {
+      await interaction.reply({ embeds: [KraxxEmbedBuilder.error('Announcements Disabled', 'Announcements are disabled for this server.')], ephemeral: true });
+      return;
+    }
     const title = interaction.fields.getTextInputValue('title');
     const message = interaction.fields.getTextInputValue('message');
     const departmentInput = (interaction.fields.getTextInputValue('department') || 'GENERAL').toUpperCase().trim();
@@ -50,7 +60,7 @@ export class AnnouncementService {
 
     const targetChannel = interaction.guild.channels.cache.get(targetChannelId) as TextChannel | undefined;
 
-    if (!targetChannel || !targetChannel.isTextBased()) {
+    if (!targetChannel || targetChannel.guildId !== guildId || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(targetChannel.type)) {
       const errEmbed = KraxxEmbedBuilder.error('Channel Error', `Configured announcements channel (${targetChannelId}) not found in server.`);
       await interaction.reply({ embeds: [errEmbed], ephemeral: true });
       return;
@@ -66,51 +76,40 @@ export class AnnouncementService {
         imageUrl || undefined
       );
 
-      let contentPayload: string | undefined = undefined;
+      let mentionType: 'NONE' | 'EVERYONE' | 'HERE' | 'ROLE' = 'NONE';
+      let mentionRoleId: string | null = null;
       if (mentionRole) {
         if (mentionRole.toLowerCase() === 'everyone') {
-          contentPayload = '@everyone';
+          mentionType = 'EVERYONE';
         } else if (mentionRole.toLowerCase() === 'here') {
-          contentPayload = '@here';
+          mentionType = 'HERE';
         } else if (/^\d+$/.test(mentionRole)) {
-          contentPayload = `<@&${mentionRole}>`;
+          const configuredRole = await interaction.guild.roles.fetch(mentionRole);
+          if (!configuredRole) throw new Error('ANNOUNCEMENT_ROLE_INVALID');
+          mentionType = 'ROLE';
+          mentionRoleId = configuredRole.id;
         }
       }
 
-      const dispatchedMessage = await targetChannel.send({
-        content: contentPayload,
-        embeds: [embed],
-      });
-
-      // Save database record
-      await AnnouncementRepository.create({
+      await AnnouncementRepository.enqueueDelivery({
         guildId,
+        interactionId: interaction.id,
         title,
         content: message,
         department: departmentInput,
         type: typeInput,
         authorId: member.id,
         channelId: targetChannel.id,
-        messageId: dispatchedMessage.id,
-        mentionRole,
-        imageUrl,
+        mentionType,
+        mentionRoleId,
+        embedPayload: JSON.stringify([embed.toJSON()]),
       });
 
-      // Send ephemeral success confirmation to author
       const confirmEmbed = KraxxEmbedBuilder.success(
-        'Announcement Dispatched',
-        `Announcement **"${title}"** successfully published to <#${targetChannel.id}>.`
+        'Announcement Queued',
+        `Announcement **"${title}"** was durably queued for <#${targetChannel.id}>. Delivery will be confirmed by the scheduler.`
       );
       await interaction.reply({ embeds: [confirmEmbed], ephemeral: true });
-
-      // Audit Log
-      await AuditService.logEvent(
-        interaction.guild,
-        'ANNOUNCEMENT_PUBLISHED',
-        member.id,
-        targetChannel.id,
-        `Title: ${title} | Division: ${departmentInput} | Type: ${typeInput}`
-      );
     } catch (error) {
       logger.error({ err: error }, 'Failed to process announcement');
       const errEmbed = KraxxEmbedBuilder.error('Publication Error', 'Failed to dispatch announcement.');

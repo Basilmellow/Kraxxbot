@@ -11,13 +11,14 @@ interface ErrorStateProps {
 
 export function ErrorState({
   title = 'Something went wrong',
-  message = 'We encountered an issue loading this subsystem telemetry.',
+  message = 'We could not load this information. Please try again.',
   onRetry,
   className = '',
 }: ErrorStateProps) {
   return (
     <div
-      className={`p-6 sm:p-8 rounded-2xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-center flex flex-col items-center justify-center ${className}`}
+      role="alert"
+      className={`p-6 rounded-xl bg-[var(--surface-1)] border border-[var(--danger-border)] text-center flex flex-col items-center justify-center ${className}`}
     >
       <div className="w-10 h-10 rounded-full bg-[#EF4444]/15 text-[#EF4444] flex items-center justify-center mb-3">
         <AlertTriangle className="w-5 h-5" />
@@ -34,7 +35,7 @@ export function ErrorState({
           className="border-[#EF4444]/40 text-[#F3F0E9] hover:bg-[#EF4444]/10"
         >
           <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-          <span>Retry Operation</span>
+          <span>Try again</span>
         </Button>
       )}
     </div>

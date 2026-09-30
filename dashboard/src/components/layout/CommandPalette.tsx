@@ -1,33 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef, useId } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
-import {
-  Search,
-  LayoutDashboard,
-  Ticket,
-  Users,
-  Shield,
-  MessageSquare,
-  Megaphone,
-  CheckSquare,
-  AlarmClock,
-  CalendarClock,
-  Zap,
-  BarChart3,
-  ScrollText,
-  Settings,
-  Boxes,
-  Wrench,
-  Sparkles,
-  DoorOpen,
-  Vote,
-  Gamepad2,
-  X,
-  ArrowRight,
-  CornerDownLeft,
-} from 'lucide-react';
+import { Search, LayoutDashboard, Ticket, Users, Shield, Megaphone, CheckSquare, ScrollText, Sparkles, X, CornerDownLeft } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
 import { DASHBOARD_MODULES } from '@/lib/constants';
 
 interface SearchResultItem {
@@ -35,8 +13,24 @@ interface SearchResultItem {
   label: string;
   category: string;
   href: string;
-  icon: any;
+  icon: LucideIcon;
   description?: string;
+}
+
+interface ApiSearchResult {
+  type: string;
+  id: string;
+  title: string;
+  subtitle: string;
+  url: string;
+}
+
+function isApiSearchResult(value: unknown): value is ApiSearchResult {
+  if (typeof value !== 'object' || value === null) return false;
+  const result = value as Record<string, unknown>;
+  return typeof result.type === 'string' && typeof result.id === 'string'
+    && typeof result.title === 'string' && typeof result.subtitle === 'string'
+    && typeof result.url === 'string';
 }
 
 const QUICK_ACTIONS: SearchResultItem[] = [
@@ -52,25 +46,32 @@ export function CommandPalette() {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [apiResults, setApiResults] = useState<any[]>([]);
-  const [isSearchingApi, setIsSearchingApi] = useState(false);
+  const [apiResults, setApiResults] = useState<ApiSearchResult[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultId = useId();
   const router = useRouter();
   const guildId = useGuildId();
+
+  const openPalette = useCallback(() => {
+    setQuery('');
+    setSelectedIndex(0);
+    setIsOpen(true);
+  }, []);
 
   // Listen for global custom event or keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setIsOpen((prev) => !prev);
+        if (isOpen) setIsOpen(false);
+        else openPalette();
       } else if (e.key === 'Escape' && isOpen) {
         setIsOpen(false);
       }
     };
 
     const handleOpenCommandPalette = () => {
-      setIsOpen(true);
+      openPalette();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -79,40 +80,42 @@ export function CommandPalette() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('open-command-palette', handleOpenCommandPalette);
     };
-  }, [isOpen]);
+  }, [isOpen, openPalette]);
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-      setQuery('');
-      setSelectedIndex(0);
+      const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 50);
+      return () => window.clearTimeout(focusTimer);
     }
+    return undefined;
   }, [isOpen]);
 
   // Debounced API search when query is >= 2 chars
   useEffect(() => {
     if (!query || query.trim().length < 2) {
-      setApiResults([]);
       return;
     }
 
-    const timer = setTimeout(async () => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
       try {
-        setIsSearchingApi(true);
         if (!guildId) return;
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&guildId=${encodeURIComponent(guildId)}`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&guildId=${encodeURIComponent(guildId)}`, { signal: controller.signal });
         if (res.ok) {
-          const data = await res.json();
-          setApiResults(data.results || []);
+          const data: unknown = await res.json();
+          if (typeof data === 'object' && data !== null && 'results' in data && Array.isArray(data.results)) {
+            setApiResults(data.results.filter(isApiSearchResult));
+          }
         }
-      } catch (err) {
-        console.error('Command search error:', err);
-      } finally {
-        setIsSearchingApi(false);
+      } catch {
+        if (!controller.signal.aborted) console.error('Command search failed.');
       }
     }, 200);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query, guildId]);
 
   // Filter modules
@@ -143,13 +146,13 @@ export function CommandPalette() {
   const allItems: SearchResultItem[] = [
     ...filteredModules,
     ...filteredActions,
-    ...apiResults.map((r: any) => ({
-      id: r.id || String(Math.random()),
-      label: r.title || r.name || r.id,
-      category: `SEARCH // ${r.type?.toUpperCase() || 'DATA'}`,
-      href: r.url || r.href || '/dashboard',
+    ...(query.trim().length >= 2 ? apiResults : []).map((r) => ({
+      id: r.id,
+      label: r.title,
+      category: `SEARCH // ${r.type.toUpperCase() || 'DATA'}`,
+      href: r.url,
       icon: Ticket,
-      description: r.subtitle || r.details || r.status,
+      description: r.subtitle,
     })),
   ];
 
@@ -161,10 +164,14 @@ export function CommandPalette() {
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % Math.max(1, allItems.length));
+      const index = (selectedIndex + 1) % Math.max(1, allItems.length);
+      setSelectedIndex(index);
+      document.getElementById(`${resultId}-${index}`)?.scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev - 1 + allItems.length) % Math.max(1, allItems.length));
+      const index = (selectedIndex - 1 + allItems.length) % Math.max(1, allItems.length);
+      setSelectedIndex(index);
+      document.getElementById(`${resultId}-${index}`)?.scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Enter' && allItems[selectedIndex]) {
       e.preventDefault();
       handleSelect(allItems[selectedIndex]);
@@ -174,18 +181,17 @@ export function CommandPalette() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
-      <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-xs"
-        onClick={() => setIsOpen(false)}
-      />
-
-      <div className="relative w-full max-w-xl rounded-2xl bg-[#161614] border border-[#2A2925] shadow-2xl overflow-hidden z-10 flex flex-col max-h-[75vh]">
+    <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Search dashboard" maxWidth="xl">
         {/* Search Input Bar */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#2A2925] bg-[#10100F]">
           <Search className="w-4 h-4 text-[#C9A66B] flex-shrink-0" />
           <input
             ref={inputRef}
+            aria-label="Search dashboard"
+            role="combobox"
+            aria-expanded={isOpen}
+            aria-controls={resultId}
+            aria-activedescendant={allItems[selectedIndex] ? `${resultId}-${selectedIndex}` : undefined}
             type="text"
             value={query}
             onChange={(e) => {
@@ -194,10 +200,11 @@ export function CommandPalette() {
             }}
             onKeyDown={handleInputKeyDown}
             placeholder="Type a command, search pages, tickets, members, or tools..."
-            className="flex-1 bg-transparent border-none text-sm text-[#F3F0E9] placeholder-[#716D65] focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent border-none text-sm text-[#F3F0E9] placeholder-[#716D65] focus:outline-none"
           />
           {query && (
             <button
+              aria-label="Clear search"
               onClick={() => setQuery('')}
               className="p-1 text-[#716D65] hover:text-[#F3F0E9]"
             >
@@ -210,7 +217,7 @@ export function CommandPalette() {
         </div>
 
         {/* Results List */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div id={resultId} role="listbox" aria-label="Search results" className="max-h-[50dvh] overflow-y-auto py-2 space-y-1">
           {allItems.length === 0 ? (
             <div className="py-12 text-center text-xs text-[#A8A49B]">
               No matching commands or pages found.
@@ -219,11 +226,13 @@ export function CommandPalette() {
             allItems.map((item, idx) => {
               const isSelected = idx === selectedIndex;
               return (
-                <div
+                <button
+                  type="button" role="option" tabIndex={-1}
+                  id={`${resultId}-${idx}`} aria-selected={isSelected}
                   key={`${item.id}-${idx}`}
                   onClick={() => handleSelect(item)}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`px-3 py-2.5 rounded-xl cursor-pointer flex items-center justify-between transition-colors text-xs ${
+                  className={`w-full text-left px-3 py-2.5 rounded-lg cursor-pointer flex items-center justify-between transition-colors text-xs ${
                     isSelected
                       ? 'bg-[#C9A66B]/10 text-[#F3F0E9] border-l-2 border-[#C9A66B]'
                       : 'text-[#A8A49B] hover:bg-[#1D1C19] hover:text-[#F3F0E9]'
@@ -243,7 +252,7 @@ export function CommandPalette() {
                   {isSelected && (
                     <CornerDownLeft className="w-3.5 h-3.5 text-[#C9A66B] flex-shrink-0" />
                   )}
-                </div>
+                </button>
               );
             })
           )}
@@ -258,7 +267,6 @@ export function CommandPalette() {
           </div>
           <span className="text-[#C9A66B] font-medium">KRAXXBot</span>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

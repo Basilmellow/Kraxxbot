@@ -1,19 +1,14 @@
 'use client';
 
-import React, { useCallback, useEffect, useState, use } from 'react';
+import { PageContainer } from '@/components/ui/Page';
+import { Input } from '@/components/ui/Form';
+
+import { LoadingState } from '@/components/ui/Skeleton';
 import { Topbar } from '@/components/layout/Topbar';
 import { Card } from '@/components/ui/Card';
 import { ErrorState } from '@/components/ui/ErrorState';
-import {
-  Settings,
-  Hash,
-  Shield,
-  Save,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  Sparkles,
-} from 'lucide-react';
+import { AlertCircle, CheckCircle2, Hash, Loader2, Save, Settings, Shield } from 'lucide-react';
+import React, { use, useCallback, useEffect, useState } from 'react';
 
 interface PageProps {
   params: Promise<{ guildId: string }>;
@@ -24,23 +19,22 @@ interface GuildSettingsForm {
   welcomeChannelId: string;
   announcementChannelId: string;
   modLogChannelId: string;
-  auditLogChannelId: string;
+  logChannelId: string;
   ticketCategoryId: string;
   ticketTranscriptsChannelId: string;
   adminRoleId: string;
   modRoleId: string;
-  ticketSupportRoleId: string;
-  verifiedRoleId: string;
+  supportRoleId: string;
 }
 
 const EMPTY_SETTINGS: GuildSettingsForm = {
   prefix: '!', welcomeChannelId: '', announcementChannelId: '', modLogChannelId: '',
-  auditLogChannelId: '', ticketCategoryId: '', ticketTranscriptsChannelId: '',
-  adminRoleId: '', modRoleId: '', ticketSupportRoleId: '', verifiedRoleId: '',
+  logChannelId: '', ticketCategoryId: '', ticketTranscriptsChannelId: '',
+  adminRoleId: '', modRoleId: '', supportRoleId: '',
 };
 
 function normalizeSettings(settings?: Partial<GuildSettingsForm> | null): GuildSettingsForm {
-  return { ...EMPTY_SETTINGS, ...settings, prefix: settings?.prefix || '!' };
+  return Object.fromEntries(Object.entries(EMPTY_SETTINGS).map(([key, fallback]) => [key, settings?.[key as keyof GuildSettingsForm] ?? fallback])) as unknown as GuildSettingsForm;
 }
 
 export default function GuildSettingsPage({ params }: PageProps) {
@@ -119,33 +113,15 @@ export default function GuildSettingsPage({ params }: PageProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#FAF9F5]">
+    <div className="flex-1 flex flex-col bg-[var(--bg)]">
       <Topbar
-        title="Server Settings"
-        subtitle="Manage Discord channels, command prefixes, and staff role bindings"
+        title="Settings"
+        subtitle="Configure command prefixes, channels, and staff role bindings."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EADFC7] pb-5">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold uppercase tracking-wider mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>Server Configuration</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#101828]">
-              Server Binding & Routing
-            </h1>
-            <p className="text-xs sm:text-sm text-[#667085] mt-0.5">
-              Specify Discord channel IDs and role IDs for this server. KRAXXBot will route logs and check permissions accordingly.
-            </p>
-          </div>
-        </div>
-
+      <PageContainer className="space-y-6">
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 text-amber-600 animate-spin mb-3" />
-            <p className="text-sm font-medium text-[#475467]">Loading server settings...</p>
-          </div>
+          <LoadingState label="Loading configuration" />
         ) : loadError ? (
           <ErrorState
             title="Settings unavailable"
@@ -155,191 +131,179 @@ export default function GuildSettingsPage({ params }: PageProps) {
         ) : (
           <form onSubmit={handleSave} className="space-y-6">
             {saveSuccess && (
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <div className="p-4 rounded-xl bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success)] text-[13px] font-semibold flex items-center gap-3">
+                <CheckCircle2 className="w-4 h-4 text-[var(--success)] flex-shrink-0" />
                 <span>Server settings saved successfully. Changes take effect immediately.</span>
               </div>
             )}
 
             {saveError && (
-              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-semibold flex items-center gap-2.5">
-                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+              <div className="p-4 rounded-xl bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)] text-[13px] font-semibold flex items-center gap-3">
+                <AlertCircle className="w-4 h-4 text-[var(--danger)] flex-shrink-0" />
                 <span>{saveError}</span>
               </div>
             )}
 
             {/* General Section */}
-            <Card className="p-6 bg-white border border-[#EADFC7]/80 space-y-4">
-              <h2 className="text-sm font-bold text-[#101828] flex items-center gap-2 border-b border-[#F1F3F9] pb-3">
-                <Settings className="w-4 h-4 text-amber-600" />
+            <Card className="p-6 bg-[var(--surface-1)] border border-[var(--border-base)]/80 space-y-4">
+              <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2 border-b border-[var(--border-base)] pb-3">
+                <Settings className="w-4 h-4 text-[var(--accent)]" />
                 <span>General Bot Configuration</span>
               </h2>
 
               <div>
-                <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                   Text Command Prefix
                 </label>
-                <input
+                <Input aria-label="Text Command Prefix"
                   type="text"
                   maxLength={5}
                   value={settings.prefix}
                   onChange={(e) => handleChange('prefix', e.target.value)}
                   placeholder="!"
-                  className="w-32 px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                  className="w-32 font-mono"
                 />
-                <p className="text-[11px] text-[#667085] mt-1">
+                <p className="text-[13px] text-[var(--text-secondary)] mt-1">
                   Prefix used for classic prefix commands (slash commands are always available).
                 </p>
               </div>
             </Card>
 
             {/* Channels Section */}
-            <Card className="p-6 bg-white border border-[#EADFC7]/80 space-y-4">
-              <h2 className="text-sm font-bold text-[#101828] flex items-center gap-2 border-b border-[#F1F3F9] pb-3">
-                <Hash className="w-4 h-4 text-amber-600" />
+            <Card className="p-6 bg-[var(--surface-1)] border border-[var(--border-base)]/80 space-y-4">
+              <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2 border-b border-[var(--border-base)] pb-3">
+                <Hash className="w-4 h-4 text-[var(--accent)]" />
                 <span>Discord Channel Bindings</span>
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Welcome Channel ID
                   </label>
-                  <input
+                  <Input aria-label="Welcome Channel ID"
                     type="text"
                     value={settings.welcomeChannelId}
                     onChange={(e) => handleChange('welcomeChannelId', e.target.value)}
                     placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="w-full font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Announcements Channel ID
                   </label>
-                  <input
+                  <Input aria-label="Announcements Channel ID"
                     type="text"
                     value={settings.announcementChannelId}
                     onChange={(e) => handleChange('announcementChannelId', e.target.value)}
                     placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="w-full font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Moderation Log Channel ID
                   </label>
-                  <input
+                  <Input aria-label="Moderation Log Channel ID"
                     type="text"
                     value={settings.modLogChannelId}
                     onChange={(e) => handleChange('modLogChannelId', e.target.value)}
                     placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="w-full font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Audit Log Channel ID
                   </label>
-                  <input
+                  <Input aria-label="Audit Log Channel ID"
                     type="text"
-                    value={settings.auditLogChannelId}
-                    onChange={(e) => handleChange('auditLogChannelId', e.target.value)}
+                    value={settings.logChannelId}
+                    onChange={(e) => handleChange('logChannelId', e.target.value)}
                     placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="w-full font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Ticket Category Channel ID
                   </label>
-                  <input
+                  <Input aria-label="Ticket Category Channel ID"
                     type="text"
                     value={settings.ticketCategoryId}
                     onChange={(e) => handleChange('ticketCategoryId', e.target.value)}
                     placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="w-full font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Ticket Transcripts Channel ID
                   </label>
-                  <input
+                  <Input aria-label="Ticket Transcripts Channel ID"
                     type="text"
                     value={settings.ticketTranscriptsChannelId}
                     onChange={(e) => handleChange('ticketTranscriptsChannelId', e.target.value)}
                     placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="w-full font-mono"
                   />
                 </div>
               </div>
             </Card>
 
             {/* Staff Roles Section */}
-            <Card className="p-6 bg-white border border-[#EADFC7]/80 space-y-4">
-              <h2 className="text-sm font-bold text-[#101828] flex items-center gap-2 border-b border-[#F1F3F9] pb-3">
-                <Shield className="w-4 h-4 text-amber-600" />
+            <Card className="p-6 bg-[var(--surface-1)] border border-[var(--border-base)]/80 space-y-4">
+              <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2 border-b border-[var(--border-base)] pb-3">
+                <Shield className="w-4 h-4 text-[var(--accent)]" />
                 <span>Staff Role Bindings</span>
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Admin Role ID
                   </label>
-                  <input
+                  <Input aria-label="Admin Role ID"
                     type="text"
                     value={settings.adminRoleId}
                     onChange={(e) => handleChange('adminRoleId', e.target.value)}
                     placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="w-full font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Moderator Role ID
                   </label>
-                  <input
+                  <Input aria-label="Moderator Role ID"
                     type="text"
                     value={settings.modRoleId}
                     onChange={(e) => handleChange('modRoleId', e.target.value)}
                     placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="w-full font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Ticket Support Role ID
                   </label>
-                  <input
+                  <Input aria-label="Ticket Support Role ID"
                     type="text"
-                    value={settings.ticketSupportRoleId}
-                    onChange={(e) => handleChange('ticketSupportRoleId', e.target.value)}
+                    value={settings.supportRoleId}
+                    onChange={(e) => handleChange('supportRoleId', e.target.value)}
                     placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="w-full font-mono"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
-                    Verified Member Role ID
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.verifiedRoleId}
-                    onChange={(e) => handleChange('verifiedRoleId', e.target.value)}
-                    placeholder="e.g. 123456789012345678"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
-                  />
-                </div>
               </div>
             </Card>
 
@@ -347,7 +311,7 @@ export default function GuildSettingsPage({ params }: PageProps) {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent)] text-[var(--text-inverse)] text-[13px] font-semibold  transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {saving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -359,7 +323,7 @@ export default function GuildSettingsPage({ params }: PageProps) {
             </div>
           </form>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

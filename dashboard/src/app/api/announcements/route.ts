@@ -1,21 +1,19 @@
+import { createHash } from 'node:crypto';
+import { validateChannel } from '@/lib/destinations';
+import { withMutation } from '@/lib/mutation';
 // KRAXX Operations Platform — Announcements API
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { sendChannelMessage, fetchGuildChannels } from '@/lib/discord';
-import { prisma } from '@/lib/prisma';
-import { canMentionMass, canScheduleAnnouncements, requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { authOptions } from '@/lib/auth';
+import { fetchGuildChannels, fetchGuildRoles } from '@/lib/discord';
+import { requireGuildAccess } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
+  if (!session?.user?.discordId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const permCheck = requireTier(session.user.roleTier, RoleTier.MANAGEMENT_HEAD);
-  if (!permCheck.authorized) {
-    return NextResponse.json({ error: permCheck.reason }, { status: 403 });
   }
 
   try {
@@ -29,6 +27,7 @@ export async function POST(request: NextRequest) {
       mentionType,
       mentionRoleId,
       embeds,
+      bannerUrl,
       scheduledFor, // ISO date string if scheduled
     } = body;
 
@@ -36,22 +35,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Target channelId is required' }, { status: 400 });
     }
 
-    // Mass mention permission validation
-    if ((mentionType === 'EVERYONE' || mentionType === 'HERE') && !canMentionMass(session.user.roleTier)) {
-      return NextResponse.json(
-        { error: 'Mass mentions (@everyone / @here) require Management Head authority.' },
-        { status: 403 }
-      );
-    }
-
     const isScheduled = Boolean(scheduledFor);
-
-    // If scheduling, verify scheduling authority
-    if (isScheduled && !canScheduleAnnouncements(session.user.roleTier)) {
-      return NextResponse.json(
-        { error: 'Scheduling announcements requires Team Lead authority or higher.' },
-        { status: 403 }
-      );
+    if (mentionType !== undefined && !['NONE', 'EVERYONE', 'HERE', 'ROLE'].includes(mentionType))
+      return NextResponse.json({ error: 'Unsupported mention type.' }, { status: 400 });
+    if (bannerUrl !== undefined && (typeof bannerUrl !== 'string' || bannerUrl.length > 2048 || !/^https:\/\//i.test(bannerUrl)))
+      return NextResponse.json({ error: 'Banner URL must be a valid HTTPS URL.' }, { status: 400 });
+    const deliveryEmbeds: object[] = Array.isArray(embeds) ? embeds : bannerUrl ? [{ image: { url: bannerUrl } }] : [];
+    if (deliveryEmbeds.length > 10 || JSON.stringify(deliveryEmbeds).length > 60_000)
+      return NextResponse.json({ error: 'Announcement embeds exceed Discord payload limits.' }, { status: 400 });
+    const requestKey = request.headers.get('idempotency-key');
+    if (!requestKey || !/^[a-zA-Z0-9_-]{16,128}$/.test(requestKey)) {
+      return NextResponse.json({ error: 'A valid Idempotency-Key header is required.' }, { status: 400 });
     }
 
     const guildId = body.guildId || request.nextUrl.searchParams.get('guildId');
@@ -63,14 +57,23 @@ export async function POST(request: NextRequest) {
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error || auth.reason }, { status: auth.status });
     }
+    await validateChannel(guildId, channelId);
     const channels = await fetchGuildChannels(guildId);
     if (!channels.some((channel) => channel.id === channelId)) {
       return NextResponse.json({ error: 'Channel does not belong to this guild.' }, { status: 400 });
     }
+    if (mentionType === 'ROLE') {
+      const roles = await fetchGuildRoles(guildId);
+      if (!mentionRoleId || !roles.some((role) => role.id === mentionRoleId))
+        return NextResponse.json({ error: 'Mention role does not belong to this guild.' }, { status: 400 });
+    }
 
-    // CASE 1: SCHEDULED ANNOUNCEMENT
+    // Both immediate and scheduled sends are persisted before delivery and
+    // processed by the existing durable scheduler. Retries with the same key
+    // return the already-created delivery rather than enqueueing a duplicate.
+    let scheduledDate: Date;
     if (isScheduled) {
-      const scheduledDate = new Date(scheduledFor);
+      scheduledDate = new Date(scheduledFor);
       if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
         return NextResponse.json(
           { error: 'Scheduled time must be a valid timestamp in the future.' },
@@ -78,97 +81,50 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const scheduledRecord = await prisma.scheduledAnnouncement.create({
+    } else scheduledDate = new Date();
+
+    const idempotencyKey = createHash('sha256').update(`${guildId}:${session.user.discordId}:${requestKey}`).digest('hex');
+    let scheduledRecord;
+    try {
+      scheduledRecord = await prisma.scheduledAnnouncement.create({
         data: {
-          guildId,
-          channelId,
-          title: title?.trim() || null,
-          content: content?.trim() || null,
-          embedPayload: embeds && embeds.length > 0 ? JSON.stringify(embeds) : null,
-          mentionType: mentionType || 'NONE',
-          mentionRoleId: mentionRoleId || null,
-          department: (department || 'GENERAL').toUpperCase(),
-          scheduledFor: scheduledDate,
-          status: 'PENDING',
-          createdBy: session.user.discordId,
+          guildId, channelId, title: title?.trim() || null, content: content?.trim() || null,
+          embedPayload: deliveryEmbeds.length ? JSON.stringify(deliveryEmbeds) : null,
+          mentionType: mentionType || 'NONE', mentionRoleId: mentionRoleId || null,
+          department: (department || 'GENERAL').toUpperCase(), announcementType: (type || 'GENERAL').toUpperCase(), scheduledFor: scheduledDate,
+          status: 'PENDING', createdBy: session.user.discordId, idempotencyKey,
         },
       });
-
-      await logDashboardAction({
-        guildId,
-        action: 'ANNOUNCEMENT_SCHEDULE',
-        executorId: session.user.discordId,
-        targetId: scheduledRecord.id,
-        targetType: 'SCHEDULED_ANNOUNCEMENT',
-        details: {
-          channelId,
-          title: scheduledRecord.title,
-          scheduledFor: scheduledDate.toISOString(),
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        scheduled: true,
-        record: scheduledRecord,
-      });
+    } catch (error) {
+      if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'P2002') throw error;
+      scheduledRecord = await prisma.scheduledAnnouncement.findUnique({ where: { idempotencyKey } });
+      if (!scheduledRecord || scheduledRecord.guildId !== guildId || scheduledRecord.createdBy !== session.user.discordId)
+        return NextResponse.json({ error: 'Idempotency key conflicts with another request.' }, { status: 409 });
+      if (scheduledRecord.channelId !== channelId || scheduledRecord.title !== (title?.trim() || null)
+        || scheduledRecord.content !== (content?.trim() || null)
+        || scheduledRecord.embedPayload !== (deliveryEmbeds.length ? JSON.stringify(deliveryEmbeds) : null)
+        || scheduledRecord.announcementType !== (type || 'GENERAL').toUpperCase()
+        || scheduledRecord.mentionType !== (mentionType || 'NONE') || scheduledRecord.mentionRoleId !== (mentionRoleId || null))
+        return NextResponse.json({ error: 'Idempotency key was already used for a different announcement.' }, { status: 409 });
     }
-
-    // CASE 2: IMMEDIATE DISPATCH
-    let finalContent = content ? content.trim() : undefined;
-    if (mentionType === 'EVERYONE') {
-      finalContent = finalContent ? `@everyone\n${finalContent}` : '@everyone';
-    } else if (mentionType === 'HERE') {
-      finalContent = finalContent ? `@here\n${finalContent}` : '@here';
-    } else if (mentionType === 'ROLE' && mentionRoleId) {
-      const roleMention = `<@&${mentionRoleId}>`;
-      finalContent = finalContent ? `${roleMention}\n${finalContent}` : roleMention;
-    }
-
-    const sentMessage = await sendChannelMessage(channelId, finalContent, embeds);
-
-    // Save history to Announcement model
-    const announcementRecord = await prisma.announcement.create({
-      data: {
-        guildId,
-        title: title || 'HQ Announcement',
-        content: content || (embeds && embeds[0]?.description) || 'Announcement',
-        department: (department || 'GENERAL').toUpperCase(),
-        type: (type || 'GENERAL').toUpperCase(),
-        authorId: session.user.discordId,
-        channelId,
-        messageId: sentMessage.id,
-        mentionRole: mentionRoleId || (mentionType === 'EVERYONE' ? 'everyone' : mentionType === 'HERE' ? 'here' : null),
-        imageUrl: embeds && embeds[0]?.image?.url ? embeds[0].image.url : null,
-      },
-    });
 
     await logDashboardAction({
       guildId,
-      action: 'ANNOUNCEMENT_SEND',
+      action: isScheduled ? 'ANNOUNCEMENT_SCHEDULE' : 'ANNOUNCEMENT_ENQUEUE',
       executorId: session.user.discordId,
-      targetId: channelId,
-      targetType: 'CHANNEL',
-      details: {
-        announcementId: announcementRecord.id,
-        messageId: sentMessage.id,
-        title: announcementRecord.title,
-        channelId,
-        department: announcementRecord.department,
-      },
+      targetId: scheduledRecord.id,
+      targetType: 'SCHEDULED_ANNOUNCEMENT',
+      details: { channelId, title: scheduledRecord.title, scheduledFor: scheduledDate.toISOString(), idempotencyKey },
     });
 
-    return NextResponse.json({
-      success: true,
-      scheduled: false,
-      messageId: sentMessage.id,
-      announcement: announcementRecord,
-    });
-  } catch (error: any) {
-    console.error('[API] Announcement error:', error);
+    return NextResponse.json({ success: true, scheduled: isScheduled, queued: true, record: scheduledRecord }, { status: 202 });
+  } catch {
+    console.error('[API] Announcement request failed.');
     return NextResponse.json(
-      { error: error.message || 'Failed to process announcement' },
+      { error: 'Failed to process announcement' },
       { status: 500 }
     );
   }
 }
+
+export const POST = withMutation('MANAGE_ANNOUNCEMENTS', handlePOST);

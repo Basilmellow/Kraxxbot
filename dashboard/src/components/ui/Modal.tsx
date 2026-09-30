@@ -1,5 +1,8 @@
-import React, { useEffect } from 'react';
+'use client';
+
+import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { IconButton } from './Button';
 
 interface ModalProps {
   isOpen: boolean;
@@ -10,64 +13,33 @@ interface ModalProps {
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
 }
 
-export function Modal({
-  isOpen,
-  onClose,
-  title,
-  subtitle,
-  children,
-  maxWidth = 'lg',
-}: ModalProps) {
+/** Native modal provides focus containment, inert background and Escape support. */
+export function Modal({ isOpen, onClose, title, subtitle, children, maxWidth = 'lg' }: ModalProps) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleKeyDown);
-    }
+    if (!isOpen || !dialog.current) return;
+    const node = dialog.current;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    node.showModal();
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = 'unset';
-      window.removeEventListener('keydown', handleKeyDown);
+      node.close();
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
     };
-  }, [isOpen, onClose]);
-
+  }, [isOpen]);
   if (!isOpen) return null;
-
-  const maxWidthClass = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
-    '2xl': 'max-w-2xl',
-    '3xl': 'max-w-3xl',
-  }[maxWidth];
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
-      />
-      <div
-        className={`relative w-full ${maxWidthClass} bg-[#161614] border border-[#2A2925] rounded-2xl shadow-xl z-10 overflow-hidden flex flex-col max-h-[90vh]`}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2925] bg-[#10100F]">
-          <div>
-            <h3 className="text-sm font-semibold text-[#F3F0E9]">{title}</h3>
-            {subtitle && (
-              <p className="text-xs text-[#A8A49B] mt-0.5">{subtitle}</p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-[#716D65] hover:text-[#F3F0E9] hover:bg-[#252420] transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="p-6 overflow-y-auto flex-1">{children}</div>
-      </div>
+  const widths = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl', '2xl': 'max-w-2xl', '3xl': 'max-w-3xl' };
+  return <dialog ref={dialog} className={`kraxx-dialog ${widths[maxWidth]}`} aria-labelledby={titleId} aria-describedby={subtitle ? descriptionId : undefined}
+    onCancel={(event) => { event.preventDefault(); onClose(); }}
+    onClick={(event) => { if (event.target === event.currentTarget) { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose(); } }}>
+    <div className="flex items-start justify-between gap-4 border-b border-[var(--border-base)] p-5">
+      <div className="min-w-0"><h2 id={titleId} className="text-base font-semibold">{title}</h2>{subtitle && <p id={descriptionId} className="mt-1 text-sm text-[var(--text-secondary)]">{subtitle}</p>}</div>
+      <IconButton label="Close dialog" onClick={onClose}><X size={16} /></IconButton>
     </div>
-  );
+    <div className="kraxx-dialog-content">{children}</div>
+  </dialog>;
 }

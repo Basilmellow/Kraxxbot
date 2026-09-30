@@ -15,10 +15,11 @@ export function Card({
   children,
   ...props
 }: CardProps) {
+  // Keep legacy call sites compatible without reintroducing visual effects.
+  void glow;
+  void glass;
   const baseClass = interactive
     ? 'kraxx-card-interactive'
-    : glass
-    ? 'bg-[#161614]/95 backdrop-blur-sm border border-[#2A2925] rounded-2xl p-5 shadow-lg'
     : 'kraxx-card';
 
   return (
@@ -35,7 +36,7 @@ export function CardHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={`flex items-center justify-between border-b border-[#2A2925] pb-3.5 mb-4 ${className}`}
+      className={`flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-base)] pb-4 mb-4 ${className}`}
       {...props}
     >
       {children}
@@ -89,7 +90,7 @@ export function CardFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={`border-t border-[#2A2925] pt-3.5 mt-4 flex items-center justify-between ${className}`}
+      className={`border-t border-[var(--border-base)] pt-4 mt-4 flex flex-wrap items-center justify-between gap-3 ${className}`}
       {...props}
     >
       {children}

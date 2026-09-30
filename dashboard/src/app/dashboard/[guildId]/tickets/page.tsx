@@ -1,29 +1,22 @@
 'use client';
+import { Tabs } from '@/components/ui/Tabs';
+
+import { PageContainer } from '@/components/ui/Page';
+import { Select, FilterBar, SearchField } from '@/components/ui/Form';
+import { Table } from '@/components/ui/Table';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
-import {
-  Ticket as TicketIcon,
-  Search,
-  CheckCircle2,
-  AlertTriangle,
-  UserCheck,
-  XCircle,
-  RotateCcw,
-  Eye,
-  Trash2,
-  ExternalLink,
-  X,
-  Lock,
-} from 'lucide-react';
+import { Ticket as TicketIcon, Search, CheckCircle2, AlertTriangle, Eye, ExternalLink } from 'lucide-react';
 
 interface TicketItem {
   id: string;
@@ -55,6 +48,7 @@ const VIEWS = [
 ];
 
 export default function TicketsPage() {
+  const confirm = useConfirm();
   const router = useRouter();
   const guildId = useGuildId();
 
@@ -102,7 +96,7 @@ export default function TicketsPage() {
   }, [activeView, categoryFilter, searchQuery, guildId]);
 
   const handleTicketAction = async (ticketId: string, action: 'CLAIM' | 'UNCLAIM' | 'CLOSE' | 'REOPEN' | 'DELETE') => {
-    if (action === 'DELETE' && !confirm('Confirm permanent deletion of ticket record?')) return;
+    if (action === 'DELETE' && !await confirm('Confirm permanent deletion of ticket record?')) return;
     if (action === 'CLOSE') {
       const reason = prompt('Resolution reason / closure note:');
       executeAction(ticketId, action, reason || undefined);
@@ -129,8 +123,8 @@ export default function TicketsPage() {
         else setInspectTicket(data.ticket);
       }
       fetchTickets();
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Ticket action failed' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Ticket action failed' });
     }
   };
 
@@ -150,81 +144,66 @@ export default function TicketsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Support & Ticket Operations"
-        subtitle="Operations Desk, Live Discord Inquiries & Resolution Management"
+        title="Tickets"
+        subtitle="Review support requests and manage their resolution."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Filter View Bar & Search */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* View Tabs */}
-          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
-            {VIEWS.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => setActiveView(v.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  activeView === v.id
-                    ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                    : 'text-[#667085] hover:text-[#101828] hover:bg-[#F8FAFC]'
-                }`}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
+          <Tabs label="Filter by status" items={VIEWS.map(item => ({ value: item.id, label: item.label }))} value={activeView} onChange={setActiveView} />
 
           {/* Search & Category Filter */}
-          <div className="flex items-center gap-2.5">
+          <FilterBar className="">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#667085] absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
+              <Search className="w-4 h-4 text-[var(--text-secondary)] absolute left-3 top-1/2 -translate-y-1/2" />
+              <SearchField label="Search ticket # or opener..."
                 type="text"
                 placeholder="Search ticket # or opener..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8.5 pr-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs w-48 sm:w-60"
+                className="pl-8.5 pr-3 w-48 sm:w-60"
               />
             </div>
 
-            <select
+            <Select aria-label="category Filter"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+              className=""
             >
               <option value="">All Categories</option>
               <option value="GENERAL">General</option>
               <option value="KRAXXSEC">KRAXXSEC</option>
               <option value="STUDIO">KRAXX Studio</option>
               <option value="SUPPORT">Technical Support</option>
-            </select>
-          </div>
+            </Select>
+          </FilterBar>
         </div>
 
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
         )}
 
         {/* Ticket List Card */}
-        <Card className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-[#F1F3F9] flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-              <TicketIcon className="w-4 h-4 text-indigo-600" />
+        <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl overflow-hidden p-0 ">
+          <div className="p-5 border-b border-[var(--border-base)] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              <TicketIcon className="w-4 h-4 text-[var(--accent)]" />
               <span>Support Inquiries ({tickets.length})</span>
             </h3>
           </div>
@@ -242,8 +221,8 @@ export default function TicketsPage() {
               />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="kraxx-table">
+            <div tabIndex={0} role="region" aria-label="Scrollable table" className="overflow-x-auto table-scroll">
+              <Table className="kraxx-table">
                 <thead>
                   <tr>
                     <th>Ticket ID</th>
@@ -258,34 +237,34 @@ export default function TicketsPage() {
                 <tbody>
                   {tickets.map((t) => (
                     <tr key={t.id}>
-                      <td className="font-semibold text-indigo-600 font-mono">
+                      <td className="font-semibold text-[var(--accent)] font-mono">
                         #{t.ticketNumber}
                       </td>
                       <td>{getStatusBadge(t.status)}</td>
                       <td>
-                        <span className="text-[11px] text-[#475467] bg-[#F3F5FA] px-2 py-0.5 rounded-md border border-[#E5E7EB]">
+                        <span className="text-[13px] text-[var(--text-secondary)] bg-[var(--surface-2)] px-2 py-0.5 rounded-md border border-[var(--border-base)]">
                           {t.category}
                         </span>
                       </td>
-                      <td className="text-[#101828] font-medium max-w-xs truncate">
+                      <td className="text-[var(--text-primary)] font-medium max-w-xs truncate">
                         {t.subject}
                       </td>
-                      <td className="text-[#475467]">
+                      <td className="text-[var(--text-secondary)]">
                         {t.openerName}
                       </td>
-                      <td className="text-[#475467]">
+                      <td className="text-[var(--text-secondary)]">
                         {t.claimerName ? (
-                          <span className="text-emerald-600 font-medium">@{t.claimerName}</span>
+                          <span className="text-[var(--success)] font-medium">@{t.claimerName}</span>
                         ) : (
-                          <span className="text-[#98A2B3]">Unassigned</span>
+                          <span className="text-[var(--text-secondary)]">Unassigned</span>
                         )}
                       </td>
                       <td className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => setInspectTicket(t)}
-                            className="p-1.5 rounded-lg text-[#667085] hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] transition-colors"
                             title="Inspect Details"
                           >
                             <Eye className="w-4 h-4" />
@@ -296,7 +275,7 @@ export default function TicketsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleTicketAction(t.id, 'CLAIM')}
-                              className="text-xs py-1 px-2.5"
+                              className="text-[13px] py-1 px-3"
                             >
                               Claim
                             </Button>
@@ -307,7 +286,7 @@ export default function TicketsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleTicketAction(t.id, 'CLOSE')}
-                              className="text-xs py-1 px-2.5 text-red-600 border-red-200 hover:bg-red-50"
+                              className="text-[13px] py-1 px-3 text-[var(--danger)] border-[var(--danger-border)] hover:bg-[var(--danger-bg)]"
                             >
                               Close
                             </Button>
@@ -317,11 +296,11 @@ export default function TicketsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
         </Card>
-      </div>
+      </PageContainer>
 
       {/* Ticket Details Modal */}
       {inspectTicket && (
@@ -333,39 +312,39 @@ export default function TicketsPage() {
           maxWidth="2xl"
         >
           <div className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] text-[13px]">
               <div>
-                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Status</span>
+                <span className="text-[var(--text-secondary)] block text-[13px] uppercase font-semibold">Status</span>
                 <div className="mt-1">{getStatusBadge(inspectTicket.status)}</div>
               </div>
               <div>
-                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Category</span>
-                <span className="text-[#101828] font-medium mt-1 block">{inspectTicket.category}</span>
+                <span className="text-[var(--text-secondary)] block text-[13px] uppercase font-semibold">Category</span>
+                <span className="text-[var(--text-primary)] font-medium mt-1 block">{inspectTicket.category}</span>
               </div>
               <div>
-                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Opener</span>
-                <span className="text-[#101828] font-medium mt-1 block">{inspectTicket.openerName}</span>
+                <span className="text-[var(--text-secondary)] block text-[13px] uppercase font-semibold">Opener</span>
+                <span className="text-[var(--text-primary)] font-medium mt-1 block">{inspectTicket.openerName}</span>
               </div>
               <div>
-                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Claimed By</span>
-                <span className="text-[#101828] font-medium mt-1 block">
+                <span className="text-[var(--text-secondary)] block text-[13px] uppercase font-semibold">Claimed By</span>
+                <span className="text-[var(--text-primary)] font-medium mt-1 block">
                   {inspectTicket.claimerName ? `@${inspectTicket.claimerName}` : 'None'}
                 </span>
               </div>
               <div>
-                <span className="text-[#667085] block text-[10px] uppercase font-semibold">Closed By</span>
-                <span className="text-[#101828] font-medium mt-1 block">
+                <span className="text-[var(--text-secondary)] block text-[13px] uppercase font-semibold">Closed By</span>
+                <span className="text-[var(--text-primary)] font-medium mt-1 block">
                   {inspectTicket.closedByName ? `@${inspectTicket.closedByName}` : 'N/A'}
                 </span>
               </div>
             </div>
 
             {inspectTicket.reason && (
-              <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]">
-                <span className="text-[10px] uppercase font-semibold text-[#667085] block mb-1">
+              <div className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)]">
+                <span className="text-[13px] uppercase font-semibold text-[var(--text-secondary)] block mb-1">
                   Resolution Reason / Note
                 </span>
-                <p className="text-xs text-[#101828] leading-relaxed">{inspectTicket.reason}</p>
+                <p className="text-[13px] text-[var(--text-primary)] leading-relaxed">{inspectTicket.reason}</p>
               </div>
             )}
 
@@ -374,14 +353,14 @@ export default function TicketsPage() {
                 href={inspectTicket.transcriptUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium hover:underline"
+                className="inline-flex items-center gap-2 text-[13px] text-[var(--accent)] hover:text-[var(--accent)] font-medium hover:underline"
               >
                 <span>View Full Ticket Transcript</span>
-                <ExternalLink className="w-3.5 h-3.5" />
+                <ExternalLink className="w-4 h-4" />
               </a>
             )}
 
-            <div className="flex items-center justify-between pt-4 border-t border-[#F1F3F9]">
+            <div className="flex items-center justify-between pt-4 border-t border-[var(--border-base)]">
               <Button
                 variant="danger"
                 size="sm"

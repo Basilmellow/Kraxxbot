@@ -1,23 +1,16 @@
 // KRAXX Operations Platform — Audit Log API
 // Lists audit log entries with optional filtering and pagination
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { requireGuildAccess } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
-import { requireTier, requireGuildAccess } from '@/lib/permissions';
-import { RoleTier } from '@/lib/constants';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.isMember) {
+  if (!session?.user?.discordId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Require at least Management Head to view audit logs
-  const permCheck = requireTier(session.user.roleTier, RoleTier.MANAGEMENT_HEAD);
-  if (!permCheck.authorized) {
-    return NextResponse.json({ error: permCheck.reason }, { status: 403 });
   }
 
   const searchParams = request.nextUrl.searchParams;

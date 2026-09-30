@@ -37,7 +37,8 @@ Built with **Node.js**, **TypeScript** (Strict Mode), **discord.js v14+**, **Pri
 
 5. **Operational Modules**
    - **Tasks (`/task`)**: Departmental task creation, assignment, priority levels, and status transitions.
-   - **Reminders (`/remind`)**: User and channel reminders powered by background `node-cron` scheduler.
+   - **Reminders (`/remind`)**: User and channel reminders processed by a PostgreSQL-backed worker with bounded retries and restart recovery.
+   - **Scheduled announcements**: Durable due-time processing with tenant-scoped leases and bounded retries. Discord delivery is at-least-once, not exactly-once.
    - **Meetings (`/meeting`)**: Internal meeting scheduling and calendar notifications.
    - **Events (`/event`)**: Organizational event management.
    - **Projects (`/project`)**: KRAXXSEC and KRAXX STUDIO project tracking.
@@ -55,7 +56,7 @@ Built with **Node.js**, **TypeScript** (Strict Mode), **discord.js v14+**, **Pri
 - **Runtime**: Node.js v18+
 - **Language**: TypeScript (`strict: true`)
 - **API Wrapper**: `discord.js` v14+
-- **ORM**: Prisma ORM (SQLite local dev / PostgreSQL production-ready)
+- **ORM**: Prisma ORM with PostgreSQL schema and migrations
 - **Validation**: Zod schema parser
 - **Logger**: Pino (with token sanitization/redact)
 - **Scheduler**: `node-cron`

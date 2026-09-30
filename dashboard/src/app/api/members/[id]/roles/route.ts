@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { addMemberRole, fetchBotRoleContext, getRoleManageability, removeMemberRole } from '@/lib/discord';
-import { requireGuildAccess } from '@/lib/permissions';
 import { logDashboardAction } from '@/lib/audit';
+import { authorizeRole } from '@/lib/capabilities';
+import { addMemberRole,fetchBotRoleContext,fetchGuildMember,getRoleManageability,removeMemberRole } from '@/lib/discord';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { NextRequest,NextResponse } from 'next/server';
 
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -28,6 +30,11 @@ export async function POST(
     }
 
     const session = access.session;
+    // Explicitly verify the target belongs to this guild before any Discord
+    // role mutation. The route's tenant and the target's membership must both
+    // be established server-side.
+    await fetchGuildMember(guildId, userId);
+    await authorizeRole(guildId, session!.user.discordId, roleId);
     const context = await fetchBotRoleContext(guildId);
     const targetRole = context.roles.find((role) => role.id === roleId);
     if (!targetRole) {
@@ -72,7 +79,9 @@ export async function POST(
 
     return NextResponse.json({ success: true, action, roleId, userId });
   } catch (error: unknown) {
-    console.error('Failed to mutate member role:', error);
+    if (error instanceof Error && "status" in error && error.status === 403) return NextResponse.json({ error: "Role operation not permitted." }, { status: 403 });
     return NextResponse.json({ error: 'Unable to update this member role. Verify bot permissions and retry.' }, { status: 502 });
   }
 }
+
+export const POST = withMutation('MANAGE_ROLES', handlePOST);

@@ -7,13 +7,13 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 export function Badge({ variant = 'brand', className = '', children, ...props }: BadgeProps) {
   const variantClass = {
-    brand: 'badge-brand',
-    cyan: 'badge-cyan',
+    brand: 'badge-accent',
+    cyan: 'badge-info',
     success: 'badge-success',
     warning: 'badge-warning',
     danger: 'badge-danger',
     neutral: 'badge-neutral',
-    studio: 'badge-studio',
+    studio: 'badge-accent',
   }[variant] || 'badge-neutral';
 
   return (

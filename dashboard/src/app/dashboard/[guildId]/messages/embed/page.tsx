@@ -1,31 +1,21 @@
 'use client';
 
+import { PageContainer } from '@/components/ui/Page';
+import { Input, Select, Textarea, Checkbox } from '@/components/ui/Form';
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGuildId } from '@/lib/useGuildId';
 import { Topbar } from '@/components/layout/Topbar';
-import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+
 import { Modal } from '@/components/ui/Modal';
 import { ChannelSelector, ChannelItem } from '@/components/discord/ChannelSelector';
 import { DiscordEmbedPreview, DiscordEmbedData, EmbedField } from '@/components/discord/DiscordEmbedPreview';
-import {
-  Sparkles,
-  Send,
-  Save,
-  Plus,
-  Trash2,
-  Image as ImageIcon,
-  Link as LinkIcon,
-  Palette,
-  CheckCircle2,
-  AlertTriangle,
-  FolderPlus,
-  Layers,
-  X,
-} from 'lucide-react';
-import { KRAXX_COLORS } from '@/lib/constants';
+import { Sparkles, Save, Plus, Trash2, CheckCircle2, AlertTriangle, Layers } from 'lucide-react';
+
+import { finishMessageOperationKey, messageOperationKey } from '@/lib/message-operation-key';
 
 const COLOR_PRESETS = [
   { name: 'Indigo Brand', hex: '#4F46E5' },
@@ -60,6 +50,7 @@ export default function EmbedBuilderPage() {
   const [footerText, setFooterText] = useState('KRAXX Operations Platform • Internal Network');
   const [footerIcon, setFooterIcon] = useState('');
   const [includeTimestamp, setIncludeTimestamp] = useState(true);
+  const [dispatchTimestamp] = useState(() => new Date().toISOString());
 
   // Mentions & Plaintext message accompanying embed
   const [messageContent, setMessageContent] = useState('');
@@ -111,9 +102,15 @@ export default function EmbedBuilderPage() {
     setFields([...fields, { name: '', value: '', inline: false }]);
   };
 
-  const handleUpdateField = (index: number, key: keyof EmbedField, value: any) => {
+  const handleUpdateField = (index: number, key: keyof EmbedField, value: string | boolean) => {
     const updated = [...fields];
-    updated[index] = { ...updated[index], [key]: value };
+    if (key === 'inline' && typeof value === 'boolean') {
+      updated[index] = { ...updated[index], inline: value };
+    } else if (key !== 'inline' && typeof value === 'string') {
+      updated[index] = { ...updated[index], [key]: value };
+    } else {
+      return;
+    }
     setFields(updated);
   };
 
@@ -143,7 +140,7 @@ export default function EmbedBuilderPage() {
           icon_url: footerIcon.trim() || undefined,
         }
       : undefined,
-    timestamp: includeTimestamp ? new Date().toISOString() : undefined,
+    timestamp: includeTimestamp ? dispatchTimestamp : undefined,
   };
 
   // Dispatch Embed
@@ -185,30 +182,31 @@ export default function EmbedBuilderPage() {
               icon_url: footerIcon.trim() || undefined,
             }
           : undefined,
-        timestamp: includeTimestamp ? new Date().toISOString() : undefined,
+        timestamp: includeTimestamp ? dispatchTimestamp : undefined,
       };
 
+      const operationPayload = {
+        channelId: selectedChannel.id, guildId,
+        content: messageContent.trim() || undefined, embeds: [payload],
+        mentionType: mentionType !== 'NONE' ? mentionType : undefined,
+      };
       const res = await fetch('/api/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channelId: selectedChannel.id,
-          guildId,
-          content: messageContent.trim() || undefined,
-          embeds: [payload],
-          mentionType: mentionType !== 'NONE' ? mentionType : undefined,
-        }),
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': await messageOperationKey(operationPayload) },
+        body: JSON.stringify(operationPayload),
       });
 
       const data = await res.json();
+      await finishMessageOperationKey(operationPayload, data.operation?.status);
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch embed');
+      if (data.operation?.status !== 'SUCCESS') throw new Error(data.message || `Message operation state: ${data.operation?.status || 'UNKNOWN'}.`);
 
       setFeedback({
         type: 'success',
         message: `Embed message successfully dispatched to #${selectedChannel.name}.`,
       });
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Dispatch error' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Dispatch error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -243,8 +241,8 @@ export default function EmbedBuilderPage() {
         type: 'success',
         message: `Template "${data.template?.name || templateName}" saved to operations library.`,
       });
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Failed to save template' });
+    } catch (error: unknown) {
+      setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Failed to save template' });
     } finally {
       setIsSavingTemplate(false);
     }
@@ -253,24 +251,24 @@ export default function EmbedBuilderPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <Topbar
-        title="Embed Builder Studio"
-        subtitle="Visual Rich Discord Embed Composer & Operations Dispatch"
+        title="Embed builder"
+        subtitle="Create rich Discord messages and preview them before sending."
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+      <PageContainer className="space-y-6">
         {/* Feedback Alert */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs ${
+            className={`p-4 rounded-xl border flex items-start gap-3 text-[13px] ${
               feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+                ? 'bg-[var(--success-bg)] border-[var(--success-border)] text-[var(--success)]'
+                : 'bg-[var(--danger-bg)] border-[var(--danger-border)] text-[var(--danger)]'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--success)]" />
             ) : (
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[var(--danger)]" />
             )}
             <div className="font-medium">{feedback.message}</div>
           </div>
@@ -279,18 +277,18 @@ export default function EmbedBuilderPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Embed Controls (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs">
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#F1F3F9]">
-                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-600" />
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 sm:p-6 ">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-[var(--border-base)]">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[var(--accent)]" />
                   <span>Embed Configuration</span>
                 </h3>
                 <button
                   type="button"
                   onClick={() => setShowTemplateModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-xs font-medium text-[#475467] hover:text-[#101828] hover:bg-[#F8FAFC] transition-colors shadow-2xs"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--surface-1)] border border-[var(--border-base)] text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors "
                 >
-                  <Save className="w-3.5 h-3.5" />
+                  <Save className="w-4 h-4" />
                   <span>Save Template</span>
                 </button>
               </div>
@@ -307,36 +305,36 @@ export default function EmbedBuilderPage() {
                 {/* Plaintext Accompaniment & Mention */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">
+                    <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1">
                       Plaintext Message (Optional)
                     </label>
-                    <input
+                    <Input aria-label="Plaintext Message (Optional)"
                       type="text"
                       placeholder="Message text preceding embed..."
                       value={messageContent}
                       onChange={(e) => setMessageContent(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                      className="w-full"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">
+                    <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1">
                       Mention
                     </label>
-                    <select
+                    <Select aria-label="Mention"
                       value={mentionType}
-                      onChange={(e: any) => setMentionType(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                      onChange={(e) => setMentionType(e.target.value as 'NONE' | 'EVERYONE' | 'HERE')}
+                      className="w-full"
                     >
                       <option value="NONE">No Mention</option>
                       <option value="HERE">@here</option>
                       <option value="EVERYONE">@everyone</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
 
                 {/* Color Accent Picker */}
                 <div>
-                  <label className="block text-xs font-semibold text-[#344054] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-2">
                     Embed Strip Accent Color
                   </label>
                   <div className="flex flex-wrap items-center gap-2">
@@ -345,10 +343,10 @@ export default function EmbedBuilderPage() {
                         key={p.hex}
                         type="button"
                         onClick={() => setColor(p.hex)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[13px] font-medium transition-colors ${
                           color === p.hex
-                            ? 'border-indigo-600 bg-indigo-50/60 text-indigo-900 font-semibold'
-                            : 'border-[#E5E7EB] bg-white text-[#475467] hover:bg-[#F8FAFC]'
+                            ? 'border-[var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] font-semibold'
+                            : 'border-[var(--border-base)] bg-[var(--surface-1)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]'
                         }`}
                       >
                         <span
@@ -358,109 +356,109 @@ export default function EmbedBuilderPage() {
                         <span>{p.name}</span>
                       </button>
                     ))}
-                    <div className="flex items-center gap-1.5 pl-2">
-                      <input
+                    <div className="flex items-center gap-2 pl-2">
+                      <Input aria-label="color"
                         type="color"
                         value={color}
                         onChange={(e) => setColor(e.target.value)}
-                        className="w-8 h-8 rounded-lg bg-transparent cursor-pointer border border-[#E5E7EB]"
+                        className="w-8"
                       />
-                      <input
+                      <Input aria-label="color"
                         type="text"
                         value={color}
                         onChange={(e) => setColor(e.target.value)}
-                        className="w-20 px-2 py-1 rounded-lg bg-white border border-[#E5E7EB] text-xs font-mono text-[#101828] uppercase shadow-2xs"
+                        className="w-20 font-mono"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Author Section */}
-                <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2.5">
-                  <div className="text-[11px] font-semibold text-[#667085] uppercase tracking-wider">
+                <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] space-y-3">
+                  <div className="text-[13px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
                     Author Metadata
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <input
+                    <Input aria-label="Author Name"
                       type="text"
                       placeholder="Author Name"
                       value={authorName}
                       onChange={(e) => setAuthorName(e.target.value)}
-                      className="px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className=""
                     />
-                    <input
+                    <Input aria-label="Author Icon URL"
                       type="url"
                       placeholder="Author Icon URL"
                       value={authorIcon}
                       onChange={(e) => setAuthorIcon(e.target.value)}
-                      className="px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className=""
                     />
-                    <input
+                    <Input aria-label="Author Click URL"
                       type="url"
                       placeholder="Author Click URL"
                       value={authorUrl}
                       onChange={(e) => setAuthorUrl(e.target.value)}
-                      className="px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className=""
                     />
                   </div>
                 </div>
 
                 {/* Title & Description */}
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-semibold text-[#344054] mb-1">
+                      <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1">
                         Embed Title
                       </label>
-                      <input
+                      <Input aria-label="Embed Title"
                         type="text"
                         placeholder="Title..."
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                        className="w-full"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-[#344054] mb-1">
+                      <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1">
                         Title Link URL
                       </label>
-                      <input
+                      <Input aria-label="Title Link URL"
                         type="url"
                         placeholder="https://..."
                         value={titleUrl}
                         onChange={(e) => setTitleUrl(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                        className="w-full"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">
+                    <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1">
                       Embed Body Description
                     </label>
-                    <textarea
+                    <Textarea aria-label="Embed Body Description"
                       rows={4}
                       placeholder="Markdown description content..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      className="w-full p-3.5 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed resize-y shadow-2xs"
+                      className="w-full resize-y"
                     />
                   </div>
                 </div>
 
                 {/* Dynamic Fields Section */}
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-[#344054]">
+                    <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
                       Custom Fields ({fields.length} / 25)
                     </label>
                     <button
                       type="button"
                       onClick={handleAddField}
                       disabled={fields.length >= 25}
-                      className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+                      className="flex items-center gap-1 text-[13px] font-medium text-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-4 h-4" />
                       <span>Add Field</span>
                     </button>
                   </div>
@@ -468,39 +466,40 @@ export default function EmbedBuilderPage() {
                   {fields.map((field, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2"
+                      className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] space-y-2"
                     >
                       <div className="flex items-center gap-2">
-                        <input
+                        <Input aria-label="Field Name"
                           type="text"
                           placeholder="Field Name"
                           value={field.name}
                           onChange={(e) => handleUpdateField(idx, 'name', e.target.value)}
-                          className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          className="flex-1"
                         />
-                        <label className="flex items-center gap-1.5 text-xs text-[#475467] cursor-pointer px-2.5 py-1.5 rounded-lg bg-white border border-[#E5E7EB]">
-                          <input
-                            type="checkbox"
+                        <label className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)] cursor-pointer px-3 py-2 rounded-lg bg-[var(--surface-1)] border border-[var(--border-base)]">
+                          <Checkbox
+
                             checked={field.inline}
                             onChange={(e) => handleUpdateField(idx, 'inline', e.target.checked)}
-                            className="accent-indigo-600 rounded"
+                            className=""
                           />
                           <span>Inline</span>
                         </label>
                         <button
                           type="button"
+                          aria-label={`Remove embed field ${idx + 1}`}
                           onClick={() => handleDeleteField(idx)}
-                          className="p-1.5 text-[#667085] hover:text-red-600 transition-colors"
+                          className="p-2 text-[var(--text-secondary)] hover:text-[var(--danger)] transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                      <textarea
+                      <Textarea aria-label="Field Value (Markdown supported)"
                         rows={2}
                         placeholder="Field Value (Markdown supported)"
                         value={field.value}
                         onChange={(e) => handleUpdateField(idx, 'value', e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-y"
+                        className="w-full resize-y"
                       />
                     </div>
                   ))}
@@ -509,62 +508,62 @@ export default function EmbedBuilderPage() {
                 {/* Media Section */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">
+                    <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1">
                       Thumbnail URL (Top Right)
                     </label>
-                    <input
+                    <Input aria-label="Thumbnail URL (Top Right)"
                       type="url"
                       placeholder="https://..."
                       value={thumbnailUrl}
                       onChange={(e) => setThumbnailUrl(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                      className="w-full"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#344054] mb-1">
+                    <label className="block text-[13px] font-semibold text-[var(--text-secondary)] mb-1">
                       Main Banner Image URL
                     </label>
-                    <input
+                    <Input aria-label="Main Banner Image URL"
                       type="url"
                       placeholder="https://..."
                       value={imageUrl}
                       onChange={(e) => setImageUrl(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-2xs"
+                      className="w-full"
                     />
                   </div>
                 </div>
 
                 {/* Footer & Timestamp */}
-                <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] space-y-2.5">
+                <div className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-base)] space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-[#667085] uppercase tracking-wider">
+                    <span className="text-[13px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
                       Footer & Timestamp
                     </span>
-                    <label className="flex items-center gap-1.5 text-xs text-[#475467] cursor-pointer">
-                      <input
-                        type="checkbox"
+                    <label className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)] cursor-pointer">
+                      <Checkbox
+
                         checked={includeTimestamp}
                         onChange={(e) => setIncludeTimestamp(e.target.checked)}
-                        className="accent-indigo-600 rounded"
+                        className=""
                       />
                       <span>Include Timestamp</span>
                     </label>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input
+                    <Input aria-label="Footer Text"
                       type="text"
                       placeholder="Footer Text"
                       value={footerText}
                       onChange={(e) => setFooterText(e.target.value)}
-                      className="px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className=""
                     />
-                    <input
+                    <Input aria-label="Footer Icon URL"
                       type="url"
                       placeholder="Footer Icon URL"
                       value={footerIcon}
                       onChange={(e) => setFooterIcon(e.target.value)}
-                      className="px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      className=""
                     />
                   </div>
                 </div>
@@ -577,7 +576,7 @@ export default function EmbedBuilderPage() {
                     size="md"
                     isLoading={isSubmitting}
                     disabled={!selectedChannel}
-                    className="w-full font-semibold text-xs py-2.5"
+                    className="w-full font-semibold text-[13px] py-3"
                   >
                     Dispatch Embed to Discord
                   </Button>
@@ -588,21 +587,21 @@ export default function EmbedBuilderPage() {
 
           {/* Right Column: Live Realistic Discord Preview (5 cols) */}
           <div className="lg:col-span-5 space-y-4">
-            <Card className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 shadow-xs sticky top-20">
-              <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[#F1F3F9]">
-                <h3 className="text-sm font-semibold text-[#101828] flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-indigo-600" />
+            <Card className="bg-[var(--surface-1)] border border-[var(--border-base)] rounded-xl p-5 sm:p-6  sticky top-20">
+              <div className="flex items-center justify-between pb-4 mb-3 border-b border-[var(--border-base)]">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[var(--accent)]" />
                   <span>Live Discord Preview</span>
                 </h3>
               </div>
 
               <div className="space-y-3">
-                <div className="text-xs text-[#667085]">
-                  Target: <span className="font-semibold text-[#101828]">{selectedChannel ? `#${selectedChannel.name}` : 'None'}</span>
+                <div className="text-[13px] text-[var(--text-secondary)]">
+                  Target: <span className="font-semibold text-[var(--text-primary)]">{selectedChannel ? `#${selectedChannel.name}` : 'None'}</span>
                 </div>
 
                 {messageContent && (
-                  <div className="p-3.5 rounded-xl bg-[#313338] text-white text-xs font-sans whitespace-pre-wrap border border-[#232428]">
+                  <div className="p-4 rounded-xl bg-[#313338] text-white text-[13px] font-sans whitespace-pre-wrap border border-[#232428]">
                     {messageContent}
                   </div>
                 )}
@@ -620,48 +619,48 @@ export default function EmbedBuilderPage() {
           title="Save Embed Template"
           subtitle="Store this embed layout in your operations template library"
         >
-          <form onSubmit={handleSaveTemplate} className="space-y-4 text-xs">
+          <form onSubmit={handleSaveTemplate} className="space-y-4 text-[13px]">
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Template Name
               </label>
-              <input
+              <Input aria-label="Template Name"
                 type="text"
                 required
                 placeholder="e.g. KRAXXSEC Security Advisory"
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Category
               </label>
-              <select
+              <Select aria-label="Category"
                 value={templateCategory}
                 onChange={(e) => setTemplateCategory(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               >
                 <option value="ANNOUNCEMENT">Announcement</option>
                 <option value="SECURITY">Security / KRAXXSEC</option>
                 <option value="STUDIO">Creative / KRAXX Studio</option>
                 <option value="OPERATIONS">Operations / HQ</option>
                 <option value="EMERGENCY">Emergency Alert</option>
-              </select>
+              </Select>
             </div>
 
             <div>
-              <label className="block font-semibold text-[#344054] mb-1">
+              <label className="block font-semibold text-[var(--text-secondary)] mb-1">
                 Description (Optional)
               </label>
-              <input
+              <Input aria-label="Description (Optional)"
                 type="text"
                 placeholder="Brief description of this template..."
                 value={templateDesc}
                 onChange={(e) => setTemplateDesc(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E7EB] text-xs text-[#101828] focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full"
               />
             </div>
 
@@ -685,7 +684,7 @@ export default function EmbedBuilderPage() {
             </div>
           </form>
         </Modal>
-      </div>
+      </PageContainer>
     </div>
   );
 }

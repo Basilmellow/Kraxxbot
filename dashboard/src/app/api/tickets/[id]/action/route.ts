@@ -1,19 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { validateChannel } from '@/lib/destinations';
+import { setTicketAccess } from '@/lib/discord';
+import { withMutation } from '@/lib/mutation';
+import { requireGuildAccess } from '@/lib/permissions';
+import { TicketDomainService } from '@/lib/ticket-domain';
+import { TicketRecoveryRequiredError } from '../../../../../../../src/database/repositories/ticket.repository';
 import { prisma } from '@/lib/prisma';
-import { requireTier, RoleTier, requireGuildAccess } from '@/lib/permissions';
-import { logDashboardAction } from '@/lib/audit';
+import { getServerSession } from 'next-auth';
+import { NextRequest,NextResponse } from 'next/server';
 
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  const auth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
 
   const { id: ticketId } = await params;
   const guildId = request.nextUrl.searchParams.get('guildId');
@@ -21,122 +21,51 @@ export async function POST(
   const guildAccess = await requireGuildAccess(guildId);
   if (!guildAccess.authorized) return NextResponse.json({ error: guildAccess.error }, { status: guildAccess.status });
   const currentUserId = session!.user.discordId;
+  const moduleState = await prisma.guildModule.findUnique({ where: { guildId_module: { guildId, module: 'tickets' } } });
+  if (moduleState && !moduleState.enabled) return NextResponse.json({ error: 'Ticket actions are disabled for this server.' }, { status: 403 });
 
   try {
     const body = await request.json();
+    if (!body || typeof body !== 'object' || Object.keys(body).some((key) => !['action', 'reason'].includes(key)))
+      return NextResponse.json({ error: 'Invalid ticket action payload.' }, { status: 400 });
     const { action, reason } = body;
+    if (reason !== undefined && (typeof reason !== 'string' || reason.length > 500))
+      return NextResponse.json({ error: 'Invalid ticket reason.' }, { status: 400 });
 
-    const ticket = await prisma.ticket.findFirst({
-      where: { guildId, OR: [{ id: ticketId }, { channelId: ticketId }] },
-    });
+    const ticket = await TicketDomainService.find(guildId, ticketId);
 
     if (!ticket) {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
 
-    let updatedTicket;
-
-    switch (action) {
-      case 'CLAIM': {
-        updatedTicket = await prisma.ticket.update({
-          where: { id: ticket.id },
-          data: {
-            status: 'CLAIMED',
-            claimerId: currentUserId,
-          },
-        });
-        await logDashboardAction({
-          action: 'TICKET_CLAIM',
-          executorId: currentUserId,
-          targetId: ticket.id,
-          targetType: 'TICKET',
-          details: { ticketNumber: ticket.ticketNumber, channelId: ticket.channelId },
-        });
-        break;
-      }
-
-      case 'UNCLAIM': {
-        updatedTicket = await prisma.ticket.update({
-          where: { id: ticket.id },
-          data: {
-            status: 'OPEN',
-            claimerId: null,
-          },
-        });
-        await logDashboardAction({
-          action: 'TICKET_UNCLAIM',
-          executorId: currentUserId,
-          targetId: ticket.id,
-          targetType: 'TICKET',
-          details: { ticketNumber: ticket.ticketNumber },
-        });
-        break;
-      }
-
-      case 'CLOSE': {
-        updatedTicket = await prisma.ticket.update({
-          where: { id: ticket.id },
-          data: {
-            status: 'CLOSED',
-            closedById: currentUserId,
-            closedAt: new Date(),
-            reason: reason || ticket.reason,
-          },
-        });
-        await logDashboardAction({
-          action: 'TICKET_CLOSE',
-          executorId: currentUserId,
-          targetId: ticket.id,
-          targetType: 'TICKET',
-          details: { ticketNumber: ticket.ticketNumber, reason },
-        });
-        break;
-      }
-
-      case 'REOPEN': {
-        updatedTicket = await prisma.ticket.update({
-          where: { id: ticket.id },
-          data: {
-            status: 'OPEN',
-            closedById: null,
-            closedAt: null,
-          },
-        });
-        await logDashboardAction({
-          action: 'TICKET_REOPEN',
-          executorId: currentUserId,
-          targetId: ticket.id,
-          targetType: 'TICKET',
-          details: { ticketNumber: ticket.ticketNumber },
-        });
-        break;
-      }
-
-      case 'DELETE': {
-        const deleteAuth = requireTier(session, RoleTier.MANAGEMENT_HEAD);
-        if (!deleteAuth.authorized) {
-          return NextResponse.json({ error: 'Only Management Head or higher can delete ticket records.' }, { status: 403 });
+    if (!['CLAIM','UNCLAIM','CLOSE','REOPEN','DELETE'].includes(action)) return NextResponse.json({error:'Invalid ticket action.'},{status:400});
+    if (action === 'DELETE') return NextResponse.json({error:'Use the Discord ticket command to archive and delete the channel safely.'},{status:409});
+    const expected = action === 'CLAIM' || action === 'UNCLAIM'
+      ? action === 'CLAIM' ? ['OPEN'] : ['CLAIMED']
+      : action === 'CLOSE' ? ['OPEN', 'CLAIMED'] : ['CLOSED'];
+    if (!expected.includes(ticket.status)) return NextResponse.json({ error: 'Ticket state changed; refresh before retrying.' }, { status: 409 });
+    await validateChannel(guildId, ticket.channelId);
+    const effect = action === 'CLOSE' || action === 'REOPEN'
+      ? async () => {
+        try { await setTicketAccess(guildId, ticket.channelId, ticket.openerId, action === 'REOPEN'); }
+        catch (error) {
+          try { await setTicketAccess(guildId, ticket.channelId, ticket.openerId, ticket.status !== 'CLOSED'); }
+          catch { throw new TicketRecoveryRequiredError(ticket.channelId, false); }
+          throw error;
         }
-        await prisma.ticket.delete({
-          where: { id: ticket.id },
-        });
-        await logDashboardAction({
-          action: 'TICKET_DELETE',
-          executorId: currentUserId,
-          targetId: ticket.id,
-          targetType: 'TICKET',
-          details: { ticketNumber: ticket.ticketNumber, channelId: ticket.channelId },
-        });
-        return NextResponse.json({ success: true, message: `Ticket #${ticket.ticketNumber} deleted.` });
+        return async () => setTicketAccess(guildId, ticket.channelId, ticket.openerId, ticket.status !== 'CLOSED');
       }
-
-      default:
-        return NextResponse.json({ error: `Unsupported ticket action: ${action}` }, { status: 400 });
-    }
+      : undefined;
+    const updatedTicket = await TicketDomainService.transition(guildId, ticket.id, { id: currentUserId, authorized: true, source: 'DASHBOARD' }, action, reason, effect);
+    if (!updatedTicket) return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
 
     return NextResponse.json({ success: true, ticket: updatedTicket });
-  } catch (error: any) {
-    console.error('Failed to execute ticket action:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update ticket' }, { status: 500 });
+  } catch (error: unknown) {
+    console.error('Failed to execute ticket action; Discord details omitted.');
+    if (error instanceof TicketRecoveryRequiredError) return NextResponse.json({ error: 'Ticket transition requires manual recovery.', code: 'TICKET_RECOVERY_REQUIRED', channelId: error.channelId, auditRecorded: error.auditPersisted }, { status: 503 });
+    if (error instanceof Error && error.message === 'TICKET_STATE_CONFLICT') return NextResponse.json({ error: 'Ticket state changed; refresh before retrying.' }, { status: 409 });
+    return NextResponse.json({ error: 'Failed to update ticket' }, { status: 500 });
   }
 }
+
+export const POST = withMutation('MANAGE_TICKETS', handlePOST);

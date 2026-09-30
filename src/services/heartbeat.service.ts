@@ -1,6 +1,8 @@
 import { Client } from 'discord.js';
 import { prisma } from '../database/client';
 import { logger } from '../utils/logger';
+import { SchedulerService } from './scheduler.service';
+import { GEMINI_MODEL } from './gemini.provider';
 
 const HEARTBEAT_INTERVAL_MS = 20_000; // 20 seconds
 
@@ -21,20 +23,26 @@ async function writeHeartbeat(client: Client): Promise<void> {
     await prisma.botHeartbeat.upsert({
       where: { id: 'singleton' },
       update: {
-        status: 'ONLINE',
+        status: client.isReady() ? 'ONLINE' : 'DEGRADED',
+        schedulerStatus: SchedulerService.health(),
         gatewayStatus,
         ping: pingMs,
         uptime: uptimeSeconds,
         guildCount,
+        aiProviderStatus: process.env.GEMINI_API_KEY?.trim() ? 'CONFIGURED' : 'MISSING_CONFIGURATION',
+        aiModel: GEMINI_MODEL,
         lastHeartbeat: new Date(),
       },
       create: {
         id: 'singleton',
-        status: 'ONLINE',
+        status: client.isReady() ? 'ONLINE' : 'DEGRADED',
+        schedulerStatus: SchedulerService.health(),
         gatewayStatus,
         ping: pingMs,
         uptime: uptimeSeconds,
         guildCount,
+        aiProviderStatus: process.env.GEMINI_API_KEY?.trim() ? 'CONFIGURED' : 'MISSING_CONFIGURATION',
+        aiModel: GEMINI_MODEL,
         lastHeartbeat: new Date(),
       },
     });

@@ -1,5 +1,5 @@
-import { prisma } from '../client';
 import { Reminder } from '@prisma/client';
+import { prisma } from '../client';
 
 export class ReminderRepository {
   static async create(data: {
@@ -30,6 +30,7 @@ export class ReminderRepository {
 
   static async findActiveDue(now: Date = new Date()): Promise<Reminder[]> {
     return prisma.reminder.findMany({
+      take: 100,
       where: {
         status: 'ACTIVE',
         isRecurring: false,
@@ -40,9 +41,9 @@ export class ReminderRepository {
     });
   }
 
-  static async markCompleted(id: string): Promise<Reminder> {
+  static async markCompleted(id: string, guildId: string): Promise<Reminder> {
     return prisma.reminder.update({
-      where: { id },
+      where: { id, guildId },
       data: { status: 'COMPLETED' },
     });
   }

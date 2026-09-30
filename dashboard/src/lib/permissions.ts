@@ -1,14 +1,15 @@
+import { getDiscordAccessToken } from '@/lib/server-session';
 // KRAXX Operations Platform — Server-Side Permission & Authorization Layer
 // Multi-tenant: per-guild access control, IDOR defense, session validation
 
-import { getServerSession } from 'next-auth';
 import type { Session } from 'next-auth';
+import { getServerSession } from 'next-auth';
 import { authOptions } from './auth';
-import { fetchUserGuilds, isBotInstalledInGuild } from './discord';
+import { fetchUserGuilds,isBotInstalledInGuild } from './discord';
 import { prisma } from './prisma';
 
-export { RoleTier } from './constants';
 export * from './constants';
+export { RoleTier } from './constants';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -41,8 +42,9 @@ export type PermissionCheck = {
 export async function requireGuildAccess(guildId: string): Promise<PermissionCheck> {
   // 1. Validate session
   const session = await getServerSession(authOptions);
+  const serverAccessToken = await getDiscordAccessToken();
 
-  if (!session?.user?.accessToken) {
+  if (!session?.user?.discordId || !serverAccessToken) {
     return {
       authorized: false,
       reason: 'Not authenticated. Please log in with Discord.',
@@ -54,7 +56,7 @@ export async function requireGuildAccess(guildId: string): Promise<PermissionChe
   // 2. Verify user membership and management permission before trusting the
   // requested guild id or making a bot-token request for it.
   try {
-    const managedGuilds = await fetchUserGuilds(session.user.accessToken as string);
+    const managedGuilds = await fetchUserGuilds(serverAccessToken!);
     const hasAccess = managedGuilds.some((guild) => guild.id === guildId);
 
     if (!hasAccess) {
@@ -129,13 +131,14 @@ export async function requireGuildAccess(guildId: string): Promise<PermissionChe
  */
 export async function requireGuildPageAccess(guildId: string): Promise<PermissionCheck> {
   const session = await getServerSession(authOptions);
+  const serverAccessToken = await getDiscordAccessToken();
 
-  if (!session?.user?.accessToken) {
+  if (!session?.user?.discordId || !serverAccessToken) {
     return { authorized: false, error: 'Unauthorized', status: 401 };
   }
 
   try {
-    const managedGuilds = await fetchUserGuilds(session.user.accessToken as string);
+    const managedGuilds = await fetchUserGuilds(serverAccessToken!);
 
     if (!managedGuilds.some((guildItem) => guildItem.id === guildId)) {
       return { authorized: false, error: 'Forbidden', status: 404 };
@@ -163,6 +166,7 @@ export async function requireGuildPageAccess(guildId: string): Promise<Permissio
  */
 export async function requireAuth(): Promise<PermissionCheck> {
   const session = await getServerSession(authOptions);
+  const serverAccessToken = await getDiscordAccessToken();
 
   if (!session?.user) {
     return {
@@ -177,110 +181,3 @@ export async function requireAuth(): Promise<PermissionCheck> {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Legacy HQ-Specific Tier Checks (preserved for backward compat)
-// These are KRAXX HQ internal checks — not used for multi-tenant routes
-// ─────────────────────────────────────────────────────────────────
-
-import { RoleTier as RT, ROLE_TIER_LABELS } from './constants';
-import { resolveRoleTier, getRoleTierName } from './permissions-legacy';
-
-export { resolveRoleTier, getRoleTierName };
-
-export function isDashboardAuthorized(tier?: RT | number): boolean {
-  if (tier === undefined || tier === null) return false;
-  return tier >= RT.MANAGEMENT_HEAD;
-}
-
-export function hasMinimumTier(userTier: RT, requiredTier: RT): boolean {
-  return userTier >= requiredTier;
-}
-
-export function isManagement(tier: RT): boolean {
-  return tier >= RT.MANAGEMENT_HEAD;
-}
-
-export function isFounder(tier: RT): boolean {
-  return tier >= RT.COFOUNDER;
-}
-
-export function canSendMessages(tier?: RT): boolean {
-  return tier !== undefined && tier >= RT.MANAGEMENT_HEAD;
-}
-
-export function canEditMessages(tier?: RT): boolean {
-  return tier !== undefined && tier >= RT.MANAGEMENT_HEAD;
-}
-
-export function canDeleteMessages(tier?: RT): boolean {
-  return tier !== undefined && tier >= RT.MANAGEMENT_HEAD;
-}
-
-export function canMentionMass(tier?: RT): boolean {
-  return tier !== undefined && tier >= RT.MANAGEMENT_HEAD;
-}
-
-export function canManageTemplates(tier?: RT): boolean {
-  return tier !== undefined && tier >= RT.MANAGEMENT_HEAD;
-}
-
-export function canScheduleAnnouncements(tier?: RT): boolean {
-  return tier !== undefined && tier >= RT.MANAGEMENT_HEAD;
-}
-
-/** @deprecated Use requireGuildAccess() for multi-tenant routes. */
-export function requireTier(
-  sessionOrTier: unknown,
-  requiredTier: RT = RT.MANAGEMENT_HEAD
-): PermissionCheck {
-  let userTier: RT | undefined = undefined;
-  let isMember: boolean | undefined = undefined;
-
-  if (typeof sessionOrTier === 'number') {
-    userTier = sessionOrTier;
-  } else if (sessionOrTier !== null && typeof sessionOrTier === 'object') {
-    const sessionLike = sessionOrTier as {
-      user?: { roleTier?: RT; isMember?: boolean };
-      roleTier?: RT;
-      isMember?: boolean;
-    };
-    userTier = sessionLike.user?.roleTier ?? sessionLike.roleTier;
-    isMember = sessionLike.user?.isMember ?? sessionLike.isMember;
-  }
-
-  if (userTier === undefined) {
-    if (process.env.NODE_ENV === 'development') {
-      return { authorized: true, status: 200 };
-    }
-    return {
-      authorized: false,
-      reason: 'No authenticated session found. Please log in with Discord.',
-      error: 'Unauthorized: Session missing or expired',
-      status: 401,
-    };
-  }
-
-  if (isMember === false) {
-    return {
-      authorized: false,
-      reason: 'Access Denied: Discord account is not a verified member of KRAXX HQ guild.',
-      error: 'Forbidden: Guild membership required',
-      status: 403,
-    };
-  }
-
-  const effectiveMinTier = Math.max(requiredTier, RT.MANAGEMENT_HEAD);
-
-  if (userTier < effectiveMinTier) {
-    const tierName = ROLE_TIER_LABELS[getRoleTierName(userTier)] || getRoleTierName(userTier);
-    const reqName = ROLE_TIER_LABELS[getRoleTierName(effectiveMinTier)] || getRoleTierName(effectiveMinTier);
-    const reason = `Access Denied. Required: ${reqName}. Your tier: ${tierName}.`;
-    return { authorized: false, reason, error: reason, status: 403 };
-  }
-
-  return { authorized: true, status: 200 };
-}
-
-/** @deprecated Use requireGuildAccess() for multi-tenant routes. */
-export function requireDashboardAccess(session: unknown): PermissionCheck {
-  return requireTier(session, RT.MANAGEMENT_HEAD);
-}

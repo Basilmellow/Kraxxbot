@@ -1,5 +1,6 @@
-import { GuildMember, PermissionFlagsBits, Role } from 'discord.js';
 import { GuildSettings } from '@prisma/client';
+import { GuildMember,PermissionFlagsBits,Role } from 'discord.js';
+import { assertRolePolicy } from '../security/policy';
 
 export enum PermissionTier {
   ADMINISTRATOR = 100,
@@ -73,31 +74,14 @@ export function isTicketManager(
 /**
  * Checks whether an executor can assign or manage a target role based on Discord hierarchy.
  */
-export function canManageDiscordRole(
-  executor: GuildMember,
-  targetRole: Role
-): { allowed: boolean; reason?: string } {
-  // Guild owner can manage any role below the bot
-  if (executor.id === executor.guild.ownerId) {
-    return { allowed: true };
-  }
-
-  // Discord hierarchy check: executor's highest role must be above the target role
-  if (executor.roles.highest.position <= targetRole.position) {
-    return {
-      allowed: false,
-      reason: `You cannot manage the role <@&${targetRole.id}> because it is positioned equal to or higher than your highest role.`,
-    };
-  }
-
-  // Bot hierarchy check: bot's highest role must be above the target role
-  const botMember = executor.guild.members.me;
-  if (botMember && botMember.roles.highest.position <= targetRole.position) {
-    return {
-      allowed: false,
-      reason: `KRAXXBot cannot manage <@&${targetRole.id}> because the role is higher than KRAXXBot's highest role in server hierarchy.`,
-    };
-  }
-
-  return { allowed: true };
+export function canManageDiscordRole(executor: GuildMember, targetRole: Role): { allowed: boolean; reason?: string } {
+ try {
+  const bot = executor.guild.members.me;
+  if (!bot || targetRole.guild.id !== executor.guild.id) return {allowed:false,reason:'Role context unavailable.'};
+  assertRolePolicy({guildId:executor.guild.id,roleId:targetRole.id,managed:targetRole.managed,
+   position:targetRole.position,permissions:targetRole.permissions.bitfield,
+   actorPermissions:executor.permissions.bitfield,botPermissions:bot.permissions.bitfield,
+   actorPosition:executor.roles.highest.position,botPosition:bot.roles.highest.position,owner:executor.id===executor.guild.ownerId});
+  return {allowed:true};
+ } catch { return {allowed:false,reason:'You or the bot cannot manage this role.'}; }
 }
