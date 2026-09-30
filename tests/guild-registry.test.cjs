@@ -100,8 +100,9 @@ test('guildDelete distinguishes an outage from an actual bot removal', async () 
 
 test('Gateway READY reconciles current guilds only after ready and marks absent guilds unavailable', async () => {
   const calls = [];
+  let presence;
   const ready = load('src/events/ready.ts', {
-    'discord.js': {}, '../utils/logger': { logger: { info() {}, error() {} } },
+    'discord.js': { ActivityType: { Custom: 4 } }, '../utils/logger': { logger: { info() {}, error() {} } },
     '../services/scheduler.service': { SchedulerService: { start() {}, health: () => 'OPERATIONAL' } },
     '../services/heartbeat.service': { HeartbeatService: { start() {} } },
     '../database/repositories/guild.repository': { GuildRepository: {
@@ -111,6 +112,7 @@ test('Gateway READY reconciles current guilds only after ready and marks absent 
   });
   const a = { id: '12345678901234567', name: 'A', icon: null, ownerId: '32345678901234567', memberCount: 2, available: true };
   const b = { id: '22345678901234567', name: 'B', icon: null, ownerId: '42345678901234567', memberCount: 1, available: false };
-  await ready.onReady({ user: { tag: 'bot', id: '1', setPresence() {} }, guilds: { cache: new Map([[a.id, a], [b.id, b]]) } });
+  await ready.onReady({ user: { tag: 'bot', id: '1', setPresence(value) { presence = value; } }, guilds: { cache: new Map([[a.id, a], [b.id, b]]) } });
   assert.deepEqual(calls, [['upsert', a.id], ['upsert', b.id], ['unavailable', b.id], ['reconcile', [a.id, b.id]]]);
+  assert.deepEqual(presence, { activities: [{ name: 'Custom Status', state: 'Secured by KRAXXSEC', type: 4 }], status: 'online' });
 });

@@ -1,4 +1,4 @@
-import { Client } from 'discord.js';
+import { ActivityType, Client } from 'discord.js';
 import { logger } from '../utils/logger';
 import { SchedulerService } from '../services/scheduler.service';
 import { HeartbeatService } from '../services/heartbeat.service';
@@ -52,7 +52,7 @@ export async function onReady(client: Client): Promise<void> {
 
   // 4. Set bot presence
   client.user.setPresence({
-    activities: [{ name: `${client.guilds.cache.size} servers`, type: 3 }], // Watching
+    activities: [{ name: 'Custom Status', state: 'Secured by KRAXXSEC', type: ActivityType.Custom }],
     status: 'online',
   });
 }
