@@ -43,6 +43,7 @@ type DiagnosticMetadata = {
   model: string;
   status: number;
   errorName: string;
+  errorMessage?: string;
   retryAttempt?: number;
   maxRetries?: number;
   attempts?: number;
@@ -70,6 +71,65 @@ function getErrorName(error: unknown): string {
     return error.name;
   }
   return 'UnknownError';
+}
+
+function getErrorReason(error: unknown): string | undefined {
+  try {
+    if (typeof error === 'string') return error;
+    if (!error || typeof error !== 'object') return undefined;
+
+    const name = getErrorName(error);
+    const message = 'message' in error && typeof error.message === 'string' ? error.message : undefined;
+    if (message) {
+      const jsonStart = message.indexOf('{');
+      if (jsonStart >= 0) {
+        try {
+          const parsed: unknown = JSON.parse(message.slice(jsonStart));
+          if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+            const apiError = parsed.error;
+            if (apiError && typeof apiError === 'object') {
+              if ('message' in apiError && typeof apiError.message === 'string') return apiError.message;
+              if ('reason' in apiError && typeof apiError.reason === 'string') return apiError.reason;
+            }
+          }
+        } catch {
+          // Do not fall back to a serialized response body if its structure is malformed.
+        }
+        return name === 'ApiError' ? undefined : message.slice(0, jsonStart).trim() || undefined;
+      }
+      if (name === 'ApiError' || message.trimStart().startsWith('{')) {
+        return message.trimStart().startsWith('{') ? undefined : message;
+      }
+      return message;
+    }
+    if ('reason' in error && typeof error.reason === 'string') return error.reason;
+    return undefined;
+  } catch {
+    // Provider error objects are untrusted; malformed messages should not break error handling.
+    return undefined;
+  }
+}
+
+function sanitizeErrorMessage(
+  error: unknown,
+  secrets: readonly string[],
+): string | undefined {
+  const reason = getErrorReason(error);
+  if (!reason) return undefined;
+
+  let sanitized = reason;
+  for (const secret of [...new Set(secrets)].filter(value => value.length > 0).sort((a, b) => b.length - a.length)) {
+    sanitized = sanitized.split(secret).join('[REDACTED]');
+  }
+  sanitized = sanitized
+    .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
+    .replace(/\bAIza[0-9A-Za-z_-]{20,}\b/g, '[REDACTED]')
+    .replace(/\bAQ\.[A-Za-z0-9_-]{20,}\b/g, '[REDACTED]')
+    .replace(/((?:authorization|api[\s_-]*key|access[\s_-]*token|refresh[\s_-]*token|client[\s_-]*secret|password|credential)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi, '$1[REDACTED]')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return sanitized ? sanitized.slice(0, 500) : undefined;
 }
 
 function getNetworkCode(error: unknown): string | undefined {
@@ -138,6 +198,8 @@ export class GeminiProvider implements AIProvider {
     const client = this.clientFactory(apiKey);
     const timeoutMs = Number.isFinite(request.timeoutMs) ? Math.max(0, request.timeoutMs) : 0;
     const deadline = this.now() + timeoutMs;
+    const systemInstruction = `${SAFETY_PROMPT}\nRequested tone: ${STYLE[request.style]}`;
+    const diagnosticSecrets = [apiKey, request.prompt, SAFETY_PROMPT, systemInstruction];
     let lastError: unknown;
 
     for (let attempts = 1; attempts <= MAX_RETRIES + 1; attempts++) {
@@ -151,7 +213,7 @@ export class GeminiProvider implements AIProvider {
           model: GEMINI_MODEL,
           contents: request.prompt,
           config: {
-            systemInstruction: `${SAFETY_PROMPT}\nRequested tone: ${STYLE[request.style]}`,
+            systemInstruction,
             maxOutputTokens: request.maxOutputTokens,
             abortSignal: AbortSignal.timeout(remainingMs),
             httpOptions: {
@@ -178,6 +240,9 @@ export class GeminiProvider implements AIProvider {
         lastError = error;
         const status = getStatus(error);
         const errorName = getErrorName(error);
+        const errorMessage = status >= 400 && !RETRYABLE_HTTP_STATUSES.has(status)
+          ? sanitizeErrorMessage(error, diagnosticSecrets)
+          : undefined;
         const retryAttempt = attempts;
         const canAttemptAgain = isRetryable(error, status) && attempts <= MAX_RETRIES;
         const delayMs = canAttemptAgain ? backoffDelay(retryAttempt, this.random) : 0;
@@ -189,6 +254,7 @@ export class GeminiProvider implements AIProvider {
             model: GEMINI_MODEL,
             status,
             errorName,
+            ...(errorMessage ? { errorMessage } : {}),
             retryAttempt,
             maxRetries: MAX_RETRIES,
             willRetry: true,
@@ -200,6 +266,7 @@ export class GeminiProvider implements AIProvider {
               model: GEMINI_MODEL,
               status,
               errorName,
+              ...(errorMessage ? { errorMessage } : {}),
               retryAttempt,
               maxRetries: MAX_RETRIES,
               willRetry: false,
@@ -215,6 +282,7 @@ export class GeminiProvider implements AIProvider {
             model: GEMINI_MODEL,
             status,
             errorName,
+            ...(errorMessage ? { errorMessage } : {}),
             retryAttempt,
             maxRetries: MAX_RETRIES,
             willRetry: false,
@@ -225,6 +293,7 @@ export class GeminiProvider implements AIProvider {
             model: GEMINI_MODEL,
             status,
             errorName,
+            ...(errorMessage ? { errorMessage } : {}),
             attempts,
           });
         } else {
@@ -232,6 +301,7 @@ export class GeminiProvider implements AIProvider {
             model: GEMINI_MODEL,
             status,
             errorName,
+            ...(errorMessage ? { errorMessage } : {}),
             retryAttempt,
             willRetry: false,
             delayMs: 0,
