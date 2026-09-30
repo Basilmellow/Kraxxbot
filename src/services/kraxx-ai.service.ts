@@ -6,7 +6,7 @@ import { AIProvider, AiProviderError, userSafeAiError } from './kraxx-ai-provide
 import { GeminiProvider } from './gemini.provider';
 
 export type KraxxAiInput = { guildId: string; userId: string; channelId: string; requestId: string; prompt: string; verifyMembership: () => Promise<boolean>; verifyChannel: () => Promise<boolean> };
-export type KraxxAiDelivery = (input: { guildId: string; userId: string; channelId: string; requestId: string; content: string }) => Promise<'SUCCESS' | 'FAILURE' | 'UNKNOWN'>;
+export type KraxxAiDelivery = (input: { guildId: string; userId: string; channelId: string; requestId: string; prompt: string; content: string }) => Promise<'SUCCESS' | 'FAILURE' | 'UNKNOWN'>;
 export interface KraxxAiDependencies {
   policy(guildId: string): Promise<{ enabled: boolean; settings: ReturnType<typeof kraxxAiSettingsSchema.parse> } | null>;
   reserve(input: { guildId: string; userId: string; channelId: string; requestId: string; settings: ReturnType<typeof kraxxAiSettingsSchema.parse> }): Promise<AiReservation>;
@@ -39,6 +39,7 @@ export async function executeKraxxAi(input: KraxxAiInput, deliver: KraxxAiDelive
   if (reservation.kind === 'DUPLICATE') throw new KraxxAiError('DUPLICATE');
   if (reservation.kind === 'RATE_LIMITED') throw new KraxxAiError('RATE_LIMITED', reservation.reason === 'USER_COOLDOWN' ? settings.userCooldownSeconds : 60);
   const started = Date.now();
+  const deliveryContext = { guildId: input.guildId, userId: input.userId, channelId: input.channelId, requestId: input.requestId, prompt: input.prompt.trim() };
   let text: string;
   let model = 'gemini-3.8-flash';
   let usage: { inputTokens?: number; outputTokens?: number } = {};
@@ -52,12 +53,12 @@ export async function executeKraxxAi(input: KraxxAiInput, deliver: KraxxAiDelive
     const providerStatus = errorCode === 'TIMEOUT' || errorCode === 'SERVER' || errorCode === 'UNAVAILABLE' ? 'PROVIDER_UNKNOWN' : 'PROVIDER_ERROR';
     await deps.finish(reservation.rowId, { status: providerStatus, model, latencyMs: Date.now() - started, errorCode }).catch(() => undefined);
     logger.warn({ guildId: input.guildId, userId: input.userId, requestId: input.requestId, provider: 'GEMINI', status: errorCode }, 'Kraxx AI provider failed');
-    const delivery = await deliver({ ...input, content: userSafeAiError(error) }).catch(() => 'UNKNOWN' as const);
+    const delivery = await deliver({ ...deliveryContext, content: userSafeAiError(error) }).catch(() => 'UNKNOWN' as const);
     if (delivery === 'UNKNOWN') await deps.finish(reservation.rowId, { status: 'DELIVERY_UNKNOWN', model, latencyMs: Date.now() - started, errorCode: 'DELIVERY_UNKNOWN' }).catch(() => undefined);
     return { status: delivery, error: errorCode };
   }
 
-  const delivered = await deliver({ ...input, content: text }).catch(() => 'UNKNOWN' as const);
+  const delivered = await deliver({ ...deliveryContext, content: text }).catch(() => 'UNKNOWN' as const);
   const status = delivered === 'SUCCESS' ? 'SUCCESS' : delivered === 'UNKNOWN' ? 'DELIVERY_UNKNOWN' : 'FAILURE';
   await deps.finish(reservation.rowId, { status, model, latencyMs: Date.now() - started, ...usage,
     ...(delivered === 'FAILURE' ? { errorCode: 'DISCORD_DELIVERY_FAILED' } : delivered === 'UNKNOWN' ? { errorCode: 'DELIVERY_UNKNOWN' } : {}) });

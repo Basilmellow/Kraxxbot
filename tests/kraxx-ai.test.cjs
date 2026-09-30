@@ -80,8 +80,13 @@ test('wrong guild context is rejected before database policy', async () => {
 test('wrong channel rejected without provider call', async () => {
   const h = harness({ settings: { ...goodSettings, allowedChannels: ['92345678901234567'] } }); await assert.rejects(h.service.executeKraxxAi(h.input, h.deliver, h.deps), e => e.code === 'CHANNEL_NOT_ALLOWED'); assert.equal(h.calls.provider, 0);
 });
-test('/ask and explicit mention share the same domain entrypoint', async () => {
-  const h = harness(); await h.service.executeKraxxAi(h.input, h.deliver, h.deps); h.input.requestId = '52345678901234567'; await h.service.executeKraxxAi(h.input, h.deliver, h.deps); assert.equal(h.calls.provider, 2);
+test('/ask and explicit mention share the same domain entrypoint and preserve each question for delivery', async () => {
+  const h = harness();
+  await h.service.executeKraxxAi({ ...h.input, prompt: 'Slash command question' }, h.deliver, h.deps);
+  assert.equal(h.calls.deliveredInput.prompt, 'Slash command question');
+  await h.service.executeKraxxAi({ ...h.input, requestId: '52345678901234567', prompt: 'Explicit mention question' }, h.deliver, h.deps);
+  assert.equal(h.calls.deliveredInput.prompt, 'Explicit mention question');
+  assert.equal(h.calls.provider, 2);
 });
 test('empty prompt is rejected', async () => { const h = harness(); h.input.prompt = '  '; await assert.rejects(h.service.executeKraxxAi(h.input, h.deliver, h.deps), e => e.code === 'EMPTY_PROMPT'); });
 test('oversized prompt is rejected before provider invocation', async () => { const h = harness(); h.input.prompt = 'x'.repeat(101); await assert.rejects(h.service.executeKraxxAi(h.input, h.deliver, h.deps), e => e.code === 'PROMPT_TOO_LONG'); assert.equal(h.calls.provider, 0); });
@@ -122,6 +127,83 @@ test('own bot mention is blocked by the bot-author guard', async () => {
 });
 test('gateway does not enable MessageContent intent', () => { const source = fs.readFileSync(path.join(root, 'src/index.ts'), 'utf8'); assert.match(source, /GatewayIntentBits\.GuildMessages/); assert.doesNotMatch(source, /GatewayIntentBits\.MessageContent/); });
 test('AI output uses MessageOperationService and disables allowed mentions', () => { const source = fs.readFileSync(path.join(root, 'src/services/kraxx-ai-discord.ts'), 'utf8'); assert.match(source, /MessageOperationService\.execute/); assert.match(source, /allowedMentions: \{ parse: \[\] \}/); });
+test('Kraxx AI delivery presents requester, original question, and answer within Discord limits for both entry points', async () => {
+  const userId = '22345678901234567';
+  const guildId = '12345678901234567';
+  const channelId = '32345678901234567';
+  let operationInput;
+  let discordPayload;
+  const channel = { guildId, isTextBased: () => true, send: async payload => { discordPayload = payload; return { id: '52345678901234567' }; },
+    permissionsFor: () => ({ has: () => true }) };
+  const guild = { id: guildId, members: { fetch: async () => ({}), me: { id: '62345678901234567' } }, channels: { fetch: async () => channel } };
+  const deliveryModule = load('src/services/kraxx-ai-discord.ts', {
+    'discord.js': { PermissionFlagsBits: { ViewChannel: 'VIEW_CHANNEL', SendMessages: 'SEND_MESSAGES' } },
+    './message-operation.service': { MessageOperationService: { execute: async (input, adapter) => {
+      operationInput = input;
+      await adapter.authorize(input);
+      const sent = await adapter.send({ channelId: input.channelId, content: input.content, allowedMentions: { parse: [] }, nonce: 'test-nonce' });
+      return { status: 'SUCCESS', messageId: sent.messageId };
+    } } },
+  });
+  const deliver = deliveryModule.createKraxxAiDelivery(guild);
+  const h = harness();
+  const slashQuestion = 'What is the difference between TCP and UDP?';
+  await h.service.executeKraxxAi({ ...h.input, userId, guildId, channelId, prompt: slashQuestion }, deliver, h.deps);
+  assert.match(discordPayload.content, /\*\*Kraxx AI\*\*/);
+  assert.match(discordPayload.content, new RegExp(`<@${userId}>`));
+  assert.match(discordPayload.content, /\*\*Question\*\*/);
+  assert.ok(discordPayload.content.includes(slashQuestion));
+  assert.match(discordPayload.content, /\*\*Answer\*\*/);
+  assert.ok(discordPayload.content.includes('answer'));
+  assert.deepEqual(discordPayload.allowedMentions, { parse: [] });
+  assert.equal(operationInput.mentionMode, 'NONE');
+  assert.deepEqual(discordPayload.content.match(/\d{17,20}/g), [userId]);
+
+  const mentionQuestion = 'Explain DNS in one sentence.';
+  await h.service.executeKraxxAi({ ...h.input, userId, guildId, channelId, requestId: '72345678901234567', prompt: mentionQuestion }, deliver, h.deps);
+  assert.ok(discordPayload.content.includes(mentionQuestion));
+  assert.match(discordPayload.content, new RegExp(`<@${userId}>`));
+  assert.ok(discordPayload.content.includes('answer'));
+});
+test('long prompt and answer are shortened safely to the Discord message limit', async () => {
+  const { formatKraxxAiResponse } = load('src/services/kraxx-ai-discord.ts', {
+    'discord.js': { PermissionFlagsBits: {} }, './message-operation.service': { MessageOperationService: {} },
+  });
+  const message = formatKraxxAiResponse({ userId: '22345678901234567', prompt: 'question '.repeat(250), answer: 'answer '.repeat(300) });
+  assert.ok(message.length <= 2000);
+  assert.match(message, /\*\*Question\*\*/);
+  assert.match(message, /\*\*Answer\*\*/);
+  assert.ok(message.includes('<@22345678901234567>'));
+  assert.ok(message.includes('…'));
+  assert.deepEqual(message.match(/\d{17,20}/g), ['22345678901234567']);
+});
+test('AI failure delivery keeps context and safe text without exposing provider internals', async () => {
+  const secret = 'private Gemini error and API-key marker';
+  const deliveryModule = load('src/services/kraxx-ai-discord.ts', {
+    'discord.js': { PermissionFlagsBits: {} }, './message-operation.service': { MessageOperationService: { execute: async input => {
+      deliveryInput = input; return { status: 'SUCCESS' };
+    } } },
+  });
+  let deliveryInput;
+  const guild = { id: '12345678901234567' };
+  const h = harness({ providerError: new Error(secret) });
+  await h.service.executeKraxxAi(h.input, deliveryModule.createKraxxAiDelivery(guild), h.deps);
+  assert.ok(deliveryInput.content.includes(`<@${h.input.userId}>`));
+  assert.ok(deliveryInput.content.includes(h.input.prompt));
+  assert.ok(deliveryInput.content.includes('**Answer**'));
+  assert.ok(deliveryInput.content.includes('AI is temporarily unavailable. Try again in a moment.'));
+  assert.doesNotMatch(deliveryInput.content, /private Gemini error|API-key marker/);
+});
+test('Kraxx AI telemetry and request persistence remain prompt/response free', async () => {
+  const repository = fs.readFileSync(path.join(root, 'src/database/repositories/kraxx-ai.repository.ts'), 'utf8');
+  const schema = fs.readFileSync(path.join(root, 'prisma/schema.prisma'), 'utf8');
+  const aiModel = schema.slice(schema.indexOf('model KraxxAiRequest {'), schema.indexOf('\nmodel ', schema.indexOf('model KraxxAiRequest {') + 1));
+  assert.doesNotMatch(repository, /prompt\s*:|response\s*:/);
+  assert.doesNotMatch(aiModel, /prompt\s+String|response\s+String/);
+  const h = harness(); await h.service.executeKraxxAi(h.input, h.deliver, h.deps);
+  assert.equal(JSON.stringify(h.calls.finished).includes(h.input.prompt), false);
+  assert.equal(JSON.stringify(h.calls.finished).includes('answer'), false);
+});
 test('Gemini provider sends only prompt and controlled config using official model', async () => {
   let args; const provider = load('src/services/gemini.provider.ts', { '@google/genai': { GoogleGenAI: class { constructor(options) { assert.equal(options.apiKey, 'local-test-key'); this.models = { generateContent: async value => { args = value; return { text: 'hello', responseId: 'provider-id', modelVersion: 'gemini-3.8-flash', usageMetadata: { promptTokenCount: 2, candidatesTokenCount: 3 } }; } }; } } }, './kraxx-ai-provider': { AiProviderError: class AiProviderError extends Error { constructor(code) { super(code); this.code = code; } } } });
   const prior = process.env.GEMINI_API_KEY; process.env.GEMINI_API_KEY = 'local-test-key';
@@ -151,6 +233,7 @@ function geminiProviderHarness(outcomes, { timeoutMs = 12_000, jitter = 0.25, re
       calls.push(args);
       now += requestTimeMs;
       const outcome = outcomes[calls.length - 1];
+      if (typeof outcome === 'function') return outcome(args);
       if (outcome instanceof Error) throw outcome;
       return outcome;
     } } }),
@@ -259,4 +342,38 @@ test('Gemini retry diagnostics contain metadata but never provider details or pr
   assert.match(diagnostic, /"status":503/);
   assert.match(diagnostic, /"retryAttempt":1/);
   assert.doesNotMatch(diagnostic, /private provider detail|private prompt|GEMINI_API_KEY|Authorization/);
+});
+
+test('Gemini 400 ApiError logs only a bounded sanitized reason', async () => {
+  const userPrompt = 'private user prompt marker';
+  const h = geminiProviderHarness([args => {
+    const errorReason = `Invalid generation request; ${userPrompt}; key=local-test-key; ${args.config.systemInstruction}; ${'x'.repeat(700)}`;
+    const errorBody = {
+      error: { code: 400, message: errorReason, status: 'INVALID_ARGUMENT' },
+      responseBodyOnly: 'WHOLE_RESPONSE_BODY_MARKER',
+    };
+    throw Object.assign(
+      new Error(`got status: INVALID_ARGUMENT. ${JSON.stringify(errorBody)}`),
+      { name: 'ApiError', status: 400 },
+    );
+  }, geminiSuccess]);
+  const request = { ...generateRequest(h.timeoutMs), prompt: userPrompt };
+
+  await assert.rejects(h.provider.generate(request), error => error.code === 'UNAVAILABLE');
+
+  assert.equal(h.calls.length, 1);
+  const diagnostic = h.logs[0].metadata;
+  assert.equal(diagnostic.status, 400);
+  assert.equal(diagnostic.willRetry, false);
+  assert.match(diagnostic.errorMessage, /Invalid generation request/);
+  assert.ok(diagnostic.errorMessage.length <= 500);
+  const serializedLog = JSON.stringify(h.logs);
+  assert.doesNotMatch(serializedLog, /private user prompt marker|You are Kraxx AI|local-test-key|WHOLE_RESPONSE_BODY_MARKER/);
+});
+
+test('Gemini diagnostics safely extract a reason from a non-Error provider value', async () => {
+  const h = geminiProviderHarness([() => { throw { status: 400, reason: 'Invalid generation configuration' }; }]);
+  await assert.rejects(h.provider.generate(generateRequest(h.timeoutMs)), error => error.code === 'UNAVAILABLE');
+  assert.equal(h.logs[0].metadata.errorName, 'UnknownError');
+  assert.equal(h.logs[0].metadata.errorMessage, 'Invalid generation configuration');
 });
