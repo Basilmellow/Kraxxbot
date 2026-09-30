@@ -43,7 +43,7 @@ export async function executeKraxxAi(input: KraxxAiInput, deliver: KraxxAiDelive
   let model = 'gemini-3.8-flash';
   let usage: { inputTokens?: number; outputTokens?: number } = {};
   try {
-    const result = await deps.provider.generate({ prompt: input.prompt.trim(), style: settings.responseStyle, timeoutMs: 12_000, maxOutputTokens: 650 });
+    const result = await deps.provider.generate({ prompt: input.prompt.trim(), style: settings.responseStyle, timeoutMs: 30_000, maxOutputTokens: 650 });
     text = normalizeAiOutput(result.text, settings.maxOutputLength);
     model = result.model;
     usage = { inputTokens: result.inputTokens, outputTokens: result.outputTokens };
