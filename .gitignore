@@ -27,3 +27,6 @@ dashboard/out/
 
 .vercel
 .env*
+*.zip
+*.backup
+*.sql

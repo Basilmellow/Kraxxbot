@@ -4,8 +4,9 @@
   "description": "KRAXX - Official Internal Operations Discord Bot for KRAXX HQ (KRAXXSEC & KRAXX STUDIO)",
   "main": "dist/index.js",
   "scripts": {
-    "build": "prisma generate && tsc",
-    "start": "prisma migrate deploy && node dist/index.js",
+    "build": "prisma generate && esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/index.js --external:@prisma/client --external:discord.js --external:pino --external:pino-pretty --external:dotenv --external:zod --external:node-cron --external:@google/genai",
+    "postinstall": "prisma generate && esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/index.js --external:@prisma/client --external:discord.js --external:pino --external:pino-pretty --external:dotenv --external:zod --external:node-cron --external:@google/genai",
+    "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
@@ -37,9 +38,11 @@
     "@prisma/client": "^5.22.0",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
+    "esbuild": "^0.24.0",
     "node-cron": "^3.0.3",
     "pino": "^9.5.0",
     "pino-pretty": "^13.0.0",
+    "prisma": "5.22.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -47,7 +50,6 @@
     "@types/node-cron": "^3.0.11",
     "eslint": "^9.14.0",
     "prettier": "^3.3.3",
-    "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.67.0"
