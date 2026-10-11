@@ -29,7 +29,15 @@ jobs:
       - name: Run Typecheck
         run: npm run typecheck
 
+      - name: Install Dashboard Dependencies for Tests
+        run: npm ci --prefix dashboard
+
       - name: Run Automated Tests
+        env:
+          NODE_ENV: test
+          DISCORD_TOKEN: ci-fake-token-never-use
+          DISCORD_CLIENT_ID: '000000000000000000'
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/kraxxbot_ci_unit?schema=public
         run: npm test
 
       - name: Compile TypeScript Production Code
