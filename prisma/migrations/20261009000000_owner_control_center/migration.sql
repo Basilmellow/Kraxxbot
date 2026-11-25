@@ -1,0 +1,9 @@
+ALTER TABLE "Guild"
+  ADD COLUMN "memberCount" INTEGER,
+  ADD COLUMN "lastSeenAt" TIMESTAMP(3),
+  ADD COLUMN "connectionStatus" TEXT NOT NULL DEFAULT 'UNKNOWN',
+  ADD COLUMN "leftAt" TIMESTAMP(3);
+
+ALTER TABLE "BotHeartbeat"
+  ADD COLUMN "aiProviderStatus" TEXT NOT NULL DEFAULT 'UNKNOWN',
+  ADD COLUMN "aiModel" TEXT;

@@ -1,0 +1,23 @@
+{
+  "name": "kraxx-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Precompiled KRAXXBot release for Bot-Hosting Free",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node --max-old-space-size=128 dist/index.js",
+    "build": "prisma generate",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@google/genai": "^2.24.0",
+    "@prisma/client": "^5.22.0",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "pino": "^9.5.0",
+    "pino-pretty": "^13.0.0",
+    "zod": "^3.23.8",
+    "prisma": "5.22.0"
+  }
+}
